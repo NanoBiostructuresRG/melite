@@ -21,9 +21,10 @@ It applies PCA or UMAP reductions, grid‑searches SVC, Random Forest and XGBoos
                                                    └─ figures/*.png
 
 export_best_model.py  →  re‑fit best model  →  artefacts/*.pkl + figures/*.png
+```
 
 ## Project Structure
-```
+```text
 mosaic-ml/
 ├── raw/
 │   ├── labels.npy              # Target vector (shape: n_samples,)
@@ -55,8 +56,8 @@ python main.py              # train all models, write TXT and CSV
 python export_best_model.py # pick best row, retrain, save .pkl + figure
 ```
 
-Example console output:
-```
+## Example console output:
+``` 
 # Training phase
 Running with PCA...
 INFO:load_dataset:Labels
