@@ -4,7 +4,7 @@ Version 1.0.0 – May, 2025. Oviedo
 ## License
 Released under the MIT License – see the [LICENSE](LICENSE) file for details.
 
-![version](https://img.shields.io/github/v/release/NanoBiostructuresRG/mosaic?display_name=tag&color=blue)
+[![Version](https://img.shields.io/badge/version-v1.0-blue.svg)]()
 
 
 ## Description
