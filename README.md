@@ -4,6 +4,9 @@ Version 1.0.0 – May, 2025. Oviedo
 ## License
 Released under the MIT License – see the [LICENSE](LICENSE) file for details.
 
+![version](https://img.shields.io/github/v/release/NanoBiostructuresRG/mosaic?display_name=tag&color=blue)
+
+
 ## Description
 MOSAIC is a lightweight benchmarking toolkit for tabular classification.  
 It applies PCA or UMAP reductions, grid‑searches SVC, Random Forest and XGBoost, evaluates each setup with *N × M* Repeated‑Stratified K‑Fold, retrains the top configuration on the full data set, exports a ready‑to‑deploy `.pkl`, and saves a three‑panel plot (F1, Accuracy, AUC‑ROC) that visualises all *N × M* cross‑validation folds.
