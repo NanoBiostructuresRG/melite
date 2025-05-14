@@ -46,7 +46,7 @@ mosaic-ml/
 │   ├── results.txt             # Summary (best model per reduction/level)
 │   ├── results.csv             # Full metric table
 │   ├── figures/
-│   │   └── SVC_PCA70.png       # Example plot of 50 CV folds
+│   │   └── SVC_PCA70.png       # Example plot of *N × M* CV folds
 │   └── artefacts/
 │       └── Model_SVC_PCA70.pkl # Model re‑fit on the whole data set
 └── README.md                   # This file
