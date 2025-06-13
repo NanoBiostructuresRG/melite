@@ -55,12 +55,11 @@ MOSAIC/Phase 2
 ├── output/
 │   ├── results.txt                     # Summary (best model per reduction/level)
 │   ├── results.csv                     # Full metric table
-│   ├── figures/
-│   │   └── ML_PCA/UMAP.png             # Example plot of *N × M* CV folds
+│   ├── Model_ML_PCA/UMAP.pkl           # Output - model re‑fit on the whole data set
 │   │
-│   └── artefacts/
-│       └── Model_ML_PCA/UMAP.pkl       # Output - model re‑fit on the whole data set
-│
+│   └── figures/
+│        └── ML_PCA/UMAP.png            # Example plot of *N × M* CV folds
+│   
 └── README.md                           # This file
 ```
 
