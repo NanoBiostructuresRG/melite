@@ -27,7 +27,7 @@ The primary objective of MOSAIC is to automate the preparation of molecular data
                                                    ├─ results.txt / results.csv
                                                    └─ figures/*.png
 
-export_best_model.py  →  re‑fit best model  →  artefacts/*.pkl + figures/*.png
+export_best_model.py  →  re‑fit best model  →  output/*.pkl (ML-model)
 ```
 
 ---
