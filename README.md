@@ -34,27 +34,32 @@ export_best_model.py  →  re‑fit best model  →  artefacts/*.pkl + figures/*
 
 ## Project Structure
 ```text
-mosaic/
+MOSAIC/
+│
 ├── raw/
-│   ├── labels.npy                    # Target vector (from phase 1-ML)
-│   └── morgan_db_{training_set}.npy  # Original features (from phase 1-ML)
+│   ├── labels.npy                      # Target vector (from phase 1-ML)
+│   └── morgan_db_{training_set}.npy    # Original features (from phase 1-ML)
+│
 ├── data/
-│   ├── PCA.npz                       # Reduced matrices: X_PCA70, X_PCA85, …
-│   └── UMAP.npz                      # Reduced matrices: X_UMAP70, X_UMAP85, …
-├── config.py                         # Global parameters (paths, seeds, grids, CV)
-├── main.py                           # End‑to‑end pipeline; writes TXT and CSV
-├── load_dataset.py                   # Loads X / y for any reduction and level
-├── model_training.py                 # GridSearchCV, cross‑validation, model pick
-├── result_manager.py                 # Writes human‑readable logs to TXT
-├── export_best_model.py              # CLI: choose row from CSV, retrain, save .pkl + plot
-├── plot_metrics.py                   # Generates 1×3 box + jitter plots
+│   ├── PCA.npz                         # Reduced matrices: X_PCA70, X_PCA85, …
+│   └── UMAP.npz                        # Reduced matrices: X_UMAP70, X_UMAP85, …
+│
+├── config.py                           # Global parameters (paths, seeds, grids, CV)
+├── main.py                             # End‑to‑end pipeline
+├── load_dataset.py                     # Loads X / y for any reduction and level
+├── model_training.py                   # GridSearchCV, cross‑validation, model pick
+├── result_manager.py                   # Writes human‑readable logs to TXT
+├── export_best_model.py                # CLI: choose row from CSV, retrain, save .pkl + plot
+├── plot_metrics.py                     # Generates 1×3 box + jitter plots
+│
 ├── output/
-│   ├── results.txt                   # Summary (best model per reduction/level)
-│   ├── results.csv                   # Full metric table
+│   ├── results.txt                     # Summary (best model per reduction/level)
+│   ├── results.csv                     # Full metric table
 │   ├── figures/
-│   │   └── SVC_PCA70.png             # Example plot of *N × M* CV folds
+│   │   └── ML_PCA/UMAP.png             # Example plot of *N × M* CV folds
 │   └── artefacts/
-│       └── Model_SVC_PCA70.pkl       # Model re‑fit on the whole data set
+│       └── Model_ML_PCA/UMAP.pkl       # Model re‑fit on the whole data set
+│
 └── README.md
 ```
 
