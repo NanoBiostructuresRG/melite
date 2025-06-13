@@ -1,20 +1,24 @@
-# MOSAIC – Modular Multi‑Model Selection & Cross‑Validation
-Version 1.0.0 – May, 2025. Oviedo
+# MOSAIC: Modular Multi-Model Selection & Cross-Validation
+**Version 1.0.0 – May, 2025. Oviedo**
 
-## License
-Released under the MIT License – see the [LICENSE](LICENSE) file for details.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [![Version](https://img.shields.io/badge/version-v1.0-blue.svg)]()
 
+---
 
 ## Description
-MOSAIC is a lightweight benchmarking toolkit for tabular classification.  
-It applies PCA or UMAP reductions, grid‑searches SVC, Random Forest and XGBoost, evaluates each setup with *N × M* Repeated‑Stratified K‑Fold, retrains the top configuration on the full data set, exports a ready‑to‑deploy `.pkl`, and saves a three‑panel plot (F1, Accuracy, AUC‑ROC) that visualises all *N × M* cross‑validation folds.
+**MOSAIC** is a lightweight benchmarking toolkit for tabular classification. It applies PCA or UMAP reductions, grid‑searches SVC, Random Forest and XGBoost, evaluates each setup with *N × M* Repeated‑Stratified K‑Fold, retrains the top configuration on the full data set, exports a ready‑to‑deploy `.pkl`, and saves a three‑panel plot (F1, Accuracy, AUC‑ROC) that visualises all *N × M* cross‑validation folds.
+
+---
 
 ## Purpose
-- Provide a standardized baseline for comparing tabular models.  
-- Facilitate reproducibility in academic and industrial experiments.  
-- Produce final artifacts (.pkl model + figures) ready for deployment or publication.
+The primary objective of MOSAIC is to automate the preparation of molecular datasets for cheminformatics workflows and **phase 2** machine learning applications within the computational drug discovery pipeline. The platform enables:
+- **Standardized baseline** for comparing tabular models.
+- **Facilitate reproducibility** in academic and industrial experiments.
+- **Produce final artifacts (.pkl + figures)** ready for development or publication.
+
+---
 
 ## Architecture
 ```text
@@ -26,9 +30,11 @@ It applies PCA or UMAP reductions, grid‑searches SVC, Random Forest and XGBoos
 export_best_model.py  →  re‑fit best model  →  artefacts/*.pkl + figures/*.png
 ```
 
+---
+
 ## Project Structure
 ```text
-mosaic-ml/
+mosaic/
 ├── raw/
 │   ├── labels.npy              # Target vector (shape: n_samples,)
 │   └── fingerprints.npy        # Original features (n_samples, n_features)
@@ -49,18 +55,33 @@ mosaic-ml/
 │   │   └── SVC_PCA70.png       # Example plot of *N × M* CV folds
 │   └── artefacts/
 │       └── Model_SVC_PCA70.pkl # Model re‑fit on the whole data set
-└── README.md                   # This file
+└── README.md
 ```
+
+---
 
 ## How to Run
-From the root folder:
+From the project root directory, run the following command:
+
 ```bash
-python main.py              # train all models, write TXT and CSV
-python export_best_model.py # pick best row, retrain, save .pkl + figure
+python main.py                # train all models, write TXT and CSV
+
+python export_best_model.py   # pick best row, retrain, save .pkl + figure
 ```
 
-## Example console output:
-``` 
+---
+
+## Output
+
+The following files will be saved under the `artifacts/` directory:
+
+- `Model_SVC_PCA70.pkl`  
+
+---
+
+## Example Console Output
+
+```text
 # Training phase
 Running with PCA...
 INFO:load_dataset:Labels
@@ -81,18 +102,22 @@ $ python export_best_model.py
 Enter the row number to keep: 0
 
 Training SVC on PCA85 using all available data...
+
 ```
 
+---
+
 ## Notes
+
 - The PCA<level>.npz and UMAP<level>.npz matrices must be in data/.
 - The script automatically detects if AUC-ROC does not apply (multiclass).
 - The figures use np.random.seed(42) to make the jitter reproducible.
 - Hypergrids can be extended by editing config.py without changing the rest of the code.
 
-## Authors
-Developed by Flavio F. Contreras-Torres (Tecnologico de Monterrey) for academic use and educational purposes.
+---
 
 ## Future Extensions
+
 Add the **prediction module** that loads any artefact in `output/artefacts/`,
 performs input-validation, and exposes two interfaces:
 
@@ -105,3 +130,15 @@ python predict.py --model artefacts/Model_SVC_PCA70.pkl \
 from mosaic_ml.inference import load_model, predict_proba
 probas = predict_proba("artefacts/Model_SVC_PCA70.pkl", new_features)
 
+---
+
+## Author
+
+Developed by **Flavio F. Contreras-Torres** (Tecnológico de Monterrey)  
+Oviedo, Spain – May 2025
+
+---
+
+## License
+This project is licensed under the terms of the [MIT License](https://github.com/NanoBiostructuresRG/molraptor/blob/main/LICENSE).  
+See the LICENSE file for full details.
