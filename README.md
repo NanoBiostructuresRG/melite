@@ -121,15 +121,17 @@ Training SVC on PCA85 using all available data...
 Add the **prediction module** that loads any artefact in `output/artefacts/`,
 performs input-validation, and exposes two interfaces:
 
-# Batch CLI
+```text
+Batch CLI
 python predict.py --model artefacts/Model_SVC_PCA70.pkl \
                   --X new_fps.npy \
                   --out preds.csv
-
-# Library usage
+```
+```text
+Library usage
 from mosaic_ml.inference import load_model, predict_proba
 probas = predict_proba("artefacts/Model_SVC_PCA70.pkl", new_features)
-
+```
 ---
 
 ## Author
