@@ -34,7 +34,7 @@ export_best_model.py  →  re‑fit best model  →  artefacts/*.pkl + figures/*
 
 ## Project Structure
 ```text
-MOSAIC/
+MOSAIC/Phase 2
 │
 ├── raw/
 │   ├── labels.npy                      # Target vector (from phase 1-ML)
@@ -57,10 +57,11 @@ MOSAIC/
 │   ├── results.csv                     # Full metric table
 │   ├── figures/
 │   │   └── ML_PCA/UMAP.png             # Example plot of *N × M* CV folds
+│   │
 │   └── artefacts/
-│       └── Model_ML_PCA/UMAP.pkl       # Model re‑fit on the whole data set
+│       └── Model_ML_PCA/UMAP.pkl       # Output - model re‑fit on the whole data set
 │
-└── README.md
+└── README.md                           # This file
 ```
 
 ---
