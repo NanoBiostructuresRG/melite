@@ -140,12 +140,13 @@ probas = predict_proba("artefacts/Model_SVC_PCA70.pkl", new_features)
 ```
 ---
 
-## Author
+## Authors
 
 Developed by **Flavio F. Contreras-Torres** (Tecnológico de Monterrey)  
 Oviedo, Spain – May 2025
 
 Co-authors: **Ana C. Murrieta** (Tecnológico de Monterrey)
+
 ---
 
 ## License
