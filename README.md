@@ -80,7 +80,7 @@ python export_best_model.py   # pick best row, retrain, save .pkl + figure
 
 The following files will be saved under the `artifacts/` directory:
 
-- `Model_SVC_PCA70.pkl`  
+- `Model_SVC_PCA80.pkl`  
 
 ---
 
@@ -103,6 +103,7 @@ $ python export_best_model.py
   reduction_type  level              model_name  f1_macro  accuracy  auc_roc
 0            PCA     85                     SVC    0.8336    0.8408   0.8802
 1           UMAP     85  RandomForestClassifier    0.7041    0.7097   0.7855
+
 
 Enter the row number to keep: 0
 
@@ -144,6 +145,7 @@ probas = predict_proba("artefacts/Model_SVC_PCA70.pkl", new_features)
 Developed by **Flavio F. Contreras-Torres** (Tecnológico de Monterrey)  
 Oviedo, Spain – May 2025
 
+Co-authors: **Ana C. Murrieta** (Tecnológico de Monterrey)
 ---
 
 ## License
