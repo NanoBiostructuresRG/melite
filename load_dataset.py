@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# load_dataset.py - Load datasets for training and evaluation
 import os
 import numpy as np
 import logging
@@ -29,12 +31,24 @@ def load_dataset(config, reduction_type, levels):
             data = np.load(data_path)
             logger.info("Keys in %s: %s", data_file, data.files)
                 
-            X = data["X"]   #Features
+            X = data["X"]   # Features
+
+            if "y" in data.files:
+                y_from_file = data["y"]
+                if not np.array_equal(y_from_file, y):
+                    raise ValueError(
+                        f"Label mismatch in {data_file}: "
+                        "embedded y does not match raw/labels.npy"
+                    )
+            
             reductions[f"{reduction_type}{level}"] = (X, y)
             logger.info(
                 "Loaded %s: X shape=%s, y shape=%s", data_file, X.shape, y.shape
             )
             loaded += 1
+        
+        except ValueError:
+            raise
         except Exception as exc:
             logger.error("Error loading %s: %s", data_file, exc)
 
