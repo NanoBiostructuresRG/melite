@@ -1,6 +1,12 @@
 __pycache__/
-*.py[cod]
 .venv/
-output/
-*.np[yz]
 .vscode/
+.env
+data/
+output/
+raw/
+*.npy
+*.npz
+*.py[cod]
+*.pkl
+*.joblib
