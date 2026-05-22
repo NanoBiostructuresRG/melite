@@ -14,7 +14,7 @@ class ResultManager:
         return f"""
 =====================================================
                        MOSAIC                                                                     
-     A multi-model benckmarking toolkit for ML-CV                           
+     A multi-model benchmarking toolkit for ML-CV                           
                with PCA/UMAP reduction                                     
              and GridSearch optimization
 -----------------------------------------------------              
@@ -22,7 +22,7 @@ class ResultManager:
           Exporter CLI: export_best_model.py                            
 -----------------------------------------------------
 Developer: Flavio F. Contreras-Torres
-Version: v1.0 - May, 2025. Oviedo
+Version: v0.1.0 - May, 2025. Oviedo
 Execution Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 -----------------------------------------------------
 GitHub: https://github.com/NanoBiostructuresRG
