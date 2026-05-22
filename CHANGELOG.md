@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ensured plot output directories are created automatically before saving figures.
 
 ### Added
+- Added `CITATION.cff` for software citation metadata.
 - Added non-interactive model export support with `python export_best_model.py --row <index>`.
 
 ### Validation

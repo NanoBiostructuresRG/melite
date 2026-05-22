@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "MOSAIC: Modular Multi-Model Selection and Cross-Validation"
+version: "0.1.1-dev"
+date-released: "2026-05-22"
+authors:
+  - family-names: "Contreras-Torres"
+    given-names: "Flavio F."
+    orcid: "https://orcid.org/0000-0003-2375-131X"
+    affiliation: "Tecnologico de Monterrey"
+  - family-names: "Murrieta"
+    given-names: "Ana C."
+    orcid: "https://orcid.org/0000-0002-7619-8880"
+    affiliation: "Tecnologico de Monterrey"
+repository-code: "https://github.com/NanoBiostructuresRG/mosaic"
+license: "LGPL-3.0-or-later"
+abstract: >-
+  MOSAIC is a lightweight benchmarking toolkit for tabular classification.
+  It supports benchmarking workflows based on PCA or UMAP-reduced feature
+  matrices, grid-searches SVC, Random Forest and XGBoost classifiers, evaluates
+  model configurations with repeated stratified cross-validation, exports
+  tabular performance summaries, and supports final model retraining and
+  serialization as deployable model artifacts.
+keywords:
+  - machine learning
+  - tabular classification
+  - model benchmarking
+  - cross-validation
+  - PCA
+  - UMAP
+  - SVC
+  - random forest
+  - XGBoost
+  - cheminformatics
