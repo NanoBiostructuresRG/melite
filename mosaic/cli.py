@@ -1,7 +1,16 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Unified CLI entry point for MOSAIC."""
+"""Unified CLI entry point for MOSAIC.
 
-__all__ = ["main"]
+This module provides the ``mosaic`` command registered in ``pyproject.toml``
+under ``[project.scripts]``. It exposes two subcommands:
+
+- ``mosaic run`` — execute the full benchmarking pipeline.
+- ``mosaic export`` — retrain a selected model and export a ``.pkl`` artifact.
+
+Global flags (``--verbose``, ``--config``, ``--version``) are available to
+all subcommands via argparse parent parsers.
+"""
+
 import argparse
 import logging
 import sys
@@ -9,11 +18,13 @@ from pathlib import Path
 
 from mosaic.version import __version__
 
+__all__ = ["main"]
+
 logger = logging.getLogger(__name__)
 
 
 def _global_parser() -> argparse.ArgumentParser:
-    """Shared flags inherited by all subcommands."""
+    """Return a parent parser with shared flags for all subcommands."""
     parent = argparse.ArgumentParser(add_help=False)
     parent.add_argument(
         "--verbose",
@@ -115,7 +126,6 @@ def _configure_logging(verbose: bool) -> None:
 
 def _run(args: argparse.Namespace) -> None:
     from mosaic.main import Main
-
     Main(smoke=args.smoke).run()
 
 
@@ -126,10 +136,27 @@ def _export(args: argparse.Namespace) -> None:
     config = Config()
     csv_path = args.csv or Path(config.PATHS["OUTPUT"]) / "results.csv"
     outdir = args.outdir or Path(config.PATHS["OUTPUT"])
-    Finalizer(csv_path, outdir, config, row_index=args.row, force=getattr(args, "force", False)).run()
+    Finalizer(csv_path, outdir, config, row_index=args.row,
+              force=getattr(args, "force", False)).run()
 
 
 def main() -> None:
+    """Entry point for the ``mosaic`` CLI command.
+
+    Registered in ``pyproject.toml`` as::
+
+        [project.scripts]
+        mosaic = "mosaic.cli:main"
+
+    Parses arguments, configures logging, and dispatches to the appropriate
+    subcommand handler (``_run`` or ``_export``).
+
+    Notes
+    -----
+    The ``--verbose`` flag sets the root logger to ``INFO`` level, which
+    exposes progress messages from all ``mosaic.*`` modules. Without it,
+    only ``WARNING`` and above are shown.
+    """
     parser = _build_parser()
     args = parser.parse_args()
     _configure_logging(args.verbose)

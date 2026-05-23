@@ -1,5 +1,14 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-__all__ = ["Finalizer"]
+"""Final model export workflow for MOSAIC.
+
+This module provides :class:`Finalizer`, which reads a benchmark results CSV,
+lets the user select a configuration row, retrains the corresponding model on
+all available data, generates a CV metric distribution plot, and serialises
+the trained model as a ``.pkl`` artifact.
+
+A smoke-mode guard prevents accidental export of non-benchmark-quality results.
+"""
+
 import ast
 import logging
 import sys
@@ -12,9 +21,11 @@ import pandas as pd
 from mosaic.config import Config
 from mosaic.plot_metrics import plot_cv_distributions
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_validate, RepeatedStratifiedKFold
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
-from sklearn.model_selection import cross_validate, RepeatedStratifiedKFold
+
+__all__ = ["Finalizer"]
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +36,21 @@ MODEL_MAP = {
 }
 
 METRIC_COLUMNS = [
-    "reduction_type",
-    "level",
-    "model_name",
-    "f1_macro",
-    "accuracy",
-    "auc_roc",
+    "reduction_type", "level", "model_name",
+    "f1_macro", "accuracy", "auc_roc",
 ]
 
 
 class DatasetLoader:
-    _CANDIDATE_KEYS = (
-        "X{lvl}",
-        "X_{lvl}",
-        "{rtype}{lvl}",
-    )
+    """Load feature matrices and labels for model retraining.
+
+    Parameters
+    ----------
+    cfg : mosaic.config.Config
+        MOSAIC configuration object providing dataset and input paths.
+    """
+
+    _CANDIDATE_KEYS = ("X{lvl}", "X_{lvl}", "{rtype}{lvl}")
 
     def __init__(self, cfg: Config):
         self._cfg = cfg
@@ -47,6 +58,32 @@ class DatasetLoader:
         self._labels: np.ndarray | None = None
 
     def load(self, reduction: str, level: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Load feature matrix and label vector for a given configuration.
+
+        Tries an individual file (e.g. ``PCA85.npz``) first, then falls back
+        to an aggregated archive (e.g. ``PCAs.npz``).
+
+        Parameters
+        ----------
+        reduction : str
+            Reduction method prefix, e.g. ``"PCA"``.
+        level : int
+            Variance retention level, e.g. ``85``.
+
+        Returns
+        -------
+        X : numpy.ndarray
+            Feature matrix of shape ``(n_samples, n_features)``.
+        y : numpy.ndarray
+            Label vector of shape ``(n_samples,)``.
+
+        Raises
+        ------
+        FileNotFoundError
+            If neither an individual nor an aggregated file is found.
+        KeyError
+            If the requested level is absent from the aggregated archive.
+        """
         X = self._try_individual_file(reduction, level)
         if X is None:
             X = self._try_aggregated_file(reduction, level)
@@ -84,6 +121,29 @@ class DatasetLoader:
 
 
 class Finalizer:
+    """Retrain a selected model on all data and export a ``.pkl`` artifact.
+
+    Parameters
+    ----------
+    csv_path : pathlib.Path
+        Path to the ``results.csv`` file produced by the benchmarking phase.
+    output_dir : pathlib.Path
+        Directory where the ``.pkl`` artifact will be saved.
+    cfg : mosaic.config.Config
+        MOSAIC configuration object.
+    row_index : int or None, optional
+        Row index from *csv_path* to export non-interactively. If ``None``,
+        the user is prompted to select a row interactively. Default is ``None``.
+    force : bool, optional
+        If ``True``, override the smoke-mode export guard and proceed with a
+        visible warning. Default is ``False``.
+
+    Raises
+    ------
+    FileNotFoundError
+        If *csv_path* does not exist.
+    """
+
     def __init__(
         self,
         csv_path: Path,
@@ -98,7 +158,6 @@ class Finalizer:
         self._row_index = row_index
         self._force = force
 
-        # B4 — missing results.csv: descriptive error with hint
         if not Path(csv_path).exists():
             raise FileNotFoundError(
                 f"Results file not found: {csv_path}. "
@@ -120,18 +179,26 @@ class Finalizer:
             model, X, y, scoring=scoring, cv=cv, n_jobs=-1, return_train_score=False
         )
         plot_cv_distributions(
-            scores["test_f1"],
-            scores["test_acc"],
-            scores.get("test_auc"),
-            model_name=row.model_name,
-            params=row.parameters,
+            scores["test_f1"], scores["test_acc"], scores.get("test_auc"),
+            model_name=row.model_name, params=row.parameters,
             save_to=save_dir / f"{row.model_name}_{row.reduction_type}{row.level}.png",
         )
 
     def _check_smoke_guard(self, row: pd.Series) -> None:
-        """Block export of smoke-mode results unless --force is passed."""
+        """Block export of smoke-mode results unless ``--force`` is active.
+
+        Parameters
+        ----------
+        row : pandas.Series
+            Selected result row from ``results.csv``.
+
+        Notes
+        -----
+        The ``smoke`` column value is read as a string from CSV and compared
+        case-insensitively. If ``smoke == "True"`` and ``force`` is ``False``,
+        the process exits with code 1.
+        """
         smoke_val = row.get("smoke", False)
-        # pandas reads True/False from CSV as bool or string
         is_smoke = str(smoke_val).strip().lower() == "true"
         if is_smoke and not self._force:
             print(
@@ -150,6 +217,18 @@ class Finalizer:
             logger.warning("Exporting smoke-mode result (--force override active).")
 
     def run(self) -> None:
+        """Execute the full export workflow.
+
+        Displays the metrics table, prompts or uses ``--row`` to select a
+        configuration, checks the smoke guard, loads the dataset, runs CV and
+        generates a metric plot, retrains the model on all data, and saves the
+        ``.pkl`` artifact.
+
+        Notes
+        -----
+        The smoke guard calls :func:`sys.exit` with code 1 if the selected row
+        was generated in smoke mode and ``force`` is ``False``.
+        """
         self._show_metrics()
         row = self._get_selected_row()
         self._check_smoke_guard(row)
@@ -173,7 +252,6 @@ class Finalizer:
         print(f"\nModel saved to: {artefact_path.resolve()}")
 
     def _show_metrics(self) -> None:
-        # User-facing UI — intentional print()
         cols = [c for c in METRIC_COLUMNS if c in self._metrics.columns]
         print(self._metrics[cols].to_string(index=True, float_format="%.4f"))
 
@@ -192,7 +270,6 @@ class Finalizer:
             reply = input("\nEnter the row number to keep: ").strip()
             if reply.isdigit() and 0 <= int(reply) < len(self._metrics):
                 return self._metrics.iloc[int(reply)]
-            # User-facing UI — intentional print()
             print("[ERR] Invalid row number; please try again.")
 
     @staticmethod

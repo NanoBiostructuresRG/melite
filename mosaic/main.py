@@ -1,12 +1,19 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
+"""Main benchmarking pipeline for MOSAIC.
+
+This module implements the end-to-end benchmarking workflow: dataset loading,
+multi-model grid search and cross-validation, and result writing. It is
+invoked via ``mosaic run`` from the unified CLI.
+"""
+
 import logging
 import numpy as np
 from pathlib import Path
 
 from mosaic.config import Config
 from mosaic.load_dataset import load_dataset
-from mosaic.result_manager import ResultManager
 from mosaic.model_training import MultiModelTrainer
+from mosaic.result_manager import ResultManager
 
 logger = logging.getLogger(__name__)
 
@@ -17,17 +24,55 @@ _SMOKE_WARNING = (
 
 
 class Pipeline:
+    """Thin wrapper around :class:`~mosaic.model_training.MultiModelTrainer`.
+
+    Parameters
+    ----------
+    config : mosaic.config.Config
+        MOSAIC configuration object.
+    """
+
     def __init__(self, config: Config):
         self.config = config
         self.model_trainer = MultiModelTrainer(config)
 
-    def run(self, X_train, y_train, reduction_type, level):
+    def run(self, X_train, y_train, reduction_type: str, level: int):
+        """Train all models and return the best result for one dataset.
+
+        Parameters
+        ----------
+        X_train : numpy.ndarray
+            Feature matrix of shape ``(n_samples, n_features)``.
+        y_train : numpy.ndarray
+            Label vector of shape ``(n_samples,)``.
+        reduction_type : str
+            Reduction method prefix (e.g. ``"PCA"``).
+        level : int
+            Variance retention level (e.g. ``85``).
+
+        Returns
+        -------
+        tuple
+            Eight-element tuple as returned by
+            :meth:`~mosaic.model_training.MultiModelTrainer.train_and_select_best_model`.
+        """
         return self.model_trainer.train_and_select_best_model(
             X_train, y_train, reduction_type, level
         )
 
 
 class Main:
+    """Orchestrate the full MOSAIC benchmarking pipeline.
+
+    Parameters
+    ----------
+    smoke : bool, optional
+        If ``True``, run in smoke mode with reduced grids and 3-fold CV.
+        Default is ``False``.
+    user_config : pathlib.Path or None, optional
+        Path to a user-supplied TOML configuration file. Default is ``None``.
+    """
+
     def __init__(self, smoke: bool = False, user_config=None):
         self.config = Config(smoke=smoke, user_config=user_config)
         self.config.setup()
@@ -36,7 +81,6 @@ class Main:
         self.final_results = []
         self.csv_rows = []
 
-    # ------------------------------------------------------------------ #
     @staticmethod
     def _clean_params(params):
         return {
@@ -44,8 +88,19 @@ class Main:
             for k, v in params.items()
         }
 
-    # ------------------------------------------------------------------ #
-    def run(self):
+    def run(self) -> None:
+        """Execute the benchmarking pipeline for all configured datasets.
+
+        Iterates over all reduction types and levels defined in the
+        configuration, trains all models for each dataset, and writes
+        ``output/results.txt`` and ``output/results.csv``.
+
+        Notes
+        -----
+        When smoke mode is active, a visible banner is printed to stdout
+        regardless of the logging level, to ensure the user is aware that
+        results are not benchmark-quality.
+        """
         if self.config.SMOKE:
             logger.info("SMOKE TEST — reduced grid and CV. Results are not benchmark-quality.")
             print(_SMOKE_WARNING)
@@ -65,51 +120,43 @@ class Main:
                 logger.info("Training with %s (level=%d).", key, level)
 
                 (
-                    best_model,
-                    best_params,
-                    best_f1,
-                    f1_std,
-                    best_acc,
-                    acc_std,
-                    best_auc,
-                    auc_std,
+                    best_model, best_params,
+                    best_f1, f1_std,
+                    best_acc, acc_std,
+                    best_auc, auc_std,
                 ) = self.pipeline.run(X_train, y_train, reduction_type, level)
 
                 params = self._clean_params(best_params)
                 model_name = best_model.__class__.__name__
 
                 self.final_results.append(
-                    "\n".join(
-                        [
-                            f"Results for {key} (level {level}):",
-                            f"Model Selected: {model_name}",
-                            f"Best ML-model Parameters: {params}",
-                            f"F1-macro (CV mean): {round(best_f1, 4)} ± {round(f1_std, 4)}",
-                            f"Accuracy (CV mean): {round(best_acc, 4)} ± {round(acc_std, 4)}",
-                            (
-                                f"AUC-ROC (CV mean): {round(best_auc, 4)} ± {round(auc_std, 4)}"
-                                if best_auc is not None
-                                else "AUC-ROC (CV mean): N/A"
-                            ),
-                            "------------------------------",
-                        ]
-                    )
+                    "\n".join([
+                        f"Results for {key} (level {level}):",
+                        f"Model Selected: {model_name}",
+                        f"Best ML-model Parameters: {params}",
+                        f"F1-macro (CV mean): {round(best_f1, 4)} ± {round(f1_std, 4)}",
+                        f"Accuracy (CV mean): {round(best_acc, 4)} ± {round(acc_std, 4)}",
+                        (
+                            f"AUC-ROC (CV mean): {round(best_auc, 4)} ± {round(auc_std, 4)}"
+                            if best_auc is not None
+                            else "AUC-ROC (CV mean): N/A"
+                        ),
+                        "------------------------------",
+                    ])
                 )
 
-                self.csv_rows.append(
-                    {
-                        "reduction_type": reduction_type,
-                        "level": int(key.replace(reduction_type, "")),
-                        "model_name": model_name,
-                        "parameters": str(params),
-                        "f1_macro": round(best_f1, 4),
-                        "f1_std": round(f1_std, 4),
-                        "accuracy": round(best_acc, 4),
-                        "acc_std": round(acc_std, 4),
-                        "auc_roc": round(best_auc, 4) if best_auc is not None else "N/A",
-                        "auc_std": round(auc_std, 4) if auc_std is not None else "N/A",
-                    }
-                )
+                self.csv_rows.append({
+                    "reduction_type": reduction_type,
+                    "level": int(key.replace(reduction_type, "")),
+                    "model_name": model_name,
+                    "parameters": str(params),
+                    "f1_macro": round(best_f1, 4),
+                    "f1_std": round(f1_std, 4),
+                    "accuracy": round(best_acc, 4),
+                    "acc_std": round(acc_std, 4),
+                    "auc_roc": round(best_auc, 4) if best_auc is not None else "N/A",
+                    "auc_std": round(auc_std, 4) if auc_std is not None else "N/A",
+                })
 
         final_report = "\n".join(self.final_results)
         self.result_manager.write_results(final_report)
