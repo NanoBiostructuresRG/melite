@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Package version metadata."""
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 PROJECT_NAME = "MOSAIC"
 PROJECT_VERSION = __version__
 PROJECT_STATUS = "alpha"

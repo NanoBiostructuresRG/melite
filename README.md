@@ -1,7 +1,7 @@
 # MOSAIC: Modular Multi-Model Selection and Cross-Validation
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.4-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.1.5-blue.svg)]()
 
 ---
 
@@ -25,13 +25,13 @@ MOSAIC is currently in **pre-stable development**.
 The current development version is:
 
 ```text
-0.1.4
+0.1.5
 ```
 
 The active development branch is:
 
 ```text
-dev/v0.1.4
+dev/v0.1.5
 ```
 
 MOSAIC is not yet published on PyPI. It can be installed in editable mode
@@ -121,6 +121,23 @@ Verify the main dependencies:
 ```bash
 python -c "import numpy, pandas, sklearn, xgboost, joblib, matplotlib; print('dependencies OK')"
 ```
+
+---
+
+## Public API
+
+MOSAIC exposes a stable public API for use as a Python library:
+
+```python
+from mosaic import Config
+from mosaic import load_dataset
+from mosaic import ResultManager
+from mosaic import plot_cv_distributions
+from mosaic import __version__
+```
+
+Modules not listed above are importable directly but are not part of the
+stable API and may change between versions.
 
 ---
 
@@ -319,7 +336,7 @@ Three-panel plot showing cross-validation fold distributions for:
 ```text
 MOSAIC/
 ├── mosaic/                       # Python package
-│   ├── __init__.py
+│   ├── __init__.py               # Public API
 │   ├── cli.py                    # Unified CLI entry point (mosaic run / mosaic export)
 │   ├── config.py                 # Configuration loader and hyperparameter grids
 │   ├── config_default.toml       # Default user-facing configuration
@@ -331,12 +348,16 @@ MOSAIC/
 │   ├── plot_metrics.py           # CV metric distribution plots
 │   └── version.py                # Package version metadata
 │
-├── tests/                        # pytest suite
+├── tests/                        # pytest suite (57 tests)
 │   ├── conftest.py               # Shared synthetic fixtures
 │   ├── test_config.py
 │   ├── test_load_dataset.py
 │   ├── test_result_manager.py
-│   └── test_export.py
+│   ├── test_export.py
+│   ├── test_version.py
+│   ├── test_public_api.py
+│   ├── test_plot_metrics.py
+│   └── test_cli.py
 │
 ├── raw/                          # Local input labels and upstream feature data; ignored by Git
 ├── data/                         # Local PCA/UMAP reduced matrices; ignored by Git
@@ -425,7 +446,7 @@ $ mosaic export --row 0
 
 # Test suite
 $ pytest tests/ -v
-31 passed in 5.80s
+57 passed, 1 warning in 58.31s
 ```
 
 ---
@@ -444,14 +465,14 @@ $ pytest tests/ -v
 
 ## Validation
 
-The current `dev/v0.1.4` branch has been validated with:
+The current `dev/v0.1.5` branch has been validated with:
 
 ```bash
 pytest tests/ -v
 ```
 
-31 tests passed covering `Config`, `load_dataset`, `ResultManager`, and
-`Finalizer`.
+57 tests passed covering `Config`, `load_dataset`, `ResultManager`, `Finalizer`,
+`plot_metrics`, `version`, public API, and CLI.
 
 CLI help smoke tests:
 
@@ -462,13 +483,10 @@ mosaic export --help
 mosaic --version
 ```
 
-Minimal integration smoke tests:
+Public API smoke test:
 
 ```bash
-mosaic run --smoke
-mosaic run --smoke --verbose
-mosaic export --row 0       # blocked on smoke results
-mosaic export --row 0 --force
+python -c "from mosaic import Config, load_dataset, ResultManager, plot_cv_distributions, __version__; print('OK:', __version__)"
 ```
 
 ---
@@ -478,6 +496,7 @@ mosaic export --row 0 --force
 Near-term development goals:
 
 - ~~Add formal tests with `pytest`.~~ ✓ Done in v0.1.4
+- ~~Define stable public API.~~ ✓ Done in v0.1.5
 - Publish to PyPI as `mosaic-ml`.
 - Add continuous integration.
 - Add documented example datasets.
@@ -494,7 +513,7 @@ Suggested citation format:
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MOSAIC: Modular
-Multi-Model Selection and Cross-Validation (0.1.4). Tecnologico de
+Multi-Model Selection and Cross-Validation (0.1.5). Tecnologico de
 Monterrey. https://github.com/NanoBiostructuresRG/mosaic
 ```
 
