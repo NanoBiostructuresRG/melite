@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.2] - 2026-05-22
+
+### Changed
+- Moved all source modules into a `mosaic/` package directory.
+- Updated all intra-package imports to use the `mosaic.*` namespace.
+- `result_manager.py` now reads `__version__` from `mosaic.version` instead of
+  using a hardcoded string.
+- Updated `README.md` to reflect the `mosaic/` package structure, corrected CLI
+  commands, documented `--smoke` mode, and updated validation section.
+
+### Fixed
+- Bumped version string in `version.py` to `0.1.2`.
+
+### Added
+- Added `--smoke` flag to `mosaic.main` for lightweight benchmarking with
+  single-value hyperparameter grids and 3-fold CV (no repeats).
+- Added `argparse` CLI to `mosaic.main` with `--smoke` flag and `--help` support.
+
+### Validation
+- Python syntax validation passed for all modules under `mosaic/`.
+- Dataset loading smoke test passed: PCA70 labels and features loaded correctly.
+- SVC, Random Forest and XGBoost smoke tests passed; scores match v0.1.1 baseline.
+- PNG figure generation smoke test passed.
+- `--smoke` mode completed full PCA + UMAP benchmark run successfully.
+
+---
+
 ## [0.1.1] - 2025-05-22
 
 ### Changed
@@ -29,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PCA70 dataset loading passed.
 - Export CLI help validation passed.
 - Minimal SVC, Random Forest and XGBoost smoke tests passed in `mosaic_env`.
+
+---
 
 ## [0.1.0] - 2025-05-22
 
