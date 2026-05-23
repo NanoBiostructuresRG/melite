@@ -1,7 +1,7 @@
 # MOSAIC: Modular Multi-Model Selection and Cross-Validation
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.3-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.1.4-blue.svg)]()
 
 ---
 
@@ -25,13 +25,13 @@ MOSAIC is currently in **pre-stable development**.
 The current development version is:
 
 ```text
-0.1.3
+0.1.4
 ```
 
 The active development branch is:
 
 ```text
-dev/v0.1.3
+dev/v0.1.4
 ```
 
 MOSAIC is not yet published on PyPI. It can be installed in editable mode
@@ -110,6 +110,12 @@ Install MOSAIC in editable mode:
 pip install -e .
 ```
 
+Install development dependencies (includes pytest):
+
+```bash
+pip install -e ".[dev]"
+```
+
 Verify the main dependencies:
 
 ```bash
@@ -185,6 +191,12 @@ mosaic run --config my_config.toml
 
 Only the keys present in `my_config.toml` override the defaults. All other
 settings fall back to `mosaic/config_default.toml`.
+
+### 8. Run the test suite
+
+```bash
+pytest tests/ -v
+```
 
 ---
 
@@ -319,6 +331,13 @@ MOSAIC/
 │   ├── plot_metrics.py           # CV metric distribution plots
 │   └── version.py                # Package version metadata
 │
+├── tests/                        # pytest suite
+│   ├── conftest.py               # Shared synthetic fixtures
+│   ├── test_config.py
+│   ├── test_load_dataset.py
+│   ├── test_result_manager.py
+│   └── test_export.py
+│
 ├── raw/                          # Local input labels and upstream feature data; ignored by Git
 ├── data/                         # Local PCA/UMAP reduced matrices; ignored by Git
 ├── output/                       # Local generated reports, figures and models; ignored by Git
@@ -373,20 +392,17 @@ per evaluated configuration.
 ## Example Console Output
 
 ```text
-# Full benchmarking phase
+# Full benchmarking phase — verbose
 $ mosaic run --verbose
-Running with PCA...
+INFO:mosaic.main:Running with PCA...
 INFO:mosaic.load_dataset:Labels loaded: raw/labels.npy (shape=(182,))
-Training with PCA85 (level=85).
-Running with UMAP...
-Training with UMAP85 (level=85).
-Final report written to output/results.txt
-CSV file written to output/results.csv
+INFO:mosaic.main:Training with PCA85 (level=85).
+INFO:mosaic.main:Final report written to output/results.txt
+INFO:mosaic.main:CSV file written to output/results.csv
 
 # Smoke test
 $ mosaic run --smoke
 [SMOKE TEST] Using reduced grid and CV. Results are not benchmark-quality.
-Running with PCA...
 
 # Export phase — interactive
 $ mosaic export
@@ -406,6 +422,10 @@ $ mosaic export --row 0
 [ERROR] This result was generated in smoke mode and is not benchmark-quality.
         Run 'mosaic run' (without --smoke) to generate valid results,
         or use 'mosaic export --force' to override this guard.
+
+# Test suite
+$ pytest tests/ -v
+31 passed in 5.80s
 ```
 
 ---
@@ -424,17 +444,14 @@ $ mosaic export --row 0
 
 ## Validation
 
-The current `dev/v0.1.3` branch has been validated with:
+The current `dev/v0.1.4` branch has been validated with:
 
 ```bash
-python -m py_compile mosaic/cli.py mosaic/config.py mosaic/export_best_model.py mosaic/load_dataset.py mosaic/main.py mosaic/model_training.py mosaic/plot_metrics.py mosaic/result_manager.py mosaic/version.py
+pytest tests/ -v
 ```
 
-Dataset loading smoke test:
-
-```bash
-python -c "from mosaic.config import Config; from mosaic.load_dataset import load_dataset; c=Config(); d=load_dataset(c,'PCA',[70]); print(d['PCA70'][0].shape, d['PCA70'][1].shape)"
-```
+31 tests passed covering `Config`, `load_dataset`, `ResultManager`, and
+`Finalizer`.
 
 CLI help smoke tests:
 
@@ -445,15 +462,14 @@ mosaic export --help
 mosaic --version
 ```
 
-Minimal smoke tests were also performed for:
+Minimal integration smoke tests:
 
-- SVC
-- Random Forest
-- XGBoost
-- PNG figure generation
-- `.pkl` model serialization
-- Smoke guard (export blocked on smoke results)
-- `--force` override on smoke export
+```bash
+mosaic run --smoke
+mosaic run --smoke --verbose
+mosaic export --row 0       # blocked on smoke results
+mosaic export --row 0 --force
+```
 
 ---
 
@@ -461,11 +477,11 @@ Minimal smoke tests were also performed for:
 
 Near-term development goals:
 
-- Add formal tests with `pytest`.
+- ~~Add formal tests with `pytest`.~~ ✓ Done in v0.1.4
 - Publish to PyPI as `mosaic-ml`.
+- Add continuous integration.
 - Add documented example datasets.
 - Add a prediction/inference module for exported `.pkl` artifacts.
-- Add continuous integration.
 
 ---
 
@@ -478,7 +494,7 @@ Suggested citation format:
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MOSAIC: Modular
-Multi-Model Selection and Cross-Validation (0.1.3). Tecnologico de
+Multi-Model Selection and Cross-Validation (0.1.4). Tecnologico de
 Monterrey. https://github.com/NanoBiostructuresRG/mosaic
 ```
 

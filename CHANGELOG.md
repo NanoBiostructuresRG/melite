@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.4] - 2026-05-22
+
+### Added
+- Added formal `pytest` suite under `tests/` with 31 tests covering
+  `Config`, `load_dataset`, `ResultManager`, and `Finalizer`.
+- Added `tests/conftest.py` with shared synthetic fixtures: labels, valid/invalid
+  `.npz` files, minimal `results.csv`, and a base `Config` instance.
+- Added `tests_output.txt` to `.gitignore`.
+
+### Fixed
+- Removed redundant `print()` progress calls from `main.py`; all progress now
+  goes through `logger.*` only. Smoke banner remains as `print()` (user-facing UI).
+- Changed smoke-mode `logger.warning()` to `logger.info()` in `main.py` to avoid
+  spurious output when `--verbose` is not passed.
+- Removed `logging.basicConfig(level=logging.INFO)` from `load_dataset.py` —
+  module-level `basicConfig` was overriding the package logger configuration.
+- Improved error message for missing `.npz` file: now includes full expected path
+  and an actionable hint.
+- Improved error message for missing `X` key in `.npz`: now raises `ValueError`
+  with filename and list of available keys.
+- Improved label mismatch error: now includes both array shapes and differing
+  element count.
+- Added guard in `Finalizer.__init__` for missing `results.csv`: raises
+  `FileNotFoundError` with path and actionable hint before attempting to read.
+- Bumped version to `0.1.4` in `version.py` and `CITATION.cff`.
+
+### Validation
+- `pytest tests/ -v` — 31 passed, 0 failed.
+- `mosaic run --smoke` — silent output (smoke banner only, no logger noise).
+- `mosaic run --smoke --verbose` — clean INFO logs, no duplicates.
+- `mosaic export --row 0` (missing CSV) — descriptive `FileNotFoundError`.
+
+---
+
 ## [0.1.3] - 2026-05-22
 
 ### Added

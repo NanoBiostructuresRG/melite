@@ -5,8 +5,11 @@ __pycache__/
 data/
 output/
 raw/
+tests_output.txt
 *.npy
 *.npz
 *.py[cod]
 *.pkl
 *.joblib
+
+tests_output.txt

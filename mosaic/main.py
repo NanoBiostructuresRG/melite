@@ -47,25 +47,22 @@ class Main:
     # ------------------------------------------------------------------ #
     def run(self):
         if self.config.SMOKE:
-            logger.warning("SMOKE TEST — reduced grid and CV. Results are not benchmark-quality.")
+            logger.info("SMOKE TEST — reduced grid and CV. Results are not benchmark-quality.")
             print(_SMOKE_WARNING)
 
         for reduction_type in self.config.REDUCTION_TYPES:
             logger.info("Running with %s...", reduction_type)
-            print(f"Running with {reduction_type}...")
 
             dataset = load_dataset(
                 self.config, reduction_type, self.config.REDUCTION_LEVELS
             )
             if not dataset:
                 logger.warning("No data found for %s. Skipping.", reduction_type)
-                print(f"No data found for {reduction_type}. Skipping.")
                 continue
 
             for key, (X_train, y_train) in dataset.items():
                 level = int(key.replace(reduction_type, ""))
                 logger.info("Training with %s (level=%d).", key, level)
-                print(f"Training with {key} (level={level}).")
 
                 (
                     best_model,
@@ -117,9 +114,7 @@ class Main:
         final_report = "\n".join(self.final_results)
         self.result_manager.write_results(final_report)
         logger.info("Final report written to %s", self.config.RESULTS_FILE)
-        print("Final report written to", self.config.RESULTS_FILE)
 
         csv_path = Path(self.config.PATHS["OUTPUT"]) / "results.csv"
         self.result_manager.write_csv(self.csv_rows, csv_path, smoke=self.config.SMOKE)
         logger.info("CSV file written to %s", csv_path)
-        print(f"CSV file written to {csv_path}")
