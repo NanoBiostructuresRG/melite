@@ -25,7 +25,7 @@ MOSAIC is currently in **pre-stable development**.
 The current development version is:
 
 ```text
-0.1.1-dev
+0.1.1
 ```
 
 The active development branch is:
