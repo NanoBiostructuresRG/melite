@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [dev/0.1.1] - Unreleased
+## [0.1.1] - 2025-05-22
 
 ### Changed
+- Rewrote `README.md` to reflect the current pre-stable repository workflow.
 - Changed project license from MIT to GNU LGPL v3.0 or later.
 - Added GNU license files: `COPYING` and `COPYING.LESSER`.
 - Added SPDX license metadata: `LGPL-3.0-or-later`.
