@@ -11,3 +11,5 @@ tests_output.txt
 *.py[cod]
 *.pkl
 *.joblib
+
+tests_output.txt
