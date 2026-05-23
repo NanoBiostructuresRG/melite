@@ -398,7 +398,7 @@ Suggested citation format:
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MOSAIC: Modular
-Multi-Model Selection and Cross-Validation (0.1.1-dev). Tecnologico de
+Multi-Model Selection and Cross-Validation (0.1.1). Tecnologico de
 Monterrey. https://github.com/NanoBiostructuresRG/mosaic
 ```
 
