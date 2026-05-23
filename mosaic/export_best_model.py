@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-import argparse
 import ast
-import sys
+import logging
 from pathlib import Path
 from typing import Any, Tuple
 
@@ -15,6 +14,7 @@ from sklearn.svm import SVC
 from xgboost import XGBClassifier
 from sklearn.model_selection import cross_validate, RepeatedStratifiedKFold
 
+logger = logging.getLogger(__name__)
 
 MODEL_MAP = {
     "SVC": SVC,
@@ -61,7 +61,7 @@ class DatasetLoader:
             return None
         arr = np.load(fp)
         self._ensure_labels()
-        return arr[arr.files[0]]  # first array by convention
+        return arr[arr.files[0]]
 
     def _try_aggregated_file(self, reduction: str, level: int) -> np.ndarray | None:
         fp = self._data_root / f"{reduction}s.npz"
@@ -107,15 +107,13 @@ class Finalizer:
         scores = cross_validate(
             model, X, y, scoring=scoring, cv=cv, n_jobs=-1, return_train_score=False
         )
-
         plot_cv_distributions(
             scores["test_f1"],
             scores["test_acc"],
             scores.get("test_auc"),
             model_name=row.model_name,
             params=row.parameters,
-            save_to=save_dir
-            / f"{row.model_name}_{row.reduction_type}{row.level}.png",
+            save_to=save_dir / f"{row.model_name}_{row.reduction_type}{row.level}.png",
         )
 
     def run(self) -> None:
@@ -127,15 +125,21 @@ class Finalizer:
         figures_dir = Path(self._cfg.PATHS["OUTPUT"]) / "figures"
         self._cv_and_plot(model, X, y, row, figures_dir)
 
+        logger.info(
+            "Training %s on %s%s using all available data...",
+            row.model_name, row.reduction_type, row.level,
+        )
         print(
             f"\nTraining {row.model_name} on {row.reduction_type}{row.level} "
             "using all available data..."
         )
         model.fit(X, y)
         artefact_path = self._save_model(model, row)
+        logger.info("Model saved to: %s", artefact_path.resolve())
         print(f"\nModel saved to: {artefact_path.resolve()}")
 
     def _show_metrics(self) -> None:
+        # User-facing UI — intentional print()
         print(self._metrics[METRIC_COLUMNS].to_string(index=True, float_format="%.4f"))
 
     def _get_selected_row(self) -> pd.Series:
@@ -153,6 +157,7 @@ class Finalizer:
             reply = input("\nEnter the row number to keep: ").strip()
             if reply.isdigit() and 0 <= int(reply) < len(self._metrics):
                 return self._metrics.iloc[int(reply)]
+            # User-facing UI — intentional print()
             print("[ERR] Invalid row number; please try again.")
 
     @staticmethod
@@ -171,40 +176,3 @@ class Finalizer:
         path = self._output_dir / filename
         joblib.dump(model, path)
         return path
-
-
-def _build_arg_parser(cfg: Config) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Select a benchmark configuration and persist the retrained model."
-    )
-    parser.add_argument(
-        "-c",
-        "--csv",
-        type=Path,
-        default=Path(cfg.PATHS["OUTPUT"]) / "results.csv",
-        help="Path to the CSV file produced by the benchmarking phase.",
-    )
-    parser.add_argument(
-        "-o",
-        "--outdir",
-        type=Path,
-        default=Path(cfg.PATHS["OUTPUT"]),
-        help="Destination directory for the *.pkl* file.",
-    )
-    parser.add_argument(
-        "--row",
-        type=int,
-        default=None,
-        help="Row index from the results CSV to export without interactive prompt.",
-    )
-    return parser
-
-
-def main() -> None:
-    cfg = Config()
-    args = _build_arg_parser(cfg).parse_args()
-    Finalizer(args.csv, args.outdir, cfg, row_index=args.row).run()
-
-
-if __name__ == "__main__":
-    main()
