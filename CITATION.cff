@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "MOSAIC: Modular Multi-Model Selection and Cross-Validation"
-version: "0.1.2"
+version: "0.1.3"
 date-released: "2026-05-22"
 authors:
   - family-names: "Contreras-Torres"

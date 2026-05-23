@@ -1,7 +1,7 @@
 # MOSAIC: Modular Multi-Model Selection and Cross-Validation
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.2-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.1.3-blue.svg)]()
 
 ---
 
@@ -25,16 +25,16 @@ MOSAIC is currently in **pre-stable development**.
 The current development version is:
 
 ```text
-0.1.2
+0.1.3
 ```
 
 The active development branch is:
 
 ```text
-dev/v0.1.2
+dev/v0.1.3
 ```
 
-MOSAIC is not yet packaged for PyPI. At this stage, it is intended to be used
+MOSAIC is not yet published on PyPI. It can be installed in editable mode
 directly from the repository.
 
 ---
@@ -104,10 +104,10 @@ conda env create -f environment.yml
 conda activate mosaic_env
 ```
 
-Alternatively, if the environment already exists:
+Install MOSAIC in editable mode:
 
 ```bash
-conda activate mosaic_env
+pip install -e .
 ```
 
 Verify the main dependencies:
@@ -123,7 +123,7 @@ python -c "import numpy, pandas, sklearn, xgboost, joblib, matplotlib; print('de
 ### 1. Run the full benchmarking phase
 
 ```bash
-python -m mosaic.main
+mosaic run
 ```
 
 This runs the configured benchmarking workflow and writes:
@@ -136,16 +136,16 @@ output/results.csv
 ### 2. Run a lightweight smoke test
 
 ```bash
-python -m mosaic.main --smoke
+mosaic run --smoke
 ```
 
 Uses single-value hyperparameter grids and 3-fold CV (no repeats) for fast
-validation. Results are not benchmark-quality.
+validation. Results are not benchmark-quality and are marked in `results.csv`.
 
 ### 3. Export a selected model interactively
 
 ```bash
-python -m mosaic.export_best_model
+mosaic export
 ```
 
 MOSAIC will display the available rows from `output/results.csv` and ask which
@@ -154,12 +154,37 @@ row should be exported.
 ### 4. Export a selected model non-interactively
 
 ```bash
-python -m mosaic.export_best_model --row 0
+mosaic export --row 0
 ```
 
 This selects row `0` from `output/results.csv`, retrains the corresponding
 model on all available data, saves a `.pkl` artifact, and generates a metric
 plot.
+
+### 5. Export with verbose logging
+
+```bash
+mosaic run --verbose
+mosaic export --row 0 --verbose
+```
+
+### 6. Override smoke-mode export guard
+
+```bash
+mosaic export --row 0 --force
+```
+
+Smoke-mode results are blocked from export by default. Use `--force` to
+override with a visible warning.
+
+### 7. Use a custom configuration file
+
+```bash
+mosaic run --config my_config.toml
+```
+
+Only the keys present in `my_config.toml` override the defaults. All other
+settings fall back to `mosaic/config_default.toml`.
 
 ---
 
@@ -214,6 +239,32 @@ The number of rows in `X` must match the number of labels in `y`.
 
 ---
 
+## Configuration
+
+MOSAIC reads its default configuration from `mosaic/config_default.toml`.
+To customize paths, reduction levels, CV settings, or active models, create
+a TOML file and pass it with `--config`:
+
+```toml
+[paths]
+output = "my_output/"
+
+[benchmark]
+levels = [70, 85, 95]
+
+[models]
+active = ["svc", "rf"]
+```
+
+```bash
+mosaic run --config my_config.toml
+```
+
+Hyperparameter grids are defined in `mosaic/config.py` and are intended for
+developer-level customization only.
+
+---
+
 ## Outputs
 
 MOSAIC writes outputs under the local `output/` directory.
@@ -234,7 +285,8 @@ configuration.
 
 ### `results.csv`
 
-Structured table containing model performance and selected hyperparameters.
+Structured table containing model performance, selected hyperparameters, and
+a `smoke` column indicating whether the run was generated in smoke mode.
 
 ### `.pkl` Model Artifact
 
@@ -254,27 +306,30 @@ Three-panel plot showing cross-validation fold distributions for:
 
 ```text
 MOSAIC/
-├── mosaic/                     # Python package
+├── mosaic/                       # Python package
 │   ├── __init__.py
-│   ├── config.py               # Paths, random seed, reduction levels, CV and hyperparameter grids
-│   ├── load_dataset.py         # Dataset loading and label consistency validation
-│   ├── model_training.py       # GridSearchCV, repeated CV and model selection
-│   ├── main.py                 # Main benchmarking pipeline and CLI entry point
-│   ├── result_manager.py       # Human-readable TXT report writer
-│   ├── export_best_model.py    # Final model export workflow and CLI entry point
-│   ├── plot_metrics.py         # CV metric distribution plots
-│   └── version.py              # Package version metadata
+│   ├── cli.py                    # Unified CLI entry point (mosaic run / mosaic export)
+│   ├── config.py                 # Configuration loader and hyperparameter grids
+│   ├── config_default.toml       # Default user-facing configuration
+│   ├── load_dataset.py           # Dataset loading and label consistency validation
+│   ├── model_training.py         # GridSearchCV, repeated CV and model selection
+│   ├── main.py                   # Main benchmarking pipeline
+│   ├── result_manager.py         # TXT and CSV result writer
+│   ├── export_best_model.py      # Final model export workflow
+│   ├── plot_metrics.py           # CV metric distribution plots
+│   └── version.py                # Package version metadata
 │
-├── raw/                        # Local input labels and upstream feature data; ignored by Git
-├── data/                       # Local PCA/UMAP reduced matrices; ignored by Git
-├── output/                     # Local generated reports, figures and models; ignored by Git
+├── raw/                          # Local input labels and upstream feature data; ignored by Git
+├── data/                         # Local PCA/UMAP reduced matrices; ignored by Git
+├── output/                       # Local generated reports, figures and models; ignored by Git
 │
-├── environment.yml             # Conda development environment
-├── CHANGELOG.md                # Version history
-├── CITATION.cff                # Citation metadata
-├── COPYING                     # GNU GPL v3 license text
-├── COPYING.LESSER              # GNU LGPL v3 license text
-├── LICENSE                     # Project license summary
+├── pyproject.toml                # Package metadata and build system
+├── environment.yml               # Conda development environment
+├── CHANGELOG.md                  # Version history
+├── CITATION.cff                  # Citation metadata
+├── COPYING                       # GNU GPL v3 license text
+├── COPYING.LESSER                # GNU LGPL v3 license text
+├── LICENSE                       # Project license summary
 └── README.md
 ```
 
@@ -289,6 +344,7 @@ MOSAIC currently benchmarks:
 - XGBoost Classifier
 
 The configured hyperparameter grids are defined in `mosaic/config.py`.
+Active models can be set in `config_default.toml` or a user config file.
 
 ---
 
@@ -296,14 +352,12 @@ The configured hyperparameter grids are defined in `mosaic/config.py`.
 
 MOSAIC uses repeated stratified K-fold cross-validation.
 
-The current configuration is defined in `mosaic/config.py`:
+The default configuration in `mosaic/config_default.toml`:
 
-```python
-CV_CONFIG = {
-    "n_splits": 10,
-    "n_repeats": 5,
-    "random_state": 42,
-}
+```toml
+[cv]
+n_splits = 10
+n_repeats = 5
 ```
 
 This gives:
@@ -320,23 +374,22 @@ per evaluated configuration.
 
 ```text
 # Full benchmarking phase
-$ python -m mosaic.main
+$ mosaic run --verbose
 Running with PCA...
 INFO:mosaic.load_dataset:Labels loaded: raw/labels.npy (shape=(182,))
 Training with PCA85 (level=85).
 Running with UMAP...
-INFO:mosaic.load_dataset:Labels loaded: raw/labels.npy (shape=(182,))
 Training with UMAP85 (level=85).
 Final report written to output/results.txt
 CSV file written to output/results.csv
 
 # Smoke test
-$ python -m mosaic.main --smoke
+$ mosaic run --smoke
 [SMOKE TEST] Using reduced grid and CV. Results are not benchmark-quality.
 Running with PCA...
 
-# Export phase
-$ python -m mosaic.export_best_model
+# Export phase — interactive
+$ mosaic export
   reduction_type  level              model_name  f1_macro  accuracy  auc_roc
 0            PCA     85                     SVC    0.8336    0.8408   0.8802
 1           UMAP     85  RandomForestClassifier    0.7041    0.7097   0.7855
@@ -344,6 +397,15 @@ $ python -m mosaic.export_best_model
 Enter the row number to keep: 0
 
 Training SVC on PCA85 using all available data...
+
+# Export phase — non-interactive
+$ mosaic export --row 0
+
+# Smoke guard
+$ mosaic export --row 0
+[ERROR] This result was generated in smoke mode and is not benchmark-quality.
+        Run 'mosaic run' (without --smoke) to generate valid results,
+        or use 'mosaic export --force' to override this guard.
 ```
 
 ---
@@ -351,22 +413,21 @@ Training SVC on PCA85 using all available data...
 ## Notes
 
 - Full benchmarking can be computationally expensive because MOSAIC performs
-  grid search and repeated cross-validation. Use `--smoke` for fast validation
-  during development.
+  grid search and repeated cross-validation. Use `mosaic run --smoke` for fast
+  validation during development.
 - `output/`, `data/`, and `raw/` are local working directories and are ignored
   by Git.
 - Model artifacts such as `.pkl` and `.joblib` files are ignored by Git.
-- The current workflow is script-based and not yet a packaged Python API.
-- PyPI packaging is planned for a future development phase.
+- PyPI publishing is planned for a future development phase.
 
 ---
 
 ## Validation
 
-The current `dev/v0.1.2` branch has been validated with:
+The current `dev/v0.1.3` branch has been validated with:
 
 ```bash
-python -m py_compile mosaic/config.py mosaic/export_best_model.py mosaic/load_dataset.py mosaic/main.py mosaic/model_training.py mosaic/plot_metrics.py mosaic/result_manager.py mosaic/version.py
+python -m py_compile mosaic/cli.py mosaic/config.py mosaic/export_best_model.py mosaic/load_dataset.py mosaic/main.py mosaic/model_training.py mosaic/plot_metrics.py mosaic/result_manager.py mosaic/version.py
 ```
 
 Dataset loading smoke test:
@@ -378,8 +439,10 @@ python -c "from mosaic.config import Config; from mosaic.load_dataset import loa
 CLI help smoke tests:
 
 ```bash
-python -m mosaic.main --help
-python -m mosaic.export_best_model --help
+mosaic --help
+mosaic run --help
+mosaic export --help
+mosaic --version
 ```
 
 Minimal smoke tests were also performed for:
@@ -389,6 +452,8 @@ Minimal smoke tests were also performed for:
 - XGBoost
 - PNG figure generation
 - `.pkl` model serialization
+- Smoke guard (export blocked on smoke results)
+- `--force` override on smoke export
 
 ---
 
@@ -397,9 +462,7 @@ Minimal smoke tests were also performed for:
 Near-term development goals:
 
 - Add formal tests with `pytest`.
-- Introduce a package structure suitable for PyPI.
-- Add a public command-line entry point.
-- Improve configuration handling.
+- Publish to PyPI as `mosaic-ml`.
 - Add documented example datasets.
 - Add a prediction/inference module for exported `.pkl` artifacts.
 - Add continuous integration.
@@ -415,7 +478,7 @@ Suggested citation format:
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MOSAIC: Modular
-Multi-Model Selection and Cross-Validation (0.1.2). Tecnologico de
+Multi-Model Selection and Cross-Validation (0.1.3). Tecnologico de
 Monterrey. https://github.com/NanoBiostructuresRG/mosaic
 ```
 

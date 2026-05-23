@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-import argparse
-import os
-import csv
+import logging
 import numpy as np
+from pathlib import Path
 
 from mosaic.config import Config
 from mosaic.load_dataset import load_dataset
 from mosaic.result_manager import ResultManager
 from mosaic.model_training import MultiModelTrainer
+
+logger = logging.getLogger(__name__)
 
 _SMOKE_WARNING = (
     "\n[SMOKE TEST] Using reduced grid and CV. "
@@ -16,7 +17,7 @@ _SMOKE_WARNING = (
 
 
 class Pipeline:
-    def __init__(self, config):
+    def __init__(self, config: Config):
         self.config = config
         self.model_trainer = MultiModelTrainer(config)
 
@@ -27,14 +28,13 @@ class Pipeline:
 
 
 class Main:
-    def __init__(self, smoke: bool = False):
-        self.config = Config(smoke=smoke)
+    def __init__(self, smoke: bool = False, user_config=None):
+        self.config = Config(smoke=smoke, user_config=user_config)
+        self.config.setup()
         self.pipeline = Pipeline(self.config)
-
         self.result_manager = ResultManager(self.config.RESULTS_FILE)
         self.final_results = []
         self.csv_rows = []
-        os.makedirs(self.config.PATHS["OUTPUT"], exist_ok=True)
 
     # ------------------------------------------------------------------ #
     @staticmethod
@@ -47,20 +47,24 @@ class Main:
     # ------------------------------------------------------------------ #
     def run(self):
         if self.config.SMOKE:
+            logger.warning("SMOKE TEST — reduced grid and CV. Results are not benchmark-quality.")
             print(_SMOKE_WARNING)
 
-        for reduction_type in ["PCA", "UMAP"]:
+        for reduction_type in self.config.REDUCTION_TYPES:
+            logger.info("Running with %s...", reduction_type)
             print(f"Running with {reduction_type}...")
 
             dataset = load_dataset(
                 self.config, reduction_type, self.config.REDUCTION_LEVELS
             )
             if not dataset:
+                logger.warning("No data found for %s. Skipping.", reduction_type)
                 print(f"No data found for {reduction_type}. Skipping.")
                 continue
 
             for key, (X_train, y_train) in dataset.items():
                 level = int(key.replace(reduction_type, ""))
+                logger.info("Training with %s (level=%d).", key, level)
                 print(f"Training with {key} (level={level}).")
 
                 (
@@ -77,7 +81,6 @@ class Main:
                 params = self._clean_params(best_params)
                 model_name = best_model.__class__.__name__
 
-                # report format
                 self.final_results.append(
                     "\n".join(
                         [
@@ -96,7 +99,6 @@ class Main:
                     )
                 )
 
-                # CSV
                 self.csv_rows.append(
                     {
                         "reduction_type": reduction_type,
@@ -114,46 +116,10 @@ class Main:
 
         final_report = "\n".join(self.final_results)
         self.result_manager.write_results(final_report)
+        logger.info("Final report written to %s", self.config.RESULTS_FILE)
         print("Final report written to", self.config.RESULTS_FILE)
 
-        # CSV file
-        csv_path = os.path.join(self.config.PATHS["OUTPUT"], "results.csv")
-        with open(csv_path, mode="w", newline="", encoding="utf-8") as csv_file:
-            fieldnames = [
-                "reduction_type",
-                "level",
-                "model_name",
-                "parameters",
-                "f1_macro",
-                "f1_std",
-                "accuracy",
-                "acc_std",
-                "auc_roc",
-                "auc_std",
-            ]
-            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(self.csv_rows)
-
+        csv_path = Path(self.config.PATHS["OUTPUT"]) / "results.csv"
+        self.result_manager.write_csv(self.csv_rows, csv_path, smoke=self.config.SMOKE)
+        logger.info("CSV file written to %s", csv_path)
         print(f"CSV file written to {csv_path}")
-
-
-def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="MOSAIC — benchmarking toolkit for tabular classification."
-    )
-    parser.add_argument(
-        "--smoke",
-        action="store_true",
-        help=(
-            "Run a lightweight smoke test with single-value grids and 3-fold CV. "
-            "Results are not benchmark-quality."
-        ),
-    )
-    return parser
-
-
-if __name__ == "__main__":
-    args = _build_arg_parser().parse_args()
-    main_program = Main(smoke=args.smoke)
-    main_program.run()

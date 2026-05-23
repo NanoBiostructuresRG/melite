@@ -1,0 +1,25 @@
+# MOSAIC default configuration
+# Copy this file and pass it with --config to override any of these values.
+# Only the keys you include in your custom file will be overridden.
+
+[paths]
+input   = "raw/"
+dataset = "data/"
+output  = "output/"
+
+[benchmark]
+reduction_types = ["PCA", "UMAP"]
+levels          = [70, 75, 80, 85, 90, 95]
+random_state    = 42
+
+[cv]
+n_splits = 10
+n_repeats = 5
+
+[cv_smoke]
+n_splits = 3
+n_repeats = 1
+
+[models]
+# Active models to benchmark. Remove any entry to skip that model.
+active = ["svc", "rf", "xgb"]
