@@ -1,22 +1,24 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
 import os
 import numpy as np
 import csv
 
-from config import Config
-from load_dataset import load_dataset
-from result_manager import ResultManager
-from model_training import MultiModelTrainer  
+from mosaic.config import Config
+from mosaic.load_dataset import load_dataset
+from mosaic.result_manager import ResultManager
+from mosaic.model_training import MultiModelTrainer
+
 
 class Pipeline:
     def __init__(self, config):
         self.config = config
-        self.model_trainer = MultiModelTrainer(config)  
+        self.model_trainer = MultiModelTrainer(config)
 
     def run(self, X_train, y_train, reduction_type, level):
-
         return self.model_trainer.train_and_select_best_model(
             X_train, y_train, reduction_type, level
         )
+
 
 class Main:
     def __init__(self):
@@ -31,28 +33,37 @@ class Main:
     # ------------------------------------------------------------------ #
     @staticmethod
     def _clean_params(params):
-        
         return {
             k: round(float(v), 4) if isinstance(v, (float, np.floating)) else v
             for k, v in params.items()
         }
+
     # ------------------------------------------------------------------ #
     def run(self):
-
         for reduction_type in ["PCA", "UMAP"]:
             print(f"Running with {reduction_type}...")
 
-            dataset = load_dataset(self.config, reduction_type, self.config.REDUCTION_LEVELS)
+            dataset = load_dataset(
+                self.config, reduction_type, self.config.REDUCTION_LEVELS
+            )
             if not dataset:
                 print(f"No data found for {reduction_type}. Skipping.")
                 continue
 
             for key, (X_train, y_train) in dataset.items():
-                level = int(key.replace(reduction_type, "")) 
+                level = int(key.replace(reduction_type, ""))
                 print(f"Training with {key} (level={level}).")
 
-                best_model, best_params, best_f1, f1_std, best_acc, acc_std, best_auc, auc_std = self.pipeline.run(
-                    X_train, y_train, reduction_type, level)
+                (
+                    best_model,
+                    best_params,
+                    best_f1,
+                    f1_std,
+                    best_acc,
+                    acc_std,
+                    best_auc,
+                    auc_std,
+                ) = self.pipeline.run(X_train, y_train, reduction_type, level)
 
                 params = self._clean_params(best_params)
                 model_name = best_model.__class__.__name__
@@ -64,10 +75,10 @@ class Main:
                             f"Results for {key} (level {level}):",
                             f"Model Selected: {model_name}",
                             f"Best ML-model Parameters: {params}",
-                            f"F1-macro (CV mean): {round(best_f1,4)} ± {round(f1_std,4)}",
-                            f"Accuracy (CV mean): {round(best_acc,4)} ± {round(acc_std,4)}",
+                            f"F1-macro (CV mean): {round(best_f1, 4)} ± {round(f1_std, 4)}",
+                            f"Accuracy (CV mean): {round(best_acc, 4)} ± {round(acc_std, 4)}",
                             (
-                                f"AUC-ROC (CV mean): {round(best_auc,4)} ± {round(auc_std,4)}"
+                                f"AUC-ROC (CV mean): {round(best_auc, 4)} ± {round(auc_std, 4)}"
                                 if best_auc is not None
                                 else "AUC-ROC (CV mean): N/A"
                             ),
@@ -76,19 +87,21 @@ class Main:
                     )
                 )
 
-                # CSV 
-                self.csv_rows.append({
-                    "reduction_type": reduction_type,
-                    "level": int(key.replace(reduction_type, "")),
-                    "model_name": model_name,
-                    "parameters": str(params),
-                    "f1_macro": round(best_f1, 4),
-                    "f1_std": round(f1_std, 4),
-                    "accuracy": round(best_acc, 4),
-                    "acc_std": round(acc_std, 4),
-                    "auc_roc": round(best_auc, 4) if best_auc is not None else "N/A",
-                    "auc_std": round(auc_std, 4) if auc_std is not None else "N/A"
-                })
+                # CSV
+                self.csv_rows.append(
+                    {
+                        "reduction_type": reduction_type,
+                        "level": int(key.replace(reduction_type, "")),
+                        "model_name": model_name,
+                        "parameters": str(params),
+                        "f1_macro": round(best_f1, 4),
+                        "f1_std": round(f1_std, 4),
+                        "accuracy": round(best_acc, 4),
+                        "acc_std": round(acc_std, 4),
+                        "auc_roc": round(best_auc, 4) if best_auc is not None else "N/A",
+                        "auc_std": round(auc_std, 4) if auc_std is not None else "N/A",
+                    }
+                )
 
         final_report = "\n".join(self.final_results)
         self.result_manager.write_results(final_report)
@@ -96,9 +109,19 @@ class Main:
 
         # CSV file
         csv_path = os.path.join(self.config.PATHS["OUTPUT"], "results.csv")
-        with open(csv_path, mode='w', newline='', encoding="utf-8") as csv_file:
-            fieldnames = ["reduction_type", "level", "model_name", "parameters", 
-                          "f1_macro", "f1_std", "accuracy", "acc_std", "auc_roc", "auc_std"]
+        with open(csv_path, mode="w", newline="", encoding="utf-8") as csv_file:
+            fieldnames = [
+                "reduction_type",
+                "level",
+                "model_name",
+                "parameters",
+                "f1_macro",
+                "f1_std",
+                "accuracy",
+                "acc_std",
+                "auc_roc",
+                "auc_std",
+            ]
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(self.csv_rows)
