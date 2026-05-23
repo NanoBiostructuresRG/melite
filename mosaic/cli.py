@@ -95,6 +95,11 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="Destination directory for the .pkl artifact. Defaults to output/.",
     )
+    export_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Override smoke-mode export guard. Use with caution.",
+    )
 
     return parser
 
@@ -120,7 +125,7 @@ def _export(args: argparse.Namespace) -> None:
     config = Config()
     csv_path = args.csv or Path(config.PATHS["OUTPUT"]) / "results.csv"
     outdir = args.outdir or Path(config.PATHS["OUTPUT"])
-    Finalizer(csv_path, outdir, config, row_index=args.row).run()
+    Finalizer(csv_path, outdir, config, row_index=args.row, force=getattr(args, "force", False)).run()
 
 
 def main() -> None:

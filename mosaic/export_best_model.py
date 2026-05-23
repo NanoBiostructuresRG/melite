@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 import ast
 import logging
+import sys
 from pathlib import Path
 from typing import Any, Tuple
 
@@ -88,11 +89,13 @@ class Finalizer:
         output_dir: Path,
         cfg: Config,
         row_index: int | None = None,
+        force: bool = False,
     ):
         self._csv_path = csv_path
         self._output_dir = output_dir
         self._cfg = cfg
         self._row_index = row_index
+        self._force = force
         self._metrics = pd.read_csv(csv_path)
         self._loader = DatasetLoader(cfg)
 
@@ -116,9 +119,31 @@ class Finalizer:
             save_to=save_dir / f"{row.model_name}_{row.reduction_type}{row.level}.png",
         )
 
+    def _check_smoke_guard(self, row: pd.Series) -> None:
+        """Block export of smoke-mode results unless --force is passed."""
+        smoke_val = row.get("smoke", False)
+        # pandas reads True/False from CSV as bool or string
+        is_smoke = str(smoke_val).strip().lower() == "true"
+        if is_smoke and not self._force:
+            print(
+                "\n[ERROR] This result was generated in smoke mode and is not "
+                "benchmark-quality.\n"
+                "        Run 'mosaic run' (without --smoke) to generate valid results,\n"
+                "        or use 'mosaic export --force' to override this guard.\n"
+            )
+            logger.error("Export blocked: smoke-mode result. Use --force to override.")
+            sys.exit(1)
+        if is_smoke and self._force:
+            print(
+                "\n[WARNING] Exporting a smoke-mode result. "
+                "This model is NOT benchmark-quality.\n"
+            )
+            logger.warning("Exporting smoke-mode result (--force override active).")
+
     def run(self) -> None:
         self._show_metrics()
         row = self._get_selected_row()
+        self._check_smoke_guard(row)
         X, y = self._loader.load(row.reduction_type, int(row.level))
         model = self._build_model(row.model_name, row.parameters)
 
@@ -140,7 +165,8 @@ class Finalizer:
 
     def _show_metrics(self) -> None:
         # User-facing UI — intentional print()
-        print(self._metrics[METRIC_COLUMNS].to_string(index=True, float_format="%.4f"))
+        cols = [c for c in METRIC_COLUMNS if c in self._metrics.columns]
+        print(self._metrics[cols].to_string(index=True, float_format="%.4f"))
 
     def _get_selected_row(self) -> pd.Series:
         if self._row_index is None:

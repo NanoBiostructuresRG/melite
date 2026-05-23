@@ -43,12 +43,13 @@ GitHub: https://github.com/NanoBiostructuresRG
         except Exception as e:
             print(f"Error writing results: {e}")
 
-    def write_csv(self, rows: list[dict], path: Path | str) -> None:
+    def write_csv(self, rows: list[dict], path: Path | str, smoke: bool = False) -> None:
         """Write benchmark results to a CSV file.
 
         Args:
             rows: List of result dicts, one per trained configuration.
             path: Destination path for the CSV file.
+            smoke: Whether the run was executed in smoke mode.
         """
         if not rows:
             return
@@ -59,11 +60,13 @@ GitHub: https://github.com/NanoBiostructuresRG
         fieldnames = [
             "reduction_type", "level", "model_name", "parameters",
             "f1_macro", "f1_std", "accuracy", "acc_std", "auc_roc", "auc_std",
+            "smoke",
         ]
         try:
             with open(path, mode="w", newline="", encoding="utf-8") as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
-                writer.writerows(rows)
+                for row in rows:
+                    writer.writerow({**row, "smoke": smoke})
         except Exception as e:
             print(f"Error writing CSV: {e}")

@@ -120,6 +120,6 @@ class Main:
         print("Final report written to", self.config.RESULTS_FILE)
 
         csv_path = Path(self.config.PATHS["OUTPUT"]) / "results.csv"
-        self.result_manager.write_csv(self.csv_rows, csv_path)
+        self.result_manager.write_csv(self.csv_rows, csv_path, smoke=self.config.SMOKE)
         logger.info("CSV file written to %s", csv_path)
         print(f"CSV file written to {csv_path}")
