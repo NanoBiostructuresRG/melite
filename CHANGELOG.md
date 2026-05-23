@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.3] - 2026-05-22
+
+### Added
+- Added `pyproject.toml` with `hatchling` build backend and `[project.scripts]`
+  entry point: `mosaic = "mosaic.cli:main"`. Package is now installable via
+  `pip install -e .`.
+- Added unified CLI `mosaic/cli.py` with subcommands `mosaic run` and
+  `mosaic export`, replacing the two separate entry points.
+- Added global CLI flags: `--verbose` (INFO-level logging), `--config PATH`
+  (user TOML override), `--version`.
+- Added `mosaic/config_default.toml` with externalized configuration: paths,
+  reduction types, levels, random state, CV settings, and active models.
+- Added `Config.setup()` method to separate filesystem side effects from object
+  instantiation, enabling safe use in tests.
+- Added `ResultManager.write_csv()` method, consolidating all file I/O under
+  `ResultManager`.
+- Added `smoke` column to `results.csv` to mark runs generated in smoke mode.
+- Added smoke-mode export guard: `mosaic export` blocks export of smoke results
+  with exit code 1. Use `mosaic export --force` to override with a visible
+  warning.
+- Added package-level `NullHandler` logger in `mosaic/__init__.py`.
+
+### Changed
+- `Config` now reads `config_default.toml` as the base configuration. An
+  optional user TOML file passed via `--config` is merged over defaults.
+- `Config.__init__` no longer creates directories or sets random seeds;
+  call `config.setup()` explicitly from pipeline entry points.
+- `Config.PARAM_GRID` is now built by `_build_param_grid()`, keeping grids
+  in Python and user-facing settings in TOML.
+- `main.py` now iterates over `config.REDUCTION_TYPES` instead of a hardcoded
+  list.
+- `main.py` delegates CSV writing to `ResultManager.write_csv()`.
+- All `print()` progress calls in `main.py` and `export_best_model.py` are
+  paired with `logger.*` calls for programmatic access.
+- `export_best_model.py` and `main.py` no longer contain CLI argument parsing;
+  all CLI logic lives in `mosaic/cli.py`.
+- Bumped version to `0.1.3` in `version.py` and `CITATION.cff`.
+
+### Validation
+- `pip install -e .` succeeded in `mosaic_env`.
+- `mosaic --help`, `mosaic run --help`, `mosaic export --help` verified.
+- `mosaic --version` returns `MOSAIC 0.1.3`.
+- `mosaic run --smoke --verbose` completed full PCA + UMAP run with INFO logging.
+- `mosaic run --smoke` runs silently (only WARNING + print output).
+- `mosaic export --row 0` blocked correctly on smoke results (exit code 1).
+- `mosaic export --row 0 --force` exported with warning, `.pkl` artifact created.
+
+---
+
 ## [0.1.2] - 2026-05-22
 
 ### Changed
