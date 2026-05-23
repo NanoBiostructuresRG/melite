@@ -1,5 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-__all__ = ["ResultManager"]
+"""Result writing utilities for MOSAIC.
+
+This module provides :class:`ResultManager`, which writes benchmark outputs
+to disk: a human-readable TXT report and a structured CSV file. Both outputs
+are produced by the main benchmarking pipeline after all model configurations
+have been evaluated.
+"""
+
 import csv
 import os
 from datetime import datetime
@@ -7,8 +14,26 @@ from pathlib import Path
 
 from mosaic.version import __version__
 
+__all__ = ["ResultManager"]
+
 
 class ResultManager:
+    """Write benchmark results to TXT and CSV files.
+
+    Parameters
+    ----------
+    output_file : str or pathlib.Path
+        Full path to the TXT results file. The parent directory is created
+        automatically if it does not exist.
+
+    Examples
+    --------
+    >>> rm = ResultManager("output/results.txt")
+    >>> rm.write_results("Model: SVC\\nF1: 0.85")
+    >>> rm.write_csv([{"model_name": "SVC", "f1_macro": 0.85}],
+    ...              "output/results.csv")
+    """
+
     def __init__(self, output_file):
         self.output_file = output_file
 
@@ -37,6 +62,23 @@ GitHub: https://github.com/NanoBiostructuresRG
 """
 
     def write_results(self, content: str) -> None:
+        """Write a human-readable TXT report to disk.
+
+        The report begins with a fixed header containing project metadata and
+        execution timestamp, followed by *content*.
+
+        Parameters
+        ----------
+        content : str
+            Body of the report, typically the concatenated per-configuration
+            result strings produced by the benchmarking pipeline.
+
+        Notes
+        -----
+        The header includes the current ``__version__`` string from
+        :mod:`mosaic.version`, so the report always reflects the version that
+        generated it.
+        """
         try:
             with open(self.output_file, "w", encoding="utf-8") as f:
                 f.write(self._get_header())
@@ -47,10 +89,25 @@ GitHub: https://github.com/NanoBiostructuresRG
     def write_csv(self, rows: list[dict], path: Path | str, smoke: bool = False) -> None:
         """Write benchmark results to a CSV file.
 
-        Args:
-            rows: List of result dicts, one per trained configuration.
-            path: Destination path for the CSV file.
-            smoke: Whether the run was executed in smoke mode.
+        Parameters
+        ----------
+        rows : list of dict
+            List of result dictionaries, one per trained configuration. Each
+            dict must contain the keys ``reduction_type``, ``level``,
+            ``model_name``, ``parameters``, ``f1_macro``, ``f1_std``,
+            ``accuracy``, ``acc_std``, ``auc_roc``, and ``auc_std``.
+        path : str or pathlib.Path
+            Destination path for the CSV file. Parent directories are created
+            automatically if they do not exist.
+        smoke : bool, optional
+            Whether the run was executed in smoke mode. When ``True``, a
+            ``smoke`` column is set to ``True`` for every row, which causes
+            :class:`~mosaic.export_best_model.Finalizer` to block export
+            unless ``--force`` is passed. Default is ``False``.
+
+        Notes
+        -----
+        If *rows* is empty, no file is written and the method returns silently.
         """
         if not rows:
             return

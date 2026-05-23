@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.6] - 2026-05-23
+
+### Added
+- Added NumPy-style docstrings to all 10 modules: `__init__.py`, `version.py`,
+  `config.py`, `load_dataset.py`, `result_manager.py`, `plot_metrics.py`,
+  `model_training.py`, `export_best_model.py`, `main.py`, and `cli.py`.
+- Added MkDocs documentation site with `mkdocs-material` theme:
+  - `mkdocs.yml` — site configuration with MOSAIC steel-blue + amber palette.
+  - `docs/index.md` — home page with hero section, quick start, and Python API examples.
+  - `docs/api.md` — API Reference generated from docstrings via `mkdocstrings`.
+  - `docs/changelog.md` — changelog page (includes `CHANGELOG.md`).
+  - `docs/stylesheets/extra.css` — custom MOSAIC theme styles.
+
+### Changed
+- Bumped version to `0.1.6` in `version.py` and `CITATION.cff`.
+
+### Validation
+- `pytest tests/ -v` — 57 passed, 1 warning, 0 failed.
+- `mkdocs build --strict` — build succeeded with no errors.
+- `mkdocs serve` — site renders correctly locally.
+- `python -c "help(mosaic.Config)"` — docstring visible.
+
+---
+
 ## [0.1.5] - 2026-05-23
 
 ### Added

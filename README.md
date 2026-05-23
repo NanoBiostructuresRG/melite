@@ -1,7 +1,7 @@
 # MOSAIC: Modular Multi-Model Selection and Cross-Validation
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.5-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.1.6-blue.svg)]()
 
 ---
 
@@ -25,13 +25,13 @@ MOSAIC is currently in **pre-stable development**.
 The current development version is:
 
 ```text
-0.1.5
+0.1.6
 ```
 
 The active development branch is:
 
 ```text
-dev/v0.1.5
+dev/v0.1.6
 ```
 
 MOSAIC is not yet published on PyPI. It can be installed in editable mode
@@ -363,6 +363,14 @@ MOSAIC/
 ├── data/                         # Local PCA/UMAP reduced matrices; ignored by Git
 ├── output/                       # Local generated reports, figures and models; ignored by Git
 │
+├── docs/                         # MkDocs documentation source
+│   ├── index.md
+│   ├── api.md
+│   ├── changelog.md
+│   └── stylesheets/
+│       └── extra.css
+│
+├── mkdocs.yml                    # MkDocs configuration
 ├── pyproject.toml                # Package metadata and build system
 ├── environment.yml               # Conda development environment
 ├── CHANGELOG.md                  # Version history
@@ -465,7 +473,7 @@ $ pytest tests/ -v
 
 ## Validation
 
-The current `dev/v0.1.5` branch has been validated with:
+The current `dev/v0.1.6` branch has been validated with:
 
 ```bash
 pytest tests/ -v
@@ -483,6 +491,12 @@ mosaic export --help
 mosaic --version
 ```
 
+Documentation build:
+
+```bash
+mkdocs build --strict
+```
+
 Public API smoke test:
 
 ```bash
@@ -497,8 +511,9 @@ Near-term development goals:
 
 - ~~Add formal tests with `pytest`.~~ ✓ Done in v0.1.4
 - ~~Define stable public API.~~ ✓ Done in v0.1.5
-- Publish to PyPI as `mosaic-ml`.
-- Add continuous integration.
+- ~~Add docstrings and MkDocs documentation.~~ ✓ Done in v0.1.6
+- Add continuous integration (v0.1.7).
+- Publish to PyPI as `mosaic-ml` (v0.1.8).
 - Add documented example datasets.
 - Add a prediction/inference module for exported `.pkl` artifacts.
 
@@ -513,7 +528,7 @@ Suggested citation format:
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MOSAIC: Modular
-Multi-Model Selection and Cross-Validation (0.1.5). Tecnologico de
+Multi-Model Selection and Cross-Validation (0.1.6). Tecnologico de
 Monterrey. https://github.com/NanoBiostructuresRG/mosaic
 ```
 

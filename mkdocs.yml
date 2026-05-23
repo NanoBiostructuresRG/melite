@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+site_name: MOSAIC
+site_description: Multi-model selection, cross-validation and export toolkit for reduced-feature tabular classification
+site_url: https://nanobiostructuresrg.github.io/mosaic/
+repo_url: https://github.com/NanoBiostructuresRG/mosaic
+repo_name: NanoBiostructuresRG/mosaic
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://nanobiostructuresrg.github.io/
+      name: NanoBiostructuresRG
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/mosaic-ml/
+      name: MOSAIC on PyPI
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            show_source: false
+            show_root_heading: false
+            show_root_toc_entry: false
+
+nav:
+  - Home: index.md
+  - API Reference: api.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
