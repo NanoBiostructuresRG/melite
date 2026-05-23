@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 import os
-import csv
 import numpy as np
+from pathlib import Path
 
 from mosaic.config import Config
 from mosaic.load_dataset import load_dataset
@@ -108,18 +108,11 @@ class Main:
                     }
                 )
 
+        # Write outputs via ResultManager
         final_report = "\n".join(self.final_results)
         self.result_manager.write_results(final_report)
         print("Final report written to", self.config.RESULTS_FILE)
 
-        csv_path = os.path.join(self.config.PATHS["OUTPUT"], "results.csv")
-        with open(csv_path, mode="w", newline="", encoding="utf-8") as csv_file:
-            fieldnames = [
-                "reduction_type", "level", "model_name", "parameters",
-                "f1_macro", "f1_std", "accuracy", "acc_std", "auc_roc", "auc_std",
-            ]
-            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(self.csv_rows)
-
+        csv_path = Path(self.config.PATHS["OUTPUT"]) / "results.csv"
+        self.result_manager.write_csv(self.csv_rows, csv_path)
         print(f"CSV file written to {csv_path}")
