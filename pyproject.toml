@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mosaic-ml"
+dynamic = ["version"]
+description = "Multi-model selection, cross-validation and export toolkit for reduced-feature tabular classification."
+readme = "README.md"
+license = "LGPL-3.0-or-later"
+license-files = ["LICENSE", "COPYING", "COPYING.LESSER"]
+authors = [
+    { name = "Flavio F. Contreras-Torres", email = "contreras.flavio@tec.mx" },
+    { name = "Ana C. Murrieta", email = "ana.murrieta@tec.mx" }
+]
+keywords = [
+    "machine learning",
+    "benchmarking",
+    "classification",
+    "tabular data",
+    "model selection",
+    "cross-validation",
+    "training",
+    "PCA",
+    "UMAP",
+    "scikit-learn",
+    "xgboost",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.23",
+    "pandas>=1.5",
+    "scikit-learn>=1.2",
+    "xgboost>=1.7",
+    "matplotlib>=3.6",
+    "joblib>=1.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "build>=1.0",
+    "twine>=4.0",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
+]
+
+[project.urls]
+Homepage = "https://github.com/NanoBiostructuresRG/mosaic"
+Repository = "https://github.com/NanoBiostructuresRG/mosaic"
+Issues = "https://github.com/NanoBiostructuresRG/mosaic/issues"
+
+[project.scripts]
+mosaic = "mosaic.cli:main"
+
+[tool.hatch.version]
+path = "mosaic/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mosaic"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/docs",
+    "/mkdocs.yml",
+    "/data",
+    "/raw",
+    "/output",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+tmp_path_retention_count = 0
+tmp_path_retention_policy = "none"
