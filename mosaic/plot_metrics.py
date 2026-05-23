@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
+__all__ = ["plot_cv_distributions"]
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path

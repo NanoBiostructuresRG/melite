@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Unified CLI entry point for MOSAIC."""
 
+__all__ = ["main"]
 import argparse
 import logging
 import sys
