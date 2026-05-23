@@ -7,6 +7,7 @@ Hyperparameter grids are defined here in Python — they are
 developer-facing and not expected to change between runs.
 """
 
+__all__ = ["Config"]
 import os
 import random
 import tomllib

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 # load_dataset.py - Load datasets for training and evaluation
+__all__ = ["load_dataset"]
 import os
 import numpy as np
 import logging

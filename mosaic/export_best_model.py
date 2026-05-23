@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
+__all__ = ["Finalizer"]
 import ast
 import logging
 import sys

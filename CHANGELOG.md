@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.5] - 2026-05-23
+
+### Added
+- Defined stable public API in `mosaic/__init__.py`: `Config`, `load_dataset`,
+  `ResultManager`, `plot_cv_distributions`, and `__version__` are now importable
+  directly from `mosaic`.
+- Added `__all__` to all modules: `config.py`, `load_dataset.py`,
+  `result_manager.py`, `plot_metrics.py`, `model_training.py`,
+  `export_best_model.py`, and `cli.py`.
+- Added `tests/test_version.py` — 6 tests for version metadata.
+- Added `tests/test_public_api.py` — 7 tests for public API imports and `__all__`.
+- Added `tests/test_plot_metrics.py` — 5 tests for PNG output and directory creation.
+- Added `tests/test_cli.py` — 8 tests for CLI help and version output.
+- Added `pytest` to `environment.yml`.
+
+### Changed
+- `mosaic/__init__.py` now exposes the stable public API with explicit imports
+  and `__all__`. Users can do `from mosaic import Config, load_dataset`.
+- Bumped version to `0.1.5` in `version.py` and `CITATION.cff`.
+
+### Validation
+- `pytest tests/ -v` — 57 passed, 1 warning (expected Agg backend warning), 0 failed.
+- `from mosaic import Config, load_dataset, ResultManager, plot_cv_distributions, __version__` ✓
+- `mosaic.__all__` contains exactly the 5 expected public symbols ✓
+- CLI help and version tests pass via subprocess ✓
+
+---
+
 ## [0.1.4] - 2026-05-22
 
 ### Added
