@@ -52,6 +52,8 @@ def plot_cv_distributions(
     fig.tight_layout()
 
     if save_to:
+        save_to = Path(save_to)
+        save_to.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_to, dpi=300, bbox_inches="tight")
     else:
         plt.show()

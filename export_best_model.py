@@ -85,10 +85,11 @@ class DatasetLoader:
 
 class Finalizer:
 
-    def __init__(self, csv_path: Path, output_dir: Path, cfg: Config):
+    def __init__(self, csv_path: Path, output_dir: Path, cfg: Config, row_index: int | None = None):
         self._csv_path = csv_path
         self._output_dir = output_dir
         self._cfg = cfg
+        self._row_index = row_index
         self._metrics = pd.read_csv(csv_path)
         self._loader = DatasetLoader(cfg)
 
@@ -118,7 +119,7 @@ class Finalizer:
 
     def run(self) -> None:
         self._show_metrics()
-        row = self._prompt_row()
+        row = self._get_selected_row()
         X, y = self._loader.load(row.reduction_type, int(row.level))
         model = self._build_model(row.model_name, row.parameters)
 
@@ -137,6 +138,15 @@ class Finalizer:
     def _show_metrics(self) -> None:
         print(self._metrics[METRIC_COLUMNS].to_string(index=True, float_format="%.4f"))
 
+    def _get_selected_row(self) -> pd.Series:
+        if self._row_index is None:
+            return self._prompt_row()
+        if 0 <= self._row_index < len(self._metrics):
+            return self._metrics.iloc[self._row_index]
+        raise ValueError(
+            f"Invalid row index {self._row_index}; "
+            f"expected a value between 0 and {len(self._metrics) - 1}."
+        )
 
     def _prompt_row(self) -> pd.Series:
         while True:
@@ -183,13 +193,19 @@ def _build_arg_parser(cfg: Config) -> argparse.ArgumentParser:
         default=Path(cfg.PATHS["OUTPUT"]),
         help="Destination directory for the *.pkl* file.",
     )
+    parser.add_argument(
+        "--row",
+        type=int,
+        default=None,
+        help="Row index from the results CSV to export without interactive prompt.",
+    )
     return parser
 
 
 def main() -> None:
     cfg = Config()
     args = _build_arg_parser(cfg).parse_args()
-    Finalizer(args.csv, args.outdir, cfg).run()
+    Finalizer(args.csv, args.outdir, cfg, row_index=args.row).run()
 
 
 if __name__ == "__main__":
