@@ -96,6 +96,14 @@ class Finalizer:
         self._cfg = cfg
         self._row_index = row_index
         self._force = force
+
+        # B4 — missing results.csv: descriptive error with hint
+        if not Path(csv_path).exists():
+            raise FileNotFoundError(
+                f"Results file not found: {csv_path}. "
+                "Run 'mosaic run' first to generate benchmark results."
+            )
+
         self._metrics = pd.read_csv(csv_path)
         self._loader = DatasetLoader(cfg)
 
