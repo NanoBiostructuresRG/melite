@@ -1,12 +1,18 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
+import argparse
 import os
-import numpy as np
 import csv
+import numpy as np
 
 from mosaic.config import Config
 from mosaic.load_dataset import load_dataset
 from mosaic.result_manager import ResultManager
 from mosaic.model_training import MultiModelTrainer
+
+_SMOKE_WARNING = (
+    "\n[SMOKE TEST] Using reduced grid and CV. "
+    "Results are not benchmark-quality.\n"
+)
 
 
 class Pipeline:
@@ -21,8 +27,8 @@ class Pipeline:
 
 
 class Main:
-    def __init__(self):
-        self.config = Config()
+    def __init__(self, smoke: bool = False):
+        self.config = Config(smoke=smoke)
         self.pipeline = Pipeline(self.config)
 
         self.result_manager = ResultManager(self.config.RESULTS_FILE)
@@ -40,6 +46,9 @@ class Main:
 
     # ------------------------------------------------------------------ #
     def run(self):
+        if self.config.SMOKE:
+            print(_SMOKE_WARNING)
+
         for reduction_type in ["PCA", "UMAP"]:
             print(f"Running with {reduction_type}...")
 
@@ -129,6 +138,22 @@ class Main:
         print(f"CSV file written to {csv_path}")
 
 
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="MOSAIC — benchmarking toolkit for tabular classification."
+    )
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help=(
+            "Run a lightweight smoke test with single-value grids and 3-fold CV. "
+            "Results are not benchmark-quality."
+        ),
+    )
+    return parser
+
+
 if __name__ == "__main__":
-    main_program = Main()
+    args = _build_arg_parser().parse_args()
+    main_program = Main(smoke=args.smoke)
     main_program.run()
