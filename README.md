@@ -1,7 +1,7 @@
 # MOSAIC: Modular Multi-Model Selection and Cross-Validation
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.1-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.1.2-blue.svg)]()
 
 ---
 
@@ -25,13 +25,13 @@ MOSAIC is currently in **pre-stable development**.
 The current development version is:
 
 ```text
-0.1.1
+0.1.2
 ```
 
 The active development branch is:
 
 ```text
-dev/v0.1.1
+dev/v0.1.2
 ```
 
 MOSAIC is not yet packaged for PyPI. At this stage, it is intended to be used
@@ -120,10 +120,10 @@ python -c "import numpy, pandas, sklearn, xgboost, joblib, matplotlib; print('de
 
 ## Quick Start
 
-### 1. Run the benchmarking phase
+### 1. Run the full benchmarking phase
 
 ```bash
-python main.py
+python -m mosaic.main
 ```
 
 This runs the configured benchmarking workflow and writes:
@@ -133,19 +133,28 @@ output/results.txt
 output/results.csv
 ```
 
-### 2. Export a selected model interactively
+### 2. Run a lightweight smoke test
 
 ```bash
-python export_best_model.py
+python -m mosaic.main --smoke
+```
+
+Uses single-value hyperparameter grids and 3-fold CV (no repeats) for fast
+validation. Results are not benchmark-quality.
+
+### 3. Export a selected model interactively
+
+```bash
+python -m mosaic.export_best_model
 ```
 
 MOSAIC will display the available rows from `output/results.csv` and ask which
 row should be exported.
 
-### 3. Export a selected model non-interactively
+### 4. Export a selected model non-interactively
 
 ```bash
-python export_best_model.py --row 0
+python -m mosaic.export_best_model --row 0
 ```
 
 This selects row `0` from `output/results.csv`, retrains the corresponding
@@ -245,24 +254,27 @@ Three-panel plot showing cross-validation fold distributions for:
 
 ```text
 MOSAIC/
-├── raw/                    # Local input labels and upstream feature data; ignored by Git
-├── data/                   # Local PCA/UMAP reduced matrices; ignored by Git
-├── output/                 # Local generated reports, figures and models; ignored by Git
+├── mosaic/                     # Python package
+│   ├── __init__.py
+│   ├── config.py               # Paths, random seed, reduction levels, CV and hyperparameter grids
+│   ├── load_dataset.py         # Dataset loading and label consistency validation
+│   ├── model_training.py       # GridSearchCV, repeated CV and model selection
+│   ├── main.py                 # Main benchmarking pipeline and CLI entry point
+│   ├── result_manager.py       # Human-readable TXT report writer
+│   ├── export_best_model.py    # Final model export workflow and CLI entry point
+│   ├── plot_metrics.py         # CV metric distribution plots
+│   └── version.py              # Package version metadata
 │
-├── config.py               # Paths, random seed, reduction levels, CV and hyperparameter grids
-├── load_dataset.py         # Dataset loading and label consistency validation
-├── model_training.py       # GridSearchCV, repeated CV and model selection
-├── main.py                 # Main benchmarking pipeline
-├── result_manager.py       # Human-readable TXT report writer
-├── export_best_model.py    # Final model export workflow
-├── plot_metrics.py         # CV metric distribution plots
+├── raw/                        # Local input labels and upstream feature data; ignored by Git
+├── data/                       # Local PCA/UMAP reduced matrices; ignored by Git
+├── output/                     # Local generated reports, figures and models; ignored by Git
 │
-├── environment.yml         # Conda development environment
-├── CHANGELOG.md            # Version history
-├── CITATION.cff            # Citation metadata
-├── COPYING                 # GNU GPL v3 license text
-├── COPYING.LESSER          # GNU LGPL v3 license text
-├── LICENSE                 # Project license summary
+├── environment.yml             # Conda development environment
+├── CHANGELOG.md                # Version history
+├── CITATION.cff                # Citation metadata
+├── COPYING                     # GNU GPL v3 license text
+├── COPYING.LESSER              # GNU LGPL v3 license text
+├── LICENSE                     # Project license summary
 └── README.md
 ```
 
@@ -276,7 +288,7 @@ MOSAIC currently benchmarks:
 - Random Forest Classifier
 - XGBoost Classifier
 
-The configured hyperparameter grids are defined in `config.py`.
+The configured hyperparameter grids are defined in `mosaic/config.py`.
 
 ---
 
@@ -284,7 +296,7 @@ The configured hyperparameter grids are defined in `config.py`.
 
 MOSAIC uses repeated stratified K-fold cross-validation.
 
-The current configuration is defined in `config.py`:
+The current configuration is defined in `mosaic/config.py`:
 
 ```python
 CV_CONFIG = {
@@ -307,28 +319,31 @@ per evaluated configuration.
 ## Example Console Output
 
 ```text
-# Training phase
+# Full benchmarking phase
+$ python -m mosaic.main
 Running with PCA...
-INFO:load_dataset:Labels
+INFO:mosaic.load_dataset:Labels loaded: raw/labels.npy (shape=(182,))
 Training with PCA85 (level=85).
 Running with UMAP...
-INFO:load_dataset:Labels loaded:
+INFO:mosaic.load_dataset:Labels loaded: raw/labels.npy (shape=(182,))
 Training with UMAP85 (level=85).
 Final report written to output/results.txt
 CSV file written to output/results.csv
 
+# Smoke test
+$ python -m mosaic.main --smoke
+[SMOKE TEST] Using reduced grid and CV. Results are not benchmark-quality.
+Running with PCA...
+
 # Export phase
-$ python export_best_model.py
---------------------------------------------
+$ python -m mosaic.export_best_model
   reduction_type  level              model_name  f1_macro  accuracy  auc_roc
 0            PCA     85                     SVC    0.8336    0.8408   0.8802
 1           UMAP     85  RandomForestClassifier    0.7041    0.7097   0.7855
 
-
 Enter the row number to keep: 0
 
 Training SVC on PCA85 using all available data...
-
 ```
 
 ---
@@ -336,7 +351,8 @@ Training SVC on PCA85 using all available data...
 ## Notes
 
 - Full benchmarking can be computationally expensive because MOSAIC performs
-  grid search and repeated cross-validation.
+  grid search and repeated cross-validation. Use `--smoke` for fast validation
+  during development.
 - `output/`, `data/`, and `raw/` are local working directories and are ignored
   by Git.
 - Model artifacts such as `.pkl` and `.joblib` files are ignored by Git.
@@ -347,22 +363,23 @@ Training SVC on PCA85 using all available data...
 
 ## Validation
 
-The current `dev/v0.1.1` branch has been validated with:
+The current `dev/v0.1.2` branch has been validated with:
 
 ```bash
-python -m py_compile config.py export_best_model.py load_dataset.py main.py model_training.py plot_metrics.py result_manager.py
+python -m py_compile mosaic/config.py mosaic/export_best_model.py mosaic/load_dataset.py mosaic/main.py mosaic/model_training.py mosaic/plot_metrics.py mosaic/result_manager.py mosaic/version.py
 ```
 
 Dataset loading smoke test:
 
 ```bash
-python -c "from config import Config; from load_dataset import load_dataset; c=Config(); d=load_dataset(c,'PCA',[70]); print(d['PCA70'][0].shape, d['PCA70'][1].shape)"
+python -c "from mosaic.config import Config; from mosaic.load_dataset import load_dataset; c=Config(); d=load_dataset(c,'PCA',[70]); print(d['PCA70'][0].shape, d['PCA70'][1].shape)"
 ```
 
-CLI help smoke test:
+CLI help smoke tests:
 
 ```bash
-python export_best_model.py --help
+python -m mosaic.main --help
+python -m mosaic.export_best_model --help
 ```
 
 Minimal smoke tests were also performed for:
@@ -398,7 +415,7 @@ Suggested citation format:
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MOSAIC: Modular
-Multi-Model Selection and Cross-Validation (0.1.1). Tecnologico de
+Multi-Model Selection and Cross-Validation (0.1.2). Tecnologico de
 Monterrey. https://github.com/NanoBiostructuresRG/mosaic
 ```
 
