@@ -1,8 +1,8 @@
 # API Reference
 
-MOSAIC exposes a stable public API through six symbols. Internal modules are
-importable directly but are not part of this contract and may change between
-versions. The project is pre-stable and this API may change without deprecation, but we will do our best to avoid breaking changes.
+MOSAIC exposes an intended public API through six symbols. The project is
+pre-stable, so this API may change before 1.0. Internal modules are importable
+directly but are not part of the public contract.
 
 ```python
 from mosaic import Config
