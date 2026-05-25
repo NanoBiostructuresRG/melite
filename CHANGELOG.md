@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.8] - 2026-05-25
+
+### Added
+- Added `.github/workflows/publish-to-pypi.yml` — manual PyPI publish workflow
+  triggered via `workflow_dispatch`. Validates tag format, verifies package
+  version matches tag, builds wheel and sdist, checks distributions, and
+  publishes via trusted publishing (OIDC, no API token required).
+- Added `dist/` to `.gitignore`.
+
+### Changed
+- Renamed PyPI package from `mosaic-ml` to `mosaic-tabular` in `pyproject.toml`.
+- Updated `description` in `pyproject.toml` to:
+  `"Tabular classification benchmarking toolkit for model selection, repeated
+  stratified cross-validation, final model export, and artifact-based inference."`
+- Updated `docs/api.md` to include `predict` in the public API reference.
+- Updated `docs/index.md`: version badge, pre-stable note, four-card panel,
+  `predict` tab in Python API examples, `predict` in public API table.
+- Updated `docs/stylesheets/extra.css`: added `.ms-grid--four` layout class.
+- Updated `README.md`: corrected all references from `mosaic-ml` to
+  `mosaic-tabular`, replaced "inference" with "artifact-based inference"
+  throughout, updated roadmap and notes.
+- Bumped version to `0.1.8` in `version.py` and `CITATION.cff`.
+
+### Validation
+- `python -m build` — `mosaic_tabular-0.1.8.tar.gz` and `.whl` built successfully.
+- `python -m twine check dist/*` — PASSED.
+- `mkdocs build --strict` — build succeeded with no errors.
+- `pytest tests/ -v` — 80 passed, 1 warning, 0 failed.
+- `mosaic --version` → `MOSAIC 0.1.8`.
+
+---
+
 ## [0.1.7] - 2026-05-25
 
 ### Added
@@ -32,8 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `tests/test_public_api.py` — added `predict` import and `__all__` tests.
   Total test count: **80 tests**.
 - Rewrote `README.md` combining outside-in user perspective with full developer
-  documentation. Added `What is MOSAIC?`, `Quickstart`, and inference example
-  at the top; preserved all existing content below.
+  documentation.
 - Updated `mosaic/__init__.py` public API docstring to include `predict`.
 - Bumped version to `0.1.7` in `version.py` and `CITATION.cff`.
 
@@ -155,19 +186,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added package-level `NullHandler` logger in `mosaic/__init__.py`.
 
 ### Changed
-- `Config` now reads `config_default.toml` as the base configuration. An
-  optional user TOML file passed via `--config` is merged over defaults.
-- `Config.__init__` no longer creates directories or sets random seeds;
-  call `config.setup()` explicitly from pipeline entry points.
-- `Config.PARAM_GRID` is now built by `_build_param_grid()`, keeping grids
-  in Python and user-facing settings in TOML.
-- `main.py` now iterates over `config.REDUCTION_TYPES` instead of a hardcoded
-  list.
+- `Config` now reads `config_default.toml` as the base configuration.
+- `Config.__init__` no longer creates directories or sets random seeds.
+- `Config.PARAM_GRID` is now built by `_build_param_grid()`.
+- `main.py` now iterates over `config.REDUCTION_TYPES` instead of a hardcoded list.
 - `main.py` delegates CSV writing to `ResultManager.write_csv()`.
-- All `print()` progress calls in `main.py` and `export_best_model.py` are
-  paired with `logger.*` calls for programmatic access.
-- `export_best_model.py` and `main.py` no longer contain CLI argument parsing;
-  all CLI logic lives in `mosaic/cli.py`.
+- CLI logic centralized in `mosaic/cli.py`.
 - Bumped version to `0.1.3` in `version.py` and `CITATION.cff`.
 
 ### Validation
@@ -175,8 +199,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mosaic --help`, `mosaic run --help`, `mosaic export --help` verified.
 - `mosaic --version` returns `MOSAIC 0.1.3`.
 - `mosaic run --smoke --verbose` completed full PCA + UMAP run with INFO logging.
-- `mosaic run --smoke` runs silently (only WARNING + print output).
-- `mosaic export --row 0` blocked correctly on smoke results (exit code 1).
 - `mosaic export --row 0 --force` exported with warning, `.pkl` artifact created.
 
 ---
@@ -186,17 +208,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Moved all source modules into a `mosaic/` package directory.
 - Updated all intra-package imports to use the `mosaic.*` namespace.
-- `result_manager.py` now reads `__version__` from `mosaic.version` instead of
-  using a hardcoded string.
-- Updated `README.md` to reflect the `mosaic/` package structure, corrected CLI
-  commands, documented `--smoke` mode, and updated validation section.
+- `result_manager.py` now reads `__version__` from `mosaic.version`.
+- Updated `README.md` to reflect the `mosaic/` package structure.
 
 ### Fixed
 - Bumped version string in `version.py` to `0.1.2`.
 
 ### Added
-- Added `--smoke` flag to `mosaic.main` for lightweight benchmarking with
-  single-value hyperparameter grids and 3-fold CV (no repeats).
+- Added `--smoke` flag to `mosaic.main` for lightweight benchmarking.
 - Added `argparse` CLI to `mosaic.main` with `--smoke` flag and `--help` support.
 
 ### Validation
@@ -204,7 +223,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dataset loading smoke test passed: PCA70 labels and features loaded correctly.
 - SVC, Random Forest and XGBoost smoke tests passed; scores match v0.1.1 baseline.
 - PNG figure generation smoke test passed.
-- `--smoke` mode completed full PCA + UMAP benchmark run successfully.
 
 ---
 

@@ -6,7 +6,7 @@ It is read by ``hatchling`` at build time via ``[tool.hatch.version]``
 and imported by ``result_manager`` to stamp generated reports.
 """
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"
 PROJECT_NAME = "MOSAIC"
 PROJECT_VERSION = __version__
 PROJECT_STATUS = "alpha"
