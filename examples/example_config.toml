@@ -1,0 +1,27 @@
+# MOSAIC example configuration
+# Points to the synthetic example dataset included in the repository.
+# Use this file to run a fast end-to-end benchmark for quickstart purposes.
+#
+# Usage:
+#   mosaic run --smoke --config examples/example_config.toml
+
+[paths]
+input   = "examples/"
+dataset = "examples/"
+output  = "examples/output/"
+
+[benchmark]
+reduction_types = ["PCA"]
+levels          = [70]
+random_state    = 42
+
+[cv]
+n_splits  = 3
+n_repeats = 1
+
+[cv_smoke]
+n_splits  = 3
+n_repeats = 1
+
+[models]
+active = ["svc"]
