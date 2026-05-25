@@ -50,7 +50,7 @@ class ResultManager:
 Models: SVC, RandomForest, XGBoost
 CLI: mosaic run | mosaic export
 Package: mosaic-tabular
-Version: v{__version__}
+Version: {__version__}
 Licence: {PROJECT_LICENSE}
 Execution Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 -----------------------------------------------------
