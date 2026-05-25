@@ -18,8 +18,8 @@ from typing import Any, Tuple
 import joblib
 import numpy as np
 import pandas as pd
-from mosaic.config import Config
-from mosaic.plot_metrics import plot_cv_distributions
+from .config import Config
+from .plot_metrics import plot_cv_distributions
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_validate, RepeatedStratifiedKFold
 from sklearn.svm import SVC

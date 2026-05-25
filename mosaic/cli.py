@@ -16,7 +16,7 @@ import logging
 import sys
 from pathlib import Path
 
-from mosaic.version import __version__
+from .version import __version__
 
 __all__ = ["main"]
 
