@@ -15,3 +15,5 @@ tests_output.txt
 tests_output.txt
 
 site/
+
+.pytest_tmp

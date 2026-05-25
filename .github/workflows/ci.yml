@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "dev/v*"
+      - "release/*"
+
+jobs:
+  test-build-smoke:
+    name: Test, build, and smoke install (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package and validation tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" build twine
+
+      - name: Run tests
+        run: python -m pytest tests -p no:cacheprovider --basetemp .pytest_tmp
+
+      - name: Check CLI version
+        run: mosaic --version
+
+      - name: Check public import boundary
+        run: |
+          python -c "
+          import mosaic
+          assert hasattr(mosaic, '__version__'),           '__version__ missing'
+          assert hasattr(mosaic, 'Config'),                'Config missing'
+          assert hasattr(mosaic, 'load_dataset'),          'load_dataset missing'
+          assert hasattr(mosaic, 'ResultManager'),         'ResultManager missing'
+          assert hasattr(mosaic, 'plot_cv_distributions'), 'plot_cv_distributions missing'
+          assert hasattr(mosaic, 'predict'),               'predict missing'
+          assert not hasattr(mosaic, 'Pipeline'),          'Pipeline must not be public'
+          assert not hasattr(mosaic, '_load_toml'),        '_load_toml must not be public'
+          print(mosaic.__version__, 'OK')
+          "
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Check distributions
+        run: python -m twine check dist/*
+
+      - name: Smoke install built wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          WHEEL="$(ls dist/*.whl | head -n 1)"
+          python -m venv .smoke_venv
+          .smoke_venv/bin/python -m pip install --upgrade pip
+          .smoke_venv/bin/python -m pip install "$WHEEL"
+          mkdir -p .smoke_outside_checkout
+          cd .smoke_outside_checkout
+          ../.smoke_venv/bin/mosaic --version
+          ../.smoke_venv/bin/python -c "
+          import mosaic
+          assert hasattr(mosaic, '__version__'),           '__version__ missing'
+          assert hasattr(mosaic, 'Config'),                'Config missing'
+          assert hasattr(mosaic, 'load_dataset'),          'load_dataset missing'
+          assert hasattr(mosaic, 'ResultManager'),         'ResultManager missing'
+          assert hasattr(mosaic, 'plot_cv_distributions'), 'plot_cv_distributions missing'
+          assert hasattr(mosaic, 'predict'),               'predict missing'
+          assert not hasattr(mosaic, 'Pipeline'),          'Pipeline must not be public'
+          print(mosaic.__version__, 'wheel OK')
+          "
+
+      - name: Smoke install sdist
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDIST="$(ls dist/*.tar.gz | head -n 1)"
+          python -m venv .smoke_sdist_venv
+          .smoke_sdist_venv/bin/python -m pip install --upgrade pip
+          .smoke_sdist_venv/bin/python -m pip install "$SDIST"
+          mkdir -p .smoke_sdist_outside
+          cd .smoke_sdist_outside
+          ../.smoke_sdist_venv/bin/mosaic --version
+          ../.smoke_sdist_venv/bin/python -c "
+          import mosaic
+          assert hasattr(mosaic, '__version__'),           '__version__ missing'
+          assert hasattr(mosaic, 'Config'),                'Config missing'
+          assert hasattr(mosaic, 'load_dataset'),          'load_dataset missing'
+          assert hasattr(mosaic, 'ResultManager'),         'ResultManager missing'
+          assert hasattr(mosaic, 'plot_cv_distributions'), 'plot_cv_distributions missing'
+          assert hasattr(mosaic, 'predict'),               'predict missing'
+          print(mosaic.__version__, 'sdist OK')
+          "
+
+  docs-build:
+    name: Build documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install docs dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[docs]"
+
+      - name: Build MkDocs site
+        run: mkdocs build --strict
