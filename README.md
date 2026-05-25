@@ -573,13 +573,10 @@ python -c "from mosaic import Config, load_dataset, ResultManager, plot_cv_distr
 
 ## Roadmap
 
-Near-term development goals:
+**Completed:** pytest suite (v0.1.4) · stable public API (v0.1.5) ·
+docstrings and MkDocs (v0.1.6) · CI/CD and inference module (v0.1.7)
 
-- ~~Add formal tests with `pytest`.~~ ✓ Done in v0.1.4
-- ~~Define stable public API.~~ ✓ Done in v0.1.5
-- ~~Add docstrings and MkDocs documentation.~~ ✓ Done in v0.1.6
-- ~~Add CI/CD, example dataset and inference module.~~ ✓ Done in v0.1.7
-- Publish to PyPI as `mosaic-ml` (v0.1.8).
+**Upcoming:** PyPI publication as `mosaic-ml` (v0.1.8).
 
 ---
 
