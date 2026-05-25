@@ -21,7 +21,7 @@
       <a class="md-button" href="api.md">API Reference</a>
     </div>
     <div class="ms-badges" aria-label="Project badges">
-      <img alt="Version" src="https://img.shields.io/badge/version-v0.1.6-blue.svg">
+      <img alt="Version" src="https://img.shields.io/badge/version-v0.1.8-blue.svg">
       <img alt="Python versions" src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue">
       <img alt="License: LGPL v3+" src="https://img.shields.io/badge/License-LGPL_v3%2B-blue.svg">
     </div>
@@ -30,8 +30,7 @@
 
 !!! note "Pre-stable"
     MOSAIC is currently in Alpha-stage development (`v0.1.x`). The public API
-    is being hardened before stability is declared. PyPI publication is planned
-    for `v0.1.8`.
+    is being hardened before stability is declared. Available on PyPI as `mosaic-tabular`: `pip install mosaic-tabular`.
 
 ## Installation
 
@@ -49,7 +48,7 @@ MOSAIC requires Python 3.11 or 3.12 and depends on NumPy, pandas,
 scikit-learn, XGBoost, Matplotlib, and joblib.
 
 <section class="ms-panel">
-  <div class="ms-grid ms-grid--three">
+  <div class="ms-grid ms-grid--four">
     <article class="ms-card">
       <span class="ms-card__icon">01</span>
       <h3>Run</h3>
@@ -67,6 +66,12 @@ scikit-learn, XGBoost, Matplotlib, and joblib.
       <h3>Export</h3>
       <p>Retrain the selected model on all available data and save a
       deployable <code>.pkl</code> artifact.</p>
+    </article>
+    <article class="ms-card">
+      <span class="ms-card__icon">04</span>
+      <h3>Predict</h3>
+      <p>Load a saved <code>.pkl</code> artifact and run artifact-based
+      inference on new feature matrices.</p>
     </article>
   </div>
 </section>
@@ -195,6 +200,18 @@ mosaic run --config my_config.toml
     )
     ```
 
+=== "predict"
+
+    ```python
+    import numpy as np
+    from mosaic import predict
+
+    X_new = np.load("data/PCA85.npz")["X"]
+    result = predict("output/Model_SVC_PCA85.pkl", X_new)
+    print(result["predictions"])    # shape (n_samples,)
+    print(result["probabilities"])  # shape (n_samples, n_classes)
+    ```
+
 ## Public API
 
 | Symbol | Description |
@@ -203,6 +220,7 @@ mosaic run --config my_config.toml
 | [`load_dataset`](api.md#load_dataset) | Load reduced feature matrices and labels |
 | [`ResultManager`](api.md#resultmanager) | Write TXT and CSV benchmark results |
 | [`plot_cv_distributions`](api.md#plot_cv_distributions) | Generate CV metric distribution plots |
+| [`predict`](api.md#predict) | Artifact-based inference using exported `.pkl` models |
 | `__version__` | Package version string |
 
 See the [API Reference](api.md) for full documentation generated from docstrings.
@@ -214,7 +232,7 @@ If you use MOSAIC in your research, please cite it using the metadata in
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MOSAIC: Modular
-Multi-Model Selection and Cross-Validation (0.1.6). Tecnologico de
+Multi-Model Selection and Cross-Validation (0.1.8). Tecnologico de
 Monterrey. https://github.com/NanoBiostructuresRG/mosaic
 ```
 
