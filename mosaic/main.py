@@ -10,10 +10,10 @@ import logging
 import numpy as np
 from pathlib import Path
 
-from mosaic.config import Config
-from mosaic.load_dataset import load_dataset
-from mosaic.model_training import MultiModelTrainer
-from mosaic.result_manager import ResultManager
+from .config import Config
+from .load_dataset import load_dataset
+from .model_training import MultiModelTrainer
+from .result_manager import ResultManager
 
 logger = logging.getLogger(__name__)
 

@@ -4,9 +4,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mosaic-ml"
+name = "mosaic-tabular"
 dynamic = ["version"]
-description = "Multi-model selection, cross-validation and export toolkit for reduced-feature tabular classification."
+description = "Tabular classification benchmarking toolkit for model selection, repeated stratified cross-validation, final model export, and artifact-based inference."
 readme = "README.md"
 license = "LGPL-3.0-or-later"
 license-files = ["LICENSE", "COPYING", "COPYING.LESSER"]
@@ -21,7 +21,7 @@ keywords = [
     "tabular data",
     "model selection",
     "cross-validation",
-    "training",
+    "inference",
     "PCA",
     "UMAP",
     "scikit-learn",
@@ -62,6 +62,7 @@ docs = [
 Homepage = "https://github.com/NanoBiostructuresRG/mosaic"
 Repository = "https://github.com/NanoBiostructuresRG/mosaic"
 Issues = "https://github.com/NanoBiostructuresRG/mosaic/issues"
+Documentation = "https://nanobiostructuresrg.github.io/mosaic/"
 
 [project.scripts]
 mosaic = "mosaic.cli:main"
@@ -74,11 +75,35 @@ packages = ["mosaic"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
+    "/.git",
+    "/.github",
+    "/.mypy_cache",
+    "/.pytest_cache",
+    "/.ruff_cache",
+    "/.tox",
+    "/.venv",
+    "/.*_venv",
+    "/__pycache__",
+    "*/__pycache__",
+    "*.egg-info",
+    "/*.egg-info",
+    "/build",
+    "/dist",
     "/docs",
     "/mkdocs.yml",
     "/data",
     "/raw",
     "/output",
+    "/site",
+    "/.review_pytest_cache",
+    "/.review_pytest_tmp",
+    "/htmlcov",
+    "/.coverage",
+    "/tests_output.txt",
+    "*.pyc",
+    "*.pyo",
+    "*.pkl",
+    "*.joblib",
 ]
 
 [tool.pytest.ini_options]

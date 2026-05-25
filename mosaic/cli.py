@@ -16,7 +16,7 @@ import logging
 import sys
 from pathlib import Path
 
-from mosaic.version import __version__
+from .version import __version__
 
 __all__ = ["main"]
 
@@ -125,15 +125,15 @@ def _configure_logging(verbose: bool) -> None:
 
 
 def _run(args: argparse.Namespace) -> None:
-    from mosaic.main import Main
-    Main(smoke=args.smoke).run()
+    from .main import Main
+    Main(smoke=args.smoke, user_config=args.config).run()
 
 
 def _export(args: argparse.Namespace) -> None:
-    from mosaic.config import Config
-    from mosaic.export_best_model import Finalizer
+    from .config import Config
+    from .export_best_model import Finalizer
 
-    config = Config()
+    config = Config(user_config=args.config)
     csv_path = args.csv or Path(config.PATHS["OUTPUT"]) / "results.csv"
     outdir = args.outdir or Path(config.PATHS["OUTPUT"])
     Finalizer(csv_path, outdir, config, row_index=args.row,

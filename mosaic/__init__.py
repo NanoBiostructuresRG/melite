@@ -15,12 +15,12 @@ The following symbols are part of the stable public API:
 
 import logging
 
-from mosaic.config import Config
-from mosaic.load_dataset import load_dataset
-from mosaic.result_manager import ResultManager
-from mosaic.plot_metrics import plot_cv_distributions
-from mosaic.predict import predict
-from mosaic.version import __version__
+from .config import Config
+from .load_dataset import load_dataset
+from .result_manager import ResultManager
+from .plot_metrics import plot_cv_distributions
+from .predict import predict
+from .version import __version__
 
 __all__ = [
     "Config",

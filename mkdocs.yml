@@ -46,8 +46,8 @@ extra:
       link: https://nanobiostructuresrg.github.io/
       name: NanoBiostructuresRG
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/mosaic-ml/
-      name: MOSAIC on PyPI
+      link: https://pypi.org/project/mosaic-tabular/
+      name: Planned PyPI package mosaic-tabular
 
 plugins:
   - search
