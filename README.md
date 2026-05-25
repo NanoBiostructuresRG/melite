@@ -166,7 +166,7 @@ against `raw/labels.npy` to avoid silent feature-label mismatches.
 
 ## Public API
 
-MOSAIC exposes a stable public API for use as a Python library:
+MOSAIC exposes an intended public API for use as a Python library:
 
 ```python
 from mosaic import Config
@@ -521,7 +521,7 @@ $ mosaic export --row 0
 
 # Test suite
 $ pytest tests/ -v
-80 passed, 1 warning in 54.51s
+82 passed, 1 warning in 54.51s
 ```
 
 ---
@@ -547,7 +547,7 @@ The current `dev/v0.1.8` branch has been validated with:
 pytest tests/ -v
 ```
 
-80 tests passed covering `Config`, `load_dataset`, `ResultManager`, `Finalizer`,
+82 tests passed covering `Config`, `load_dataset`, `ResultManager`, `Finalizer`,
 `plot_metrics`, `version`, public API, CLI, `predict`, and example dataset integrity.
 
 CLI help smoke tests:

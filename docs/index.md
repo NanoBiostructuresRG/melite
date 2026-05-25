@@ -30,7 +30,8 @@
 
 !!! note "Pre-stable"
     MOSAIC is currently in Alpha-stage development (`v0.1.x`). The public API
-    is being hardened before stability is declared. Available on PyPI as `mosaic-tabular`: `pip install mosaic-tabular`.
+    is being hardened before stability is declared.
+
 
 ## Installation
 

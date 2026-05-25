@@ -2,7 +2,7 @@
 
 MOSAIC exposes a stable public API through six symbols. Internal modules are
 importable directly but are not part of this contract and may change between
-versions.
+versions. The project is pre-stable and this API may change without deprecation, but we will do our best to avoid breaking changes.
 
 ```python
 from mosaic import Config
