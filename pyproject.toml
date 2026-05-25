@@ -75,11 +75,35 @@ packages = ["mosaic"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
+    "/.git",
+    "/.github",
+    "/.mypy_cache",
+    "/.pytest_cache",
+    "/.ruff_cache",
+    "/.tox",
+    "/.venv",
+    "/.*_venv",
+    "/__pycache__",
+    "*/__pycache__",
+    "*.egg-info",
+    "/*.egg-info",
+    "/build",
+    "/dist",
     "/docs",
     "/mkdocs.yml",
     "/data",
     "/raw",
     "/output",
+    "/site",
+    "/.review_pytest_cache",
+    "/.review_pytest_tmp",
+    "/htmlcov",
+    "/.coverage",
+    "/tests_output.txt",
+    "*.pyc",
+    "*.pyo",
+    "*.pkl",
+    "*.joblib",
 ]
 
 [tool.pytest.ini_options]

@@ -76,7 +76,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/p/mosaic-ml
+      url: https://pypi.org/p/mosaic-tabular
 
     permissions:
       id-token: write

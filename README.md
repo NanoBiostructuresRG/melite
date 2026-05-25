@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/NanoBiostructuresRG/mosaic/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/mosaic/actions/workflows/ci.yml)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.7-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.1.8-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)]()
 
 ---
@@ -93,13 +93,13 @@ MOSAIC is currently in **pre-stable development**.
 The current development version is:
 
 ```text
-0.1.7
+0.1.8
 ```
 
 The active development branch is:
 
 ```text
-dev/v0.1.7
+dev/v0.1.8
 ```
 
 MOSAIC is not yet published on PyPI. It can be installed in editable mode
@@ -534,13 +534,14 @@ $ pytest tests/ -v
 - `output/`, `data/`, and `raw/` are local working directories and are ignored
   by Git.
 - Model artifacts such as `.pkl` and `.joblib` files are ignored by Git.
-- Available on PyPI as `mosaic-tabular` from v0.1.8.
+- MOSAIC is not yet published on PyPI. Publication is planned as
+  `mosaic-tabular` for v0.1.8.
 
 ---
 
 ## Validation
 
-The current `dev/v0.1.7` branch has been validated with:
+The current `dev/v0.1.8` branch has been validated with:
 
 ```bash
 pytest tests/ -v
@@ -590,7 +591,7 @@ Suggested citation format:
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MOSAIC: Modular
-Multi-Model Selection and Cross-Validation (0.1.7). Tecnologico de
+Multi-Model Selection and Cross-Validation (0.1.8). Tecnologico de
 Monterrey. https://github.com/NanoBiostructuresRG/mosaic
 ```
 

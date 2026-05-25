@@ -3,6 +3,9 @@
 
 import subprocess
 import sys
+from types import SimpleNamespace
+
+import mosaic.cli as cli
 from mosaic.version import __version__
 
 
@@ -53,3 +56,74 @@ def test_version_exits_zero():
 def test_version_output_contains_version_string():
     result = _run(["--version"])
     assert __version__ in result.stdout + result.stderr
+
+
+def test_run_passes_config_to_main(monkeypatch, tmp_path):
+    import mosaic.main as main_module
+
+    calls = {}
+    config_path = tmp_path / "custom.toml"
+
+    class DummyMain:
+        def __init__(self, smoke=False, user_config=None):
+            calls["smoke"] = smoke
+            calls["user_config"] = user_config
+
+        def run(self):
+            calls["ran"] = True
+
+    monkeypatch.setattr(main_module, "Main", DummyMain)
+
+    cli._run(SimpleNamespace(smoke=True, config=config_path))
+
+    assert calls == {
+        "smoke": True,
+        "user_config": config_path,
+        "ran": True,
+    }
+
+
+def test_export_passes_config_to_config_loader(monkeypatch, tmp_path):
+    import mosaic.config as config_module
+    import mosaic.export_best_model as export_module
+
+    calls = {}
+    config_path = tmp_path / "custom.toml"
+    output_dir = tmp_path / "output"
+
+    class DummyConfig:
+        def __init__(self, user_config=None):
+            calls["user_config"] = user_config
+            self.PATHS = {"OUTPUT": str(output_dir)}
+
+    class DummyFinalizer:
+        def __init__(self, csv_path, outdir, config, row_index=None, force=False):
+            calls["csv_path"] = csv_path
+            calls["outdir"] = outdir
+            calls["config"] = config
+            calls["row_index"] = row_index
+            calls["force"] = force
+
+        def run(self):
+            calls["ran"] = True
+
+    monkeypatch.setattr(config_module, "Config", DummyConfig)
+    monkeypatch.setattr(export_module, "Finalizer", DummyFinalizer)
+
+    cli._export(
+        SimpleNamespace(
+            config=config_path,
+            csv=None,
+            outdir=None,
+            row=2,
+            force=True,
+        )
+    )
+
+    assert calls["user_config"] == config_path
+    assert calls["csv_path"] == output_dir / "results.csv"
+    assert calls["outdir"] == output_dir
+    assert isinstance(calls["config"], DummyConfig)
+    assert calls["row_index"] == 2
+    assert calls["force"] is True
+    assert calls["ran"] is True
