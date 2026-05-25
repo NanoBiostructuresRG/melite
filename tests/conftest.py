@@ -4,8 +4,10 @@
 import csv
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pytest
+from sklearn.svm import SVC
 
 
 # ------------------------------------------------------------------ #
@@ -73,7 +75,7 @@ def tmp_npz_mismatched_y(tmp_path):
     data_dir.mkdir(exist_ok=True)
     path = data_dir / "PCA70.npz"
     X = np.random.rand(N_SAMPLES, N_FEATURES).astype(np.float32)
-    bad_y = np.ones(N_SAMPLES, dtype=np.int64)  # all ones — won't match LABELS
+    bad_y = np.ones(N_SAMPLES, dtype=np.int64)
     np.savez(path, X=X, y=bad_y)
     return path
 
@@ -136,3 +138,19 @@ def base_config(tmp_path):
     }
     cfg.RESULTS_FILE = str(tmp_path / "output" / "results.txt")
     return cfg
+
+
+# ------------------------------------------------------------------ #
+# Trained model fixture (for test_predict.py)
+# ------------------------------------------------------------------ #
+
+@pytest.fixture
+def tmp_model(tmp_path):
+    """Train a minimal SVC and save as .pkl. Returns the path."""
+    X = np.random.rand(N_SAMPLES, N_FEATURES).astype(np.float32)
+    y = LABELS.copy()
+    model = SVC(kernel="linear", C=1, probability=True, random_state=42)
+    model.fit(X, y)
+    model_path = tmp_path / "test_model.pkl"
+    joblib.dump(model, model_path)
+    return model_path

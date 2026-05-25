@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.7] - 2026-05-25
+
+### Added
+- Added `mosaic/predict.py` — inference module exposing `predict()` as a stable
+  public API symbol. Loads a `.pkl` artifact, returns predictions and class
+  probabilities for a new feature matrix.
+- Added `predict` to `mosaic/__init__.py` and `__all__`.
+- Added `.github/workflows/ci.yml` — CI workflow: tests on Python 3.11 and 3.12,
+  public import boundary check, wheel and sdist smoke installs, docs build.
+- Added `.github/workflows/docs.yml` — deploys MkDocs site to GitHub Pages on
+  push to `main`.
+- Added synthetic example dataset under `examples/`:
+  - `sample_labels.npy` — 100 binary labels, balanced classes.
+  - `sample_PCA70.npz` — 100×37 feature matrix with `X` and `y` keys.
+  - `example_config.toml` — TOML config pointing to example files.
+  - `generate_sample_data.py` — reproducible generation script (seed=42).
+- Added `tests/test_predict.py` — 11 tests for the inference module.
+- Added `tests/test_examples.py` — 11 tests for example dataset integrity.
+- Added `tmp_model` fixture to `tests/conftest.py` — trained SVC saved as `.pkl`.
+- Added `.pytest_tmp` to `.gitignore`.
+
+### Changed
+- Updated `tests/test_public_api.py` — added `predict` import and `__all__` tests.
+  Total test count: **80 tests**.
+- Rewrote `README.md` combining outside-in user perspective with full developer
+  documentation. Added `What is MOSAIC?`, `Quickstart`, and inference example
+  at the top; preserved all existing content below.
+- Updated `mosaic/__init__.py` public API docstring to include `predict`.
+- Bumped version to `0.1.7` in `version.py` and `CITATION.cff`.
+
+### Validation
+- `pytest tests/ -v` — 80 passed, 1 warning, 0 failed.
+- `mosaic run --smoke --config examples/example_config.toml` — completed successfully.
+- `predict()` returns correct shapes for predictions and probabilities.
+- CI workflow passes on Python 3.11 and 3.12 (GitHub Actions).
+- `mkdocs build --strict` — build succeeded.
+
+---
+
 ## [0.1.6] - 2026-05-23
 
 ### Added
