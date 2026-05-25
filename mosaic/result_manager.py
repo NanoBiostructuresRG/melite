@@ -12,7 +12,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from mosaic.version import __version__
+from .version import PROJECT_LICENSE, __version__
 
 __all__ = ["ResultManager"]
 
@@ -45,18 +45,16 @@ class ResultManager:
         return f"""
 =====================================================
                        MOSAIC
-     A multi-model benchmarking toolkit for ML-CV
-               with PCA/UMAP reduction
-             and GridSearch optimization
+    Tabular classification benchmarking toolkit
 -----------------------------------------------------
-          Models: SVC, RandomForest, XGBoost
-          Exporter CLI: mosaic export
------------------------------------------------------
-Developer: Flavio F. Contreras-Torres
-Version: v{__version__} - May, 2025. Oviedo
+Models: SVC, RandomForest, XGBoost
+CLI: mosaic run | mosaic export
+Package: mosaic-tabular
+Version: v{__version__}
+Licence: {PROJECT_LICENSE}
 Execution Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 -----------------------------------------------------
-GitHub: https://github.com/NanoBiostructuresRG
+Repository: https://github.com/NanoBiostructuresRG/mosaic
 =====================================================
 
 """
