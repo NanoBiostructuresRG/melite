@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "melite"
-version = "0.1.11"
+dynamic = ["version"]
 description = "Tabular classification benchmarking toolkit for model selection, repeated stratified cross-validation, final model export, and artifact-based inference."
 readme = "README.md"
 license = "LGPL-3.0-or-later"

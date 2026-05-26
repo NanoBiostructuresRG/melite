@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.2.0] - 2026-05-26
+
+### Planned
+- Generalize MELITE's tabular dataset input architecture beyond PCA/UMAP-specific dataset discovery.
+- Introduce support for user-defined named tabular datasets.
+- Treat PCA and UMAP inputs as ordinary tabular dataset entries rather than required structural categories.
+
+---
+
 ## [0.1.11] - 2026-05-26
 
 ### Changed
