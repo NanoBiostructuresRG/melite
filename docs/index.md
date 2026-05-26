@@ -21,7 +21,7 @@
     </div>
     <div class="ms-badges" aria-label="Project badges">
       <img alt="CI" src="https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg">
-      <img alt="Version" src="https://img.shields.io/badge/version-v0.1.10-blue.svg">
+      <img alt="Version" src="https://img.shields.io/badge/version-v0.1.11-blue.svg">
       <img alt="Python versions" src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue">
       <img alt="License: LGPL v3+" src="https://img.shields.io/badge/License-LGPL_v3%2B-blue.svg">
     </div>
@@ -30,7 +30,7 @@
 
 !!! note "Pre-stable"
     MELITE is currently in alpha-stage development (`v0.1.x`). Publication on
-    PyPI is planned under the package name `melite`. Public APIs may
+    PyPI is prepared under the package name `melite`. Public APIs may
     change before 0.2.0.
 
 ## Workflow
@@ -101,6 +101,11 @@
 
 ## Scope
 
+MELITE is tabular at the modeling level. The learning algorithms only consume
+numeric `X` and `y` arrays, so the feature matrix may come from PCA, UMAP,
+fingerprints, descriptors, clinical variables, experimental measurements,
+industrial features, or manually selected numeric features.
+
 | MELITE does | MELITE does not |
 |-------------|-----------------|
 | Accept prepared `X` and `y` arrays. | Generate PCA or UMAP representations. |
@@ -108,14 +113,30 @@
 | Select the best row by F1-macro. | Handle raw molecular data directly. |
 | Export a final retrained `.pkl` model. | Require internet access at runtime. |
 | Run artifact-based inference through `predict()`. | Train deep learning models. |
-| Handle any numeric tabular matrix (PCA, UMAP, fingerprints, descriptors). | Use a generalized dataset layer yet — PCA/UMAP naming is historical (planned for v0.2.0). |
+| Handle any numeric tabular matrix. | Use a generalized dataset layer yet; PCA/UMAP naming is historical. |
 
-!!! note "Planned for v0.2.0"
-    MELITE is agnostic to how features were generated. The current
-    orchestration layer uses PCA/UMAP nomenclature for historical reasons.
-    A future version will generalize dataset configuration so that PCA,
-    UMAP, molecular fingerprints, descriptors, and any other numeric
-    tabular matrix are treated uniformly.
+!!! note "Current dataset orchestration"
+    The current dataset orchestration still reflects MELITE's PCA/UMAP origin
+    and uses concepts such as reduction type and level. Future versions will
+    generalize dataset definitions so arbitrary prepared tabular matrices can
+    be registered directly.
+
+Future configuration may look conceptually like this; it is not current
+behavior:
+
+```toml
+[datasets.morgan]
+path = "data/morgan.npz"
+label_path = "raw/labels.npy"
+
+[datasets.descriptors]
+path = "data/descriptors.npz"
+label_path = "raw/labels.npy"
+
+[datasets.pca85]
+path = "data/PCA85.npz"
+label_path = "raw/labels.npy"
+```
 
 
 ## Quick Example
@@ -153,7 +174,7 @@ If you use MELITE in your research, please cite it using the metadata in
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model
-Evaluation and Learning for Inference-ready Tabular Experiments (0.1.10). Tecnologico de
+Evaluation and Learning for Inference-ready Tabular Experiments (0.1.11). Tecnologico de
 Monterrey. https://github.com/NanoBiostructuresRG/melite
 ```
 

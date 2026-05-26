@@ -1,15 +1,19 @@
 # Release Notes
 
-MELITE `0.1.11` is an identity and packaging rename release.
+MELITE `0.1.11` prepares the project documentation and package metadata for
+the first PyPI publication as `melite`.
 
-## 0.1.10 Highlights
+## 0.1.11 Highlights
 
-- Renamed the user-facing project identity to MELITE.
-- Renamed the Python import package to `melite`.
-- Renamed the CLI command to `melite`.
-- Renamed the PyPI distribution target to `melite`.
-- Kept the public API symbols unchanged under the new import package.
-- Preserved the v0.1.9 documentation architecture.
+- Uses final release metadata version `0.1.11`.
+- Clarifies that MELITE is tabular at the modeling level and consumes numeric
+  `X` and `y` arrays.
+- Documents that current dataset orchestration remains PCA/UMAP-oriented for
+  historical reasons.
+- Records generalized `[datasets.*]` definitions as a future direction, not
+  current behavior.
+- Does not change functional training, selection, export, prediction, or CLI
+  behavior.
 
 ## Validation Targets
 
