@@ -20,7 +20,7 @@ Project: MELITE
 PyPI distribution: melite
 Import package: melite
 CLI: melite
-Version: 0.1.10
+Version: 0.1.11
 License: LGPL-3.0-or-later
 Status: alpha / pre-stable
 ```
@@ -97,7 +97,16 @@ print(result["probabilities"])
 | Select the best row by F1-macro. | Generate PCA or UMAP reductions from raw data. |
 | Export a final retrained `.pkl` model. | Act as a general AutoML framework. |
 | Run artifact-based inference through `predict()`. | Promise a stable 1.0 API yet. |
+| Handle any numeric tabular matrix (PCA, UMAP, fingerprints, descriptors). | Use a generalized dataset layer yet — PCA/UMAP naming is historical (planned for v0.2.0). |
 
+!!! note "Planned for v0.2.0"
+    MELITE is agnostic to how features were generated. The current
+    orchestration layer uses PCA/UMAP nomenclature for historical reasons.
+    A future version will generalize dataset configuration so that PCA,
+    UMAP, molecular fingerprints, descriptors, and any other numeric
+    tabular matrix are treated uniformly.
+
+    
 ## CLI
 
 ```bash
@@ -161,7 +170,7 @@ Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
 
 ## Validation
 
-The current `dev/v0.1.10` branch targets:
+The current `dev/v0.1.11` branch targets:
 
 ```bash
 python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache
@@ -181,7 +190,7 @@ If you use MELITE in your research, please cite it using the metadata in
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model
-Evaluation and Learning for Inference-ready Tabular Experiments (0.1.10).
+Evaluation and Learning for Inference-ready Tabular Experiments (0.1.11).
 Tecnologico de Monterrey. https://github.com/NanoBiostructuresRG/melite
 ```
 

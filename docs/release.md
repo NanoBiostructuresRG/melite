@@ -1,6 +1,6 @@
 # Release Notes
 
-MELITE `0.1.10` is an identity and packaging rename release.
+MELITE `0.1.11` is an identity and packaging rename release.
 
 ## 0.1.10 Highlights
 

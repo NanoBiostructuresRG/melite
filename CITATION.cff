@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments"
-version: "0.1.10"
+version: "0.1.11"
 date-released: "2026-05-25"
 authors:
   - family-names: "Contreras-Torres"

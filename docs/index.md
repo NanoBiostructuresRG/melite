@@ -108,6 +108,15 @@
 | Select the best row by F1-macro. | Handle raw molecular data directly. |
 | Export a final retrained `.pkl` model. | Require internet access at runtime. |
 | Run artifact-based inference through `predict()`. | Train deep learning models. |
+| Handle any numeric tabular matrix (PCA, UMAP, fingerprints, descriptors). | Use a generalized dataset layer yet — PCA/UMAP naming is historical (planned for v0.2.0). |
+
+!!! note "Planned for v0.2.0"
+    MELITE is agnostic to how features were generated. The current
+    orchestration layer uses PCA/UMAP nomenclature for historical reasons.
+    A future version will generalize dataset configuration so that PCA,
+    UMAP, molecular fingerprints, descriptors, and any other numeric
+    tabular matrix are treated uniformly.
+
 
 ## Quick Example
 
