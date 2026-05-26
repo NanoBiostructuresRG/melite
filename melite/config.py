@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Configuration loader for MOSAIC.
+"""Configuration loader for MELITE.
 
-Reads ``mosaic/config_default.toml`` as the base configuration.
+Reads ``melite/config_default.toml`` as the base configuration.
 An optional user-supplied TOML file can override any key via deep merge.
 Hyperparameter grids are defined here in Python — they are developer-facing
 and not expected to change between runs.
@@ -42,9 +42,9 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 class Config:
-    """Configuration container for MOSAIC.
+    """Configuration container for MELITE.
 
-    Loads defaults from ``mosaic/config_default.toml``. If *user_config* is
+    Loads defaults from ``melite/config_default.toml``. If *user_config* is
     provided, its values are merged over the defaults — user values win and
     missing keys fall back to defaults.
 

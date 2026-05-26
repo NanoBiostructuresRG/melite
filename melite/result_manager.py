@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Result writing utilities for MOSAIC.
+"""Result writing utilities for MELITE.
 
 This module provides :class:`ResultManager`, which writes benchmark outputs
 to disk: a human-readable TXT report and a structured CSV file. Both outputs
@@ -12,7 +12,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from .version import PROJECT_LICENSE, __version__
+from .version import PROJECT_LICENSE, PROJECT_NAME, __version__
 
 __all__ = ["ResultManager"]
 
@@ -44,17 +44,17 @@ class ResultManager:
     def _get_header(self):
         return f"""
 =====================================================
-                       MOSAIC
+                       {PROJECT_NAME}
     Tabular classification benchmarking toolkit
 -----------------------------------------------------
 Models: SVC, RandomForest, XGBoost
-CLI: mosaic run | mosaic export
-Package: mosaic-tabular
+CLI: melite run | melite export
+Package: melite
 Version: {__version__}
 Licence: {PROJECT_LICENSE}
 Execution Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 -----------------------------------------------------
-Repository: https://github.com/NanoBiostructuresRG/mosaic
+Repository: https://github.com/NanoBiostructuresRG/melite
 =====================================================
 
 """
@@ -74,7 +74,7 @@ Repository: https://github.com/NanoBiostructuresRG/mosaic
         Notes
         -----
         The header includes the current ``__version__`` string from
-        :mod:`mosaic.version`, so the report always reflects the version that
+        :mod:`melite.version`, so the report always reflects the version that
         generated it.
         """
         try:
@@ -100,7 +100,7 @@ Repository: https://github.com/NanoBiostructuresRG/mosaic
         smoke : bool, optional
             Whether the run was executed in smoke mode. When ``True``, a
             ``smoke`` column is set to ``True`` for every row, which causes
-            :class:`~mosaic.export_best_model.Finalizer` to block export
+            :class:`~melite.export_best_model.Finalizer` to block export
             unless ``--force`` is passed. Default is ``False``.
 
         Notes

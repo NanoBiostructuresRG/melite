@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Inference module for MOSAIC.
+"""Inference module for MELITE.
 
 This module provides :func:`predict`, which loads a ``.pkl`` model artifact
-produced by ``mosaic export`` and runs inference on a new feature matrix.
+produced by ``melite export`` and runs inference on a new feature matrix.
 Both class predictions and class probabilities are returned when the model
 supports them.
 """
@@ -26,12 +26,12 @@ def predict(
     X: np.ndarray,
     return_proba: bool = True,
 ) -> dict:
-    """Load a MOSAIC model artifact and run inference on new data.
+    """Load a MELITE model artifact and run inference on new data.
 
     Parameters
     ----------
     model_path : str or pathlib.Path
-        Path to a ``.pkl`` file produced by ``mosaic export``.
+        Path to a ``.pkl`` file produced by ``melite export``.
     X : numpy.ndarray
         Feature matrix of shape ``(n_samples, n_features)``. Must be a 2-D
         array and should use the same reduction method and level as the
@@ -59,13 +59,13 @@ def predict(
     ------
     FileNotFoundError
         If *model_path* does not exist. The error message includes the path
-        and a hint to run ``mosaic export`` first.
+        and a hint to run ``melite export`` first.
     ValueError
         If *X* is not a 2-D numpy array.
 
     Notes
     -----
-    The ``.pkl`` artifacts produced by ``mosaic export`` are serialised with
+    The ``.pkl`` artifacts produced by ``melite export`` are serialised with
     :func:`joblib.dump`. All scikit-learn compatible estimators (SVC,
     RandomForestClassifier, XGBClassifier) are supported.
 
@@ -74,7 +74,7 @@ def predict(
     Load a previously exported SVC model and predict on new data:
 
     >>> import numpy as np
-    >>> from mosaic import predict
+    >>> from melite import predict
     >>> X_new = np.random.rand(10, 37).astype(np.float32)
     >>> result = predict("output/Model_SVC_PCA70.pkl", X_new)
     >>> result["predictions"].shape
@@ -87,7 +87,7 @@ def predict(
     if not model_path.exists():
         raise FileNotFoundError(
             f"Model artifact not found: {model_path}. "
-            "Run 'mosaic export' first to generate a .pkl artifact."
+            "Run 'melite export' first to generate a .pkl artifact."
         )
 
     if not isinstance(X, np.ndarray) or X.ndim != 2:

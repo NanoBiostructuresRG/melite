@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Main benchmarking pipeline for MOSAIC.
+"""Main benchmarking pipeline for MELITE.
 
 This module implements the end-to-end benchmarking workflow: dataset loading,
 multi-model grid search and cross-validation, and result writing. It is
-invoked via ``mosaic run`` from the unified CLI.
+invoked via ``melite run`` from the unified CLI.
 """
 
 import logging
@@ -24,12 +24,12 @@ _SMOKE_WARNING = (
 
 
 class Pipeline:
-    """Thin wrapper around :class:`~mosaic.model_training.MultiModelTrainer`.
+    """Thin wrapper around :class:`~melite.model_training.MultiModelTrainer`.
 
     Parameters
     ----------
-    config : mosaic.config.Config
-        MOSAIC configuration object.
+    config : melite.config.Config
+        MELITE configuration object.
     """
 
     def __init__(self, config: Config):
@@ -54,7 +54,7 @@ class Pipeline:
         -------
         tuple
             Eight-element tuple as returned by
-            :meth:`~mosaic.model_training.MultiModelTrainer.train_and_select_best_model`.
+            :meth:`~melite.model_training.MultiModelTrainer.train_and_select_best_model`.
         """
         return self.model_trainer.train_and_select_best_model(
             X_train, y_train, reduction_type, level
@@ -62,7 +62,7 @@ class Pipeline:
 
 
 class Main:
-    """Orchestrate the full MOSAIC benchmarking pipeline.
+    """Orchestrate the full MELITE benchmarking pipeline.
 
     Parameters
     ----------

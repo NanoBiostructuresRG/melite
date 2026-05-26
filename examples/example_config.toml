@@ -1,9 +1,9 @@
-# MOSAIC example configuration
+# MELITE example configuration
 # Points to the synthetic example dataset included in the repository.
 # Use this file to run a fast end-to-end benchmark for quickstart purposes.
 #
 # Usage:
-#   mosaic run --smoke --config examples/example_config.toml
+#   melite run --smoke --config examples/example_config.toml
 
 [paths]
 input   = "examples/"

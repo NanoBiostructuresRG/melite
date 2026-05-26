@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Dataset loading and label consistency validation for MOSAIC.
+"""Dataset loading and label consistency validation for MELITE.
 
 This module provides a single public function, :func:`load_dataset`, that
 reads pre-computed ``.npz`` feature matrices from ``data/`` and the
@@ -31,8 +31,8 @@ def load_dataset(config, reduction_type: str, levels: list) -> dict:
 
     Parameters
     ----------
-    config : mosaic.config.Config
-        MOSAIC configuration object. Must have ``PATHS["INPUT"]`` and
+    config : melite.config.Config
+        MELITE configuration object. Must have ``PATHS["INPUT"]`` and
         ``PATHS["DATASET"]`` set.
     reduction_type : str
         Dimensionality reduction method prefix, e.g. ``"PCA"`` or ``"UMAP"``.
@@ -60,7 +60,7 @@ def load_dataset(config, reduction_type: str, levels: list) -> dict:
 
     Examples
     --------
-    >>> from mosaic import Config, load_dataset
+    >>> from melite import Config, load_dataset
     >>> cfg = Config()
     >>> cfg.setup()
     >>> dataset = load_dataset(cfg, "PCA", [70, 85])

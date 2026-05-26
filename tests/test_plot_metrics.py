@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Tests for mosaic.plot_metrics."""
+"""Tests for melite.plot_metrics."""
 
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend for tests
 
 import pytest
 from pathlib import Path
-from mosaic.plot_metrics import plot_cv_distributions
+from melite.plot_metrics import plot_cv_distributions
 
 F1  = [0.76, 0.90, 0.82]
 ACC = [0.77, 0.90, 0.82]

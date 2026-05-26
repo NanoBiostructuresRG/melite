@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Generate synthetic example data for MOSAIC quickstart.
+"""Generate synthetic example data for MELITE quickstart.
 
 Produces two files in the ``examples/`` directory:
 

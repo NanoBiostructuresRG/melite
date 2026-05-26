@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Tests for mosaic.result_manager."""
+"""Tests for melite.result_manager."""
 
 import csv
 import pytest
 from pathlib import Path
-from mosaic.result_manager import ResultManager
-from mosaic.version import __version__
+from melite.result_manager import ResultManager
+from melite.version import __version__
 
 
 SAMPLE_ROWS = [

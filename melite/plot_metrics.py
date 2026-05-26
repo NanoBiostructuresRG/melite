@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Cross-validation metric distribution plots for MOSAIC.
+"""Cross-validation metric distribution plots for MELITE.
 
 This module provides :func:`plot_cv_distributions`, which generates a
 three-panel figure showing the distribution of F1, Accuracy, and AUC-ROC
@@ -68,7 +68,7 @@ def plot_cv_distributions(
     Save a plot for an SVC model to a nested directory:
 
     >>> from pathlib import Path
-    >>> from mosaic import plot_cv_distributions
+    >>> from melite import plot_cv_distributions
     >>> f1  = [0.76, 0.90, 0.82]
     >>> acc = [0.77, 0.90, 0.82]
     >>> auc = [0.83, 0.95, 0.89]

@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Tests for mosaic CLI entry points."""
+"""Tests for melite CLI entry points."""
 
 import subprocess
 import sys
 from types import SimpleNamespace
 
-import mosaic.cli as cli
-from mosaic.version import __version__
+import melite.cli as cli
+from melite.version import __version__
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-m", "mosaic.cli"] + args,
+        [sys.executable, "-m", "melite.cli"] + args,
         capture_output=True,
         text=True,
     )
@@ -59,7 +59,7 @@ def test_version_output_contains_version_string():
 
 
 def test_run_passes_config_to_main(monkeypatch, tmp_path):
-    import mosaic.main as main_module
+    import melite.main as main_module
 
     calls = {}
     config_path = tmp_path / "custom.toml"
@@ -84,8 +84,8 @@ def test_run_passes_config_to_main(monkeypatch, tmp_path):
 
 
 def test_export_passes_config_to_config_loader(monkeypatch, tmp_path):
-    import mosaic.config as config_module
-    import mosaic.export_best_model as export_module
+    import melite.config as config_module
+    import melite.export_best_model as export_module
 
     calls = {}
     config_path = tmp_path / "custom.toml"
