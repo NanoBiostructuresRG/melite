@@ -316,6 +316,100 @@
   margin: 1.5rem 0 2.2rem;
 }
 
+.md-typeset .ms-workflow {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ms-steel) 14%, transparent), transparent 36%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ms-steel) 8%, var(--ms-surface)),
+      color-mix(in srgb, var(--ms-steel) 12%, var(--ms-surface-soft))
+    );
+  border: 1px solid var(--ms-border);
+  border-radius: 0.75rem;
+  box-shadow: 0 0.65rem 1.8rem rgba(40, 37, 84, 0.1);
+  margin: 1rem 0 2rem;
+  overflow: hidden;
+  padding: 1rem;
+}
+
+.md-typeset .ms-flow {
+  align-items: stretch;
+  display: grid !important;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(2, minmax(0, auto));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.md-typeset .ms-flow__item {
+  background: var(--ms-surface);
+  border: 1px solid var(--ms-border);
+  border-radius: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 5.4rem;
+  padding: 0.8rem 0.75rem;
+  position: relative;
+}
+
+.md-typeset .ms-flow__item:not(:last-child)::before {
+  background: var(--ms-amber);
+  content: "";
+  height: 0.12rem;
+  position: absolute;
+  right: -0.66rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.66rem;
+  z-index: 2;
+}
+
+.md-typeset .ms-flow__item:not(:last-child)::after {
+  border-bottom: 0.28rem solid transparent;
+  border-left: 0.36rem solid var(--ms-amber);
+  border-top: 0.28rem solid transparent;
+  content: "";
+  position: absolute;
+  right: -0.72rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.md-typeset .ms-flow__item--artifact {
+  border-color: color-mix(in srgb, var(--ms-amber) 48%, var(--ms-border));
+}
+
+.md-typeset .ms-flow__kicker {
+  color: var(--ms-text-muted);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+}
+
+.md-typeset .ms-flow__item strong {
+  color: var(--ms-steel-dark);
+  display: block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: clamp(0.68rem, 1.2vw, 0.78rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.md-typeset .ms-flow__item small {
+  color: var(--ms-text-muted);
+  display: block;
+  font-size: 0.64rem;
+  line-height: 1.25;
+  margin-top: 0.35rem;
+}
+
 .ms-grid {
   display: grid;
   gap: 1rem;
@@ -374,6 +468,11 @@
   .ms-grid--four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .md-typeset .ms-flow__item:nth-child(3)::before,
+  .md-typeset .ms-flow__item:nth-child(3)::after {
+    display: none;
+  }
 }
 
 @media screen and (max-width: 36rem) {
@@ -413,5 +512,37 @@
 
   .ms-grid--four {
     grid-template-columns: 1fr;
+  }
+
+  .md-typeset .ms-workflow {
+    padding: 0.8rem;
+  }
+
+  .md-typeset .ms-flow {
+    gap: 0.55rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .md-typeset .ms-flow__item {
+    min-height: 4.9rem;
+    padding: 0.65rem 0.5rem;
+  }
+
+  .md-typeset .ms-flow__item:nth-child(3)::before,
+  .md-typeset .ms-flow__item:nth-child(3)::after {
+    display: none;
+  }
+
+  .md-typeset .ms-flow__kicker {
+    font-size: 0.52rem;
+    margin-bottom: 0.28rem;
+  }
+
+  .md-typeset .ms-flow__item strong {
+    font-size: 0.58rem;
+  }
+
+  .md-typeset .ms-flow__item small {
+    font-size: 0.54rem;
   }
 }
