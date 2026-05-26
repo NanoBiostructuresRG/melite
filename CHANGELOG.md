@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.9] - 2026-05-25
+
+### Added
+- Added dedicated MkDocs pages for installation, quick start, CLI reference,
+  configuration, and release notes.
+- Added a home-page workflow diagram:
+  `X / y -> mosaic run -> results.csv -> mosaic export -> .pkl -> predict()`.
+- Added a "MOSAIC does / does not" scope table to clarify project boundaries.
+
+### Changed
+- Reworked `docs/index.md` into a concise project overview with links to the
+  dedicated documentation pages.
+- Updated `mkdocs.yml` navigation to expose the expanded documentation set.
+- Updated `README.md` for `dev/v0.1.9`, test-suite status, live documentation
+  links, and planned PyPI publication as `mosaic-tabular`.
+- Bumped version to `0.1.9` in `version.py` and `CITATION.cff`.
+
+### Validation
+- `mkdocs build --strict` — build succeeded with no errors.
+- `pytest tests/ -v` — 82 passed, 1 warning, 0 failed.
+- `python -m build` — `mosaic_tabular-0.1.9.tar.gz` and `.whl` built successfully.
+- `python -m twine check dist/*` — PASSED.
+- `mosaic --version` -> `MOSAIC 0.1.9`.
+- Wheel and sdist contents inspected; local virtual environments, caches,
+  generated review artifacts, build folders, raw/data/output folders,
+  egg-info, `.pkl`, and `.joblib` artifacts were not present.
+
+---
+
 ## [0.1.8] - 2026-05-25
 
 ### Added

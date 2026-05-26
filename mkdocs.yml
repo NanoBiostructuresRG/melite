@@ -38,7 +38,7 @@ theme:
     - content.tabs.link
 
 extra_css:
-  - stylesheets/extra.css
+  - stylesheets/extra.css?v=0.1.9-workflow
 
 extra:
   social:
@@ -62,8 +62,12 @@ plugins:
 
 nav:
   - Home: index.md
+  - Installation: installation.md
+  - Quick Start: quickstart.md
+  - CLI Reference: cli.md
+  - Configuration: configuration.md
   - API Reference: api.md
-  - Changelog: changelog.md
+  - Release Notes: release.md
 
 markdown_extensions:
   - admonition
