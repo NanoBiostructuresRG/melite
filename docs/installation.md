@@ -31,6 +31,12 @@ python -m pip install -e ".[docs]"
 ## PyPI Status
 
 MELITE is being prepared for publication on PyPI as `melite`.
+After publication, install with:
+
+```bash
+python -m pip install melite
+```
+
 Until that package is published, install from the repository in editable mode.
 
 ## Verify Installation
@@ -40,8 +46,8 @@ melite --help
 melite --version
 ```
 
-Expected version for this development branch:
+Expected version for this release:
 
 ```text
-MELITE 0.1.10
+MELITE 0.1.11
 ```

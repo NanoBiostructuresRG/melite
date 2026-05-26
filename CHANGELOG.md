@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.11] - 2026-05-26
+
+### Changed
+- Prepared documentation and package metadata for the first PyPI publication as
+  `melite`.
+- Updated release metadata to use final version `0.1.11` instead of development
+  or previous release references.
+- Clarified that MELITE is tabular at the modeling level: learning algorithms
+  consume numeric `X` and `y` arrays that may come from PCA, UMAP, fingerprints,
+  descriptors, clinical variables, experimental measurements, industrial
+  features, or manually selected numeric features.
+- Clarified that the current dataset orchestration still reflects MELITE's
+  PCA/UMAP origin and uses concepts such as reduction type and level.
+- Documented generalized `[datasets.*]` definitions as a future direction, not
+  current behavior.
+
+### Notes
+- No functional behavior changes were made to training, model selection,
+  cross-validation, export, prediction, dataset loading, or CLI commands.
+
+---
+
 ## [0.1.10] - 2026-05-25
 
 ### Changed

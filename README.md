@@ -2,16 +2,17 @@
 
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.10-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.1.11-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)]()
 
 **MELITE** is a pre-stable Python toolkit for tabular classification
 benchmarking, model selection, repeated stratified cross-validation, final
 model export, and artifact-based inference.
 
-MELITE is especially useful when feature matrices already exist, for example
-molecular fingerprints, PCA-reduced descriptors, or UMAP-reduced
-representations produced by an upstream workflow.
+MELITE is tabular at the modeling level. The learning algorithms consume
+numeric `X` and `y` arrays, so the feature matrix may come from PCA, UMAP,
+fingerprints, descriptors, clinical variables, experimental measurements,
+industrial features, or manually selected numeric features.
 
 ## Project Identity
 
@@ -20,7 +21,7 @@ Project: MELITE
 PyPI distribution: melite
 Import package: melite
 CLI: melite
-Version: 0.1.10
+Version: 0.1.11
 License: LGPL-3.0-or-later
 Status: alpha / pre-stable
 ```
@@ -97,7 +98,32 @@ print(result["probabilities"])
 | Select the best row by F1-macro. | Generate PCA or UMAP reductions from raw data. |
 | Export a final retrained `.pkl` model. | Act as a general AutoML framework. |
 | Run artifact-based inference through `predict()`. | Promise a stable 1.0 API yet. |
+| Handle any numeric tabular matrix. | Use a generalized dataset layer yet; PCA/UMAP naming is historical. |
 
+!!! note "Current dataset orchestration"
+    The current dataset orchestration still reflects MELITE's PCA/UMAP origin
+    and uses concepts such as reduction type and level. Future versions will
+    generalize dataset definitions so arbitrary prepared tabular matrices can
+    be registered directly.
+
+Future configuration may look conceptually like this; it is not current
+behavior:
+
+```toml
+[datasets.morgan]
+path = "data/morgan.npz"
+label_path = "raw/labels.npy"
+
+[datasets.descriptors]
+path = "data/descriptors.npz"
+label_path = "raw/labels.npy"
+
+[datasets.pca85]
+path = "data/PCA85.npz"
+label_path = "raw/labels.npy"
+```
+
+    
 ## CLI
 
 ```bash
@@ -161,7 +187,7 @@ Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
 
 ## Validation
 
-The current `dev/v0.1.10` branch targets:
+The current `dev/v0.1.11` branch targets:
 
 ```bash
 python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache
@@ -181,7 +207,7 @@ If you use MELITE in your research, please cite it using the metadata in
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model
-Evaluation and Learning for Inference-ready Tabular Experiments (0.1.10).
+Evaluation and Learning for Inference-ready Tabular Experiments (0.1.11).
 Tecnologico de Monterrey. https://github.com/NanoBiostructuresRG/melite
 ```
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 site_name: MELITE
-site_description: Multi-model selection, cross-validation and export toolkit for reduced-feature tabular classification
+site_description: Tabular classification benchmarking toolkit for model selection, repeated stratified cross-validation, final model export, and artifact-based inference
 site_url: https://nanobiostructuresrg.github.io/melite/
 repo_url: https://github.com/NanoBiostructuresRG/melite
 repo_name: NanoBiostructuresRG/melite
@@ -38,7 +38,7 @@ theme:
     - content.tabs.link
 
 extra_css:
-  - stylesheets/extra.css?v=0.1.10-workflow
+  - stylesheets/extra.css?v=0.1.11-readiness
 
 extra:
   social:

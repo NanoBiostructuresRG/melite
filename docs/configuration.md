@@ -39,6 +39,31 @@ Each `.npz` file must contain an `X` array. If an embedded `y` array is present,
 MELITE validates it against `raw/labels.npy` to avoid silent feature-label
 mismatches.
 
+MELITE is tabular at the modeling level. The learning algorithms only consume
+numeric `X` and `y` arrays, so the feature matrix may come from PCA, UMAP,
+fingerprints, descriptors, clinical variables, experimental measurements,
+industrial features, or manually selected numeric features.
+
+The current dataset orchestration still reflects MELITE's PCA/UMAP origin and
+uses concepts such as reduction type and level. Future versions will generalize
+dataset definitions so arbitrary prepared tabular matrices can be registered
+directly. Future configuration may look conceptually like this; it is not
+current behavior:
+
+```toml
+[datasets.morgan]
+path = "data/morgan.npz"
+label_path = "raw/labels.npy"
+
+[datasets.descriptors]
+path = "data/descriptors.npz"
+label_path = "raw/labels.npy"
+
+[datasets.pca85]
+path = "data/PCA85.npz"
+label_path = "raw/labels.npy"
+```
+
 ## Outputs
 
 By default, MELITE writes results under `output/`:

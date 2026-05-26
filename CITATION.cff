@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments"
-version: "0.1.10"
-date-released: "2026-05-25"
+version: "0.1.11"
+date-released: "2026-05-26"
 authors:
   - family-names: "Contreras-Torres"
     given-names: "Flavio F."
@@ -19,11 +19,11 @@ abstract: >-
   MELITE is a pre-stable Python toolkit for tabular classification benchmarking,
   model selection, repeated stratified cross-validation, final model export,
   and artifact-based inference.
-  It supports benchmarking workflows based on PCA or UMAP-reduced feature
-  matrices, grid-searches SVC, Random Forest and XGBoost classifiers, evaluates
-  model configurations with repeated stratified cross-validation, exports
-  tabular performance summaries, and supports final model retraining and
-  serialization as deployable model artifacts.
+  It operates at the tabular modeling level by consuming numeric feature
+  matrices and labels, benchmarks SVC, Random Forest and XGBoost classifiers,
+  evaluates model configurations with repeated stratified cross-validation,
+  exports tabular performance summaries, and supports final model retraining
+  and serialization as reusable model artifacts.
 keywords:
   - machine learning
   - tabular classification
