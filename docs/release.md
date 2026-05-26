@@ -1,17 +1,15 @@
 # Release Notes
 
-MOSAIC `0.1.9` is a documentation expansion and PyPI-preparation release.
+MELITE `0.1.10` is an identity and packaging rename release.
 
-## 0.1.9 Highlights
+## 0.1.10 Highlights
 
-- Added dedicated MkDocs pages for installation, quick start, CLI reference,
-  configuration, and release notes.
-- Reduced the home page to a clearer project overview with workflow diagram,
-  scope table, and direct navigation.
-- Aligned README and package metadata with the `dev/v0.1.9` branch.
-- Kept the public Python API unchanged.
-- Prepared documentation language for planned PyPI publication as
-  `mosaic-tabular`.
+- Renamed the user-facing project identity to MELITE.
+- Renamed the Python import package to `melite`.
+- Renamed the CLI command to `melite`.
+- Renamed the PyPI distribution target to `melite`.
+- Kept the public API symbols unchanged under the new import package.
+- Preserved the v0.1.9 documentation architecture.
 
 ## Validation Targets
 
@@ -19,13 +17,13 @@ Before release, validate:
 
 ```bash
 mkdocs build --strict
-pytest tests/ -v
+python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache
 python -m build
 python -m twine check dist/*
-mosaic --help
-mosaic run --help
-mosaic export --help
-mosaic --version
+melite --help
+melite run --help
+melite export --help
+melite --version
 ```
 
 ## Full Changelog

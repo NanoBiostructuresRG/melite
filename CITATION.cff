@@ -1,8 +1,8 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
-title: "MOSAIC: Modular Multi-Model Selection and Cross-Validation"
-version: "0.1.9"
+title: "MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments"
+version: "0.1.10"
 date-released: "2026-05-25"
 authors:
   - family-names: "Contreras-Torres"
@@ -13,10 +13,12 @@ authors:
     given-names: "Ana C."
     orcid: "https://orcid.org/0000-0002-7619-8880"
     affiliation: "Tecnologico de Monterrey"
-repository-code: "https://github.com/NanoBiostructuresRG/mosaic"
+repository-code: "https://github.com/NanoBiostructuresRG/melite"
 license: "LGPL-3.0-or-later"
 abstract: >-
-  MOSAIC is a lightweight benchmarking toolkit for tabular classification.
+  MELITE is a pre-stable Python toolkit for tabular classification benchmarking,
+  model selection, repeated stratified cross-validation, final model export,
+  and artifact-based inference.
   It supports benchmarking workflows based on PCA or UMAP-reduced feature
   matrices, grid-searches SVC, Random Forest and XGBoost classifiers, evaluates
   model configurations with repeated stratified cross-validation, exports

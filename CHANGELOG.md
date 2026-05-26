@@ -1,9 +1,38 @@
 # Changelog
 
-All notable changes to MOSAIC will be documented in this file.
+All notable changes to MELITE will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+---
+
+## [0.1.10] - 2026-05-25
+
+### Changed
+- Renamed the project identity from MOSAIC to MELITE.
+- Renamed the Python import package from `mosaic` to `melite`.
+- Renamed the CLI command from `mosaic` to `melite`.
+- Renamed the PyPI distribution target from `mosaic-tabular` to `melite`.
+- Updated repository, documentation, CI, and publishing metadata for
+  `NanoBiostructuresRG/melite`.
+- Updated public API imports to remain the same symbols under `melite`.
+- Updated result report headers to use MELITE branding and current CLI commands.
+
+### Fixed
+- Replaced the duplicated SVC RBF `C = 0.02` grid value with `C = 0.2`.
+
+### Validation
+- `python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache` — 82 passed, 1 warning, 0 failed.
+- `melite --help`, `melite run --help`, `melite export --help`, and `melite --version` — passed.
+- Public API smoke test — `OK: 0.1.10`.
+- `python -m build` — `melite-0.1.10.tar.gz` and `.whl` built successfully.
+- `python -m twine check dist/*` — PASSED.
+- `mkdocs build --strict` — build succeeded with no errors.
+- Wheel includes `melite/`, `melite/config_default.toml`, metadata, and license files.
+- Sdist inspected; local virtual environments, caches, generated review/docs
+  artifacts, build folders, raw/data/output folders, egg-info, `.pkl`, and
+  `.joblib` artifacts were not present.
 
 ---
 
