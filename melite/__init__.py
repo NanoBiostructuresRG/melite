@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""MOSAIC — multi-model selection, cross-validation and export toolkit.
+"""MELITE — multi-model selection, cross-validation and export toolkit.
 
 Public API
 ----------
 The following symbols are part of the stable public API:
 
-    from mosaic import Config
-    from mosaic import load_dataset
-    from mosaic import ResultManager
-    from mosaic import plot_cv_distributions
-    from mosaic import predict
-    from mosaic import __version__
+    from melite import Config
+    from melite import load_dataset
+    from melite import ResultManager
+    from melite import plot_cv_distributions
+    from melite import predict
+    from melite import __version__
 """
 
 import logging

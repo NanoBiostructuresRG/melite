@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Tests for mosaic.version."""
+"""Tests for melite.version."""
 
 import re
-from mosaic.version import (
+from melite.version import (
     __version__,
     PROJECT_NAME,
     PROJECT_VERSION,
@@ -22,7 +22,7 @@ def test_version_matches_semver():
 
 
 def test_project_name():
-    assert PROJECT_NAME == "MOSAIC"
+    assert PROJECT_NAME == "MELITE"
 
 
 def test_project_status():

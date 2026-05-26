@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Tests for mosaic.predict."""
+"""Tests for melite.predict."""
 
 import numpy as np
 import pytest
-from mosaic.predict import predict
+from melite.predict import predict
 
 
 def test_predict_returns_dict(tmp_model):
@@ -59,7 +59,7 @@ def test_missing_model_raises_file_not_found(tmp_path):
 def test_missing_model_error_includes_hint(tmp_path):
     X = np.random.rand(10, 5).astype(np.float32)
     missing = tmp_path / "nonexistent.pkl"
-    with pytest.raises(FileNotFoundError, match="mosaic export"):
+    with pytest.raises(FileNotFoundError, match="melite export"):
         predict(missing, X)
 
 

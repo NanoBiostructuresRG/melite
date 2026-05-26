@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Unified CLI entry point for MOSAIC.
+"""Unified CLI entry point for MELITE.
 
-This module provides the ``mosaic`` command registered in ``pyproject.toml``
+This module provides the ``melite`` command registered in ``pyproject.toml``
 under ``[project.scripts]``. It exposes two subcommands:
 
-- ``mosaic run`` — execute the full benchmarking pipeline.
-- ``mosaic export`` — retrain a selected model and export a ``.pkl`` artifact.
+- ``melite run`` — execute the full benchmarking pipeline.
+- ``melite export`` — retrain a selected model and export a ``.pkl`` artifact.
 
 Global flags (``--verbose``, ``--config``, ``--version``) are available to
 all subcommands via argparse parent parsers.
@@ -45,22 +45,22 @@ def _build_parser() -> argparse.ArgumentParser:
     global_parent = _global_parser()
 
     parser = argparse.ArgumentParser(
-        prog="mosaic",
-        description="MOSAIC — multi-model selection, cross-validation and export toolkit.",
+        prog="melite",
+        description="MELITE — multi-model selection, cross-validation and export toolkit.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         parents=[global_parent],
     )
     parser.add_argument(
         "--version",
         action="version",
-        version=f"MOSAIC {__version__}",
+        version=f"MELITE {__version__}",
     )
 
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
     subparsers.required = True
 
     # ------------------------------------------------------------------ #
-    # mosaic run
+    # melite run
     # ------------------------------------------------------------------ #
     run_parser = subparsers.add_parser(
         "run",
@@ -78,7 +78,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     # ------------------------------------------------------------------ #
-    # mosaic export
+    # melite export
     # ------------------------------------------------------------------ #
     export_parser = subparsers.add_parser(
         "export",
@@ -141,12 +141,12 @@ def _export(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    """Entry point for the ``mosaic`` CLI command.
+    """Entry point for the ``melite`` CLI command.
 
     Registered in ``pyproject.toml`` as::
 
         [project.scripts]
-        mosaic = "mosaic.cli:main"
+        melite = "melite.cli:main"
 
     Parses arguments, configures logging, and dispatches to the appropriate
     subcommand handler (``_run`` or ``_export``).
@@ -154,7 +154,7 @@ def main() -> None:
     Notes
     -----
     The ``--verbose`` flag sets the root logger to ``INFO`` level, which
-    exposes progress messages from all ``mosaic.*`` modules. Without it,
+    exposes progress messages from all ``melite.*`` modules. Without it,
     only ``WARNING`` and above are shown.
     """
     parser = _build_parser()

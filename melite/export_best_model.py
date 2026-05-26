@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Final model export workflow for MOSAIC.
+"""Final model export workflow for MELITE.
 
 This module provides :class:`Finalizer`, which reads a benchmark results CSV,
 lets the user select a configuration row, retrains the corresponding model on
@@ -46,8 +46,8 @@ class DatasetLoader:
 
     Parameters
     ----------
-    cfg : mosaic.config.Config
-        MOSAIC configuration object providing dataset and input paths.
+    cfg : melite.config.Config
+        MELITE configuration object providing dataset and input paths.
     """
 
     _CANDIDATE_KEYS = ("X{lvl}", "X_{lvl}", "{rtype}{lvl}")
@@ -129,8 +129,8 @@ class Finalizer:
         Path to the ``results.csv`` file produced by the benchmarking phase.
     output_dir : pathlib.Path
         Directory where the ``.pkl`` artifact will be saved.
-    cfg : mosaic.config.Config
-        MOSAIC configuration object.
+    cfg : melite.config.Config
+        MELITE configuration object.
     row_index : int or None, optional
         Row index from *csv_path* to export non-interactively. If ``None``,
         the user is prompted to select a row interactively. Default is ``None``.
@@ -161,7 +161,7 @@ class Finalizer:
         if not Path(csv_path).exists():
             raise FileNotFoundError(
                 f"Results file not found: {csv_path}. "
-                "Run 'mosaic run' first to generate benchmark results."
+                "Run 'melite run' first to generate benchmark results."
             )
 
         self._metrics = pd.read_csv(csv_path)
@@ -204,8 +204,8 @@ class Finalizer:
             print(
                 "\n[ERROR] This result was generated in smoke mode and is not "
                 "benchmark-quality.\n"
-                "        Run 'mosaic run' (without --smoke) to generate valid results,\n"
-                "        or use 'mosaic export --force' to override this guard.\n"
+                "        Run 'melite run' (without --smoke) to generate valid results,\n"
+                "        or use 'melite export --force' to override this guard.\n"
             )
             logger.error("Export blocked: smoke-mode result. Use --force to override.")
             sys.exit(1)

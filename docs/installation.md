@@ -1,18 +1,18 @@
 # Installation
 
-MOSAIC is developed for Python 3.11 and 3.12.
+MELITE is developed for Python 3.11 and 3.12.
 
 ## Local Install
 
 Clone the repository and install the package in editable mode:
 
 ```bash
-git clone https://github.com/NanoBiostructuresRG/mosaic.git
-cd mosaic
+git clone https://github.com/NanoBiostructuresRG/melite.git
+cd melite
 python -m pip install -e .
 ```
 
-This installs the `mosaic` command and the Python package.
+This installs the `melite` command and the Python package.
 
 ## Optional Dependencies
 
@@ -30,18 +30,18 @@ python -m pip install -e ".[docs]"
 
 ## PyPI Status
 
-MOSAIC is being prepared for publication on PyPI as `mosaic-tabular`.
+MELITE is being prepared for publication on PyPI as `melite`.
 Until that package is published, install from the repository in editable mode.
 
 ## Verify Installation
 
 ```bash
-mosaic --help
-mosaic --version
+melite --help
+melite --version
 ```
 
 Expected version for this development branch:
 
 ```text
-MOSAIC 0.1.9
+MELITE 0.1.10
 ```

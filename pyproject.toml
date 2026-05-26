@@ -4,8 +4,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mosaic-tabular"
-dynamic = ["version"]
+name = "melite"
+version = "0.1.10"
 description = "Tabular classification benchmarking toolkit for model selection, repeated stratified cross-validation, final model export, and artifact-based inference."
 readme = "README.md"
 license = "LGPL-3.0-or-later"
@@ -59,19 +59,19 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/NanoBiostructuresRG/mosaic"
-Repository = "https://github.com/NanoBiostructuresRG/mosaic"
-Issues = "https://github.com/NanoBiostructuresRG/mosaic/issues"
-Documentation = "https://nanobiostructuresrg.github.io/mosaic/"
+Homepage = "https://github.com/NanoBiostructuresRG/melite"
+Repository = "https://github.com/NanoBiostructuresRG/melite"
+Issues = "https://github.com/NanoBiostructuresRG/melite/issues"
+Documentation = "https://nanobiostructuresrg.github.io/melite/"
 
 [project.scripts]
-mosaic = "mosaic.cli:main"
+melite = "melite.cli:main"
 
 [tool.hatch.version]
-path = "mosaic/version.py"
+path = "melite/version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["mosaic"]
+packages = ["melite"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
@@ -83,6 +83,7 @@ exclude = [
     "/.tox",
     "/.venv",
     "/.*_venv",
+    "/.review_venv",
     "/__pycache__",
     "*/__pycache__",
     "*.egg-info",
@@ -95,6 +96,7 @@ exclude = [
     "/raw",
     "/output",
     "/site",
+    "/.review_site",
     "/.review_pytest_cache",
     "/.review_pytest_tmp",
     "/htmlcov",

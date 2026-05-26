@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to publish, for example v0.1.8"
+        description: "Release tag to publish, for example v0.1.10"
         required: true
         type: string
 
@@ -29,7 +29,7 @@ jobs:
           case "${{ inputs.tag }}" in
             v[0-9]*.[0-9]*.[0-9]*) ;;
             *)
-              echo "Input tag must look like vX.Y.Z, for example v0.1.8"
+              echo "Input tag must look like vX.Y.Z, for example v0.1.10"
               exit 1
               ;;
           esac
@@ -41,7 +41,7 @@ jobs:
         run: |
           expected="${{ inputs.tag }}"
           expected="${expected#v}"
-          actual="$(python -c "import runpy; print(runpy.run_path('mosaic/version.py')['__version__'])")"
+          actual="$(python -c "import runpy; print(runpy.run_path('melite/version.py')['__version__'])")"
 
           if [ "$actual" != "$expected" ]; then
             echo "Package version $actual does not match tag ${{ inputs.tag }}"
@@ -76,7 +76,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/p/mosaic-tabular
+      url: https://pypi.org/p/melite
 
     permissions:
       id-token: write

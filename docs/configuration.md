@@ -1,6 +1,6 @@
 # Configuration
 
-MOSAIC reads defaults from `mosaic/config_default.toml`. A user TOML file can
+MELITE reads defaults from `melite/config_default.toml`. A user TOML file can
 override only the settings that need to change.
 
 ## Minimal Override
@@ -19,13 +19,13 @@ active = ["svc", "rf"]
 Use the file from the CLI:
 
 ```bash
-mosaic run --config my_config.toml
-mosaic export --config my_config.toml --row 0
+melite run --config my_config.toml
+melite export --config my_config.toml --row 0
 ```
 
 ## Input Layout
 
-MOSAIC consumes pre-computed feature matrices and labels:
+MELITE consumes pre-computed feature matrices and labels:
 
 ```text
 raw/labels.npy          <- target vector y, shape (n_samples,)
@@ -36,12 +36,12 @@ data/UMAP85.npz
 ```
 
 Each `.npz` file must contain an `X` array. If an embedded `y` array is present,
-MOSAIC validates it against `raw/labels.npy` to avoid silent feature-label
+MELITE validates it against `raw/labels.npy` to avoid silent feature-label
 mismatches.
 
 ## Outputs
 
-By default, MOSAIC writes results under `output/`:
+By default, MELITE writes results under `output/`:
 
 ```text
 output/
@@ -69,7 +69,7 @@ active = ["svc", "rf", "xgb"]
 ```
 
 Remove a key from `active` to skip that model family in a run. The detailed
-hyperparameter grids are defined in `mosaic/config.py`; they are
+hyperparameter grids are defined in `melite/config.py`; they are
 developer-facing defaults rather than user TOML settings.
 
 | Config key | Model family | Benchmark coverage |
@@ -101,4 +101,4 @@ Current full-run SVC grids:
 
 These grids can be restricted at the family level through `[models].active`.
 Changing the individual hyperparameter values currently requires editing
-`mosaic/config.py`.
+`melite/config.py`.

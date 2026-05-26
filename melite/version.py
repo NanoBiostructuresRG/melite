@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Package version metadata for MOSAIC.
+"""Package version metadata for MELITE.
 
 This module is the single source of truth for the project version.
 It is read by ``hatchling`` at build time via ``[tool.hatch.version]``
 and imported by ``result_manager`` to stamp generated reports.
 """
 
-__version__ = "0.1.9"
-PROJECT_NAME = "MOSAIC"
+__version__ = "0.1.10"
+PROJECT_NAME = "MELITE"
 PROJECT_VERSION = __version__
 PROJECT_STATUS = "alpha"
 PROJECT_LICENSE = "LGPL-3.0-or-later"

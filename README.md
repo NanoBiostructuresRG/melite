@@ -1,51 +1,57 @@
-# MOSAIC: Modular Multi-Model Selection and Cross-Validation
+# MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments
 
-[![CI](https://github.com/NanoBiostructuresRG/mosaic/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/mosaic/actions/workflows/ci.yml)
+[![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.9-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.1.10-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)]()
 
-**MOSAIC** is a lightweight benchmarking toolkit for prepared tabular
-classification datasets. It compares SVC, Random Forest, and XGBoost model
-configurations with repeated stratified cross-validation, selects the best row
-by F1-macro, exports a final retrained `.pkl` artifact, and supports
-artifact-based inference through `predict()`.
+**MELITE** is a pre-stable Python toolkit for tabular classification
+benchmarking, model selection, repeated stratified cross-validation, final
+model export, and artifact-based inference.
 
-MOSAIC is especially useful when feature matrices already exist, for example
+MELITE is especially useful when feature matrices already exist, for example
 molecular fingerprints, PCA-reduced descriptors, or UMAP-reduced
 representations produced by an upstream workflow.
+
+## Project Identity
+
+```text
+Project: MELITE
+PyPI distribution: melite
+Import package: melite
+CLI: melite
+Version: 0.1.10
+License: LGPL-3.0-or-later
+Status: alpha / pre-stable
+```
 
 ## Documentation
 
 The live documentation is published at:
 
-https://nanobiostructuresrg.github.io/mosaic/
+https://nanobiostructuresrg.github.io/melite/
 
 Key pages:
 
-- [Installation](https://nanobiostructuresrg.github.io/mosaic/installation/)
-- [Quick Start](https://nanobiostructuresrg.github.io/mosaic/quickstart/)
-- [CLI Reference](https://nanobiostructuresrg.github.io/mosaic/cli/)
-- [Configuration](https://nanobiostructuresrg.github.io/mosaic/configuration/)
-- [API Reference](https://nanobiostructuresrg.github.io/mosaic/api/)
-
-## Development Status
-
-MOSAIC is currently in **alpha-stage, pre-stable development**.
-
-```text
-Version: 0.1.9
-Branch:  dev/v0.1.9
-```
-
-MOSAIC is being prepared for publication on PyPI as `mosaic-tabular`. Until
-that package is published, install from the repository in editable mode.
+- [Installation](https://nanobiostructuresrg.github.io/melite/installation/)
+- [Quick Start](https://nanobiostructuresrg.github.io/melite/quickstart/)
+- [CLI Reference](https://nanobiostructuresrg.github.io/melite/cli/)
+- [Configuration](https://nanobiostructuresrg.github.io/melite/configuration/)
+- [API Reference](https://nanobiostructuresrg.github.io/melite/api/)
 
 ## Installation
 
+After PyPI publication:
+
 ```bash
-git clone https://github.com/NanoBiostructuresRG/mosaic.git
-cd mosaic
+python -m pip install melite
+```
+
+For local development:
+
+```bash
+git clone https://github.com/NanoBiostructuresRG/melite.git
+cd melite
 python -m pip install -e .
 ```
 
@@ -61,20 +67,20 @@ python -m pip install -e ".[docs]"
 Run a fast smoke benchmark with the bundled synthetic example dataset:
 
 ```bash
-mosaic run --smoke --config examples/example_config.toml
+melite run --smoke --config examples/example_config.toml
 ```
 
 Export a selected model artifact:
 
 ```bash
-mosaic export --row 0 --csv examples/output/results.csv --outdir examples/output/
+melite export --row 0 --csv examples/output/results.csv --outdir examples/output/
 ```
 
 Run artifact-based inference:
 
 ```python
 import numpy as np
-from mosaic import predict
+from melite import predict
 
 X_new = np.load("examples/sample_PCA70.npz")["X"]
 result = predict("examples/output/Model_SVC_PCA70.pkl", X_new)
@@ -84,47 +90,47 @@ print(result["probabilities"])
 
 ## Scope
 
-| MOSAIC does | MOSAIC does not |
+| MELITE does | MELITE does not |
 |-------------|-----------------|
-| Accept prepared `X` and `y` arrays. | Generate PCA or UMAP representations. |
-| Benchmark SVC, Random Forest, and XGBoost classifiers. | Engineer molecular fingerprints or descriptors. |
-| Select the best row by F1-macro. | Handle raw molecular data directly. |
-| Export a final retrained `.pkl` model. | Require internet access at runtime. |
-| Run artifact-based inference through `predict()`. | Train deep learning models. |
+| Accept prepared `X` and `y` arrays. | Generate fingerprints. |
+| Benchmark SVC, Random Forest, and XGBoost classifiers. | Process SMILES. |
+| Select the best row by F1-macro. | Generate PCA or UMAP reductions from raw data. |
+| Export a final retrained `.pkl` model. | Act as a general AutoML framework. |
+| Run artifact-based inference through `predict()`. | Promise a stable 1.0 API yet. |
 
 ## CLI
 
 ```bash
-mosaic --help
-mosaic run --help
-mosaic export --help
-mosaic --version
+melite --help
+melite run --help
+melite export --help
+melite --version
 ```
 
 Common commands:
 
 ```bash
-mosaic run
-mosaic run --smoke
-mosaic run --config my_config.toml
-mosaic export --row 0
-mosaic export --config my_config.toml --row 0
-mosaic export --row 0 --force
+melite run
+melite run --smoke
+melite run --config my_config.toml
+melite export --row 0
+melite export --config my_config.toml --row 0
+melite export --row 0 --force
 ```
 
 ## Public API
 
 ```python
-from mosaic import Config
-from mosaic import load_dataset
-from mosaic import ResultManager
-from mosaic import plot_cv_distributions
-from mosaic import predict
-from mosaic import __version__
+from melite import Config
+from melite import load_dataset
+from melite import ResultManager
+from melite import plot_cv_distributions
+from melite import predict
+from melite import __version__
 ```
 
 Modules not listed above are importable directly but are not part of the public
-contract and may change before 1.0.
+contract and may change before 0.2.0.
 
 ## Input Format
 
@@ -137,7 +143,7 @@ data/UMAP85.npz
 ```
 
 Each `.npz` file must contain an `X` array. If an embedded `y` array is present,
-MOSAIC validates it against `raw/labels.npy`.
+MELITE validates it against `raw/labels.npy`.
 
 ## Outputs
 
@@ -155,32 +161,28 @@ Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
 
 ## Validation
 
-The current `dev/v0.1.9` branch targets:
+The current `dev/v0.1.10` branch targets:
 
 ```bash
-pytest tests/ -v
+python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache
 mkdocs build --strict
 python -m build
 python -m twine check dist/*
-mosaic --help
-mosaic run --help
-mosaic export --help
-mosaic --version
+melite --help
+melite run --help
+melite export --help
+melite --version
 ```
-
-The test suite currently covers 82 tests across configuration loading, dataset
-loading, result writing, final model export, plotting, public API imports, CLI
-behavior, artifact-based inference, and example dataset integrity.
 
 ## Citation
 
-If you use MOSAIC in your research, please cite it using the metadata in
+If you use MELITE in your research, please cite it using the metadata in
 [CITATION.cff](CITATION.cff).
 
 ```text
-Contreras-Torres, F. F., & Murrieta, A. C. (2026). MOSAIC: Modular
-Multi-Model Selection and Cross-Validation (0.1.9). Tecnologico de
-Monterrey. https://github.com/NanoBiostructuresRG/mosaic
+Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model
+Evaluation and Learning for Inference-ready Tabular Experiments (0.1.10).
+Tecnologico de Monterrey. https://github.com/NanoBiostructuresRG/melite
 ```
 
 ## Authors

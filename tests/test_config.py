@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Tests for mosaic.config."""
+"""Tests for melite.config."""
 
 import pytest
 from pathlib import Path
-from mosaic.config import Config
+from melite.config import Config
 
 
 def test_config_instantiates_without_filesystem_side_effects(tmp_path):

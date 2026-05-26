@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Tests for mosaic.export_best_model."""
+"""Tests for melite.export_best_model."""
 
 import pytest
 from pathlib import Path
-from mosaic.export_best_model import Finalizer
-from mosaic.config import Config
+from melite.export_best_model import Finalizer
+from melite.config import Config
 
 
 def _make_config(tmp_path):
@@ -27,7 +27,7 @@ def test_missing_csv_raises_file_not_found_error(tmp_path):
 def test_missing_csv_error_includes_hint(tmp_path):
     cfg = _make_config(tmp_path)
     missing_csv = tmp_path / "output" / "results.csv"
-    with pytest.raises(FileNotFoundError, match="mosaic run"):
+    with pytest.raises(FileNotFoundError, match="melite run"):
         Finalizer(missing_csv, tmp_path / "output", cfg)
 
 

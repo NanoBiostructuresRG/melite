@@ -37,21 +37,21 @@ jobs:
         run: python -m pytest tests -p no:cacheprovider --basetemp .pytest_tmp
 
       - name: Check CLI version
-        run: mosaic --version
+        run: melite --version
 
       - name: Check public import boundary
         run: |
           python -c "
-          import mosaic
-          assert hasattr(mosaic, '__version__'),           '__version__ missing'
-          assert hasattr(mosaic, 'Config'),                'Config missing'
-          assert hasattr(mosaic, 'load_dataset'),          'load_dataset missing'
-          assert hasattr(mosaic, 'ResultManager'),         'ResultManager missing'
-          assert hasattr(mosaic, 'plot_cv_distributions'), 'plot_cv_distributions missing'
-          assert hasattr(mosaic, 'predict'),               'predict missing'
-          assert not hasattr(mosaic, 'Pipeline'),          'Pipeline must not be public'
-          assert not hasattr(mosaic, '_load_toml'),        '_load_toml must not be public'
-          print(mosaic.__version__, 'OK')
+          import melite
+          assert hasattr(melite, '__version__'),           '__version__ missing'
+          assert hasattr(melite, 'Config'),                'Config missing'
+          assert hasattr(melite, 'load_dataset'),          'load_dataset missing'
+          assert hasattr(melite, 'ResultManager'),         'ResultManager missing'
+          assert hasattr(melite, 'plot_cv_distributions'), 'plot_cv_distributions missing'
+          assert hasattr(melite, 'predict'),               'predict missing'
+          assert not hasattr(melite, 'Pipeline'),          'Pipeline must not be public'
+          assert not hasattr(melite, '_load_toml'),        '_load_toml must not be public'
+          print(melite.__version__, 'OK')
           "
 
       - name: Build distributions
@@ -70,17 +70,17 @@ jobs:
           .smoke_venv/bin/python -m pip install "$WHEEL"
           mkdir -p .smoke_outside_checkout
           cd .smoke_outside_checkout
-          ../.smoke_venv/bin/mosaic --version
+          ../.smoke_venv/bin/melite --version
           ../.smoke_venv/bin/python -c "
-          import mosaic
-          assert hasattr(mosaic, '__version__'),           '__version__ missing'
-          assert hasattr(mosaic, 'Config'),                'Config missing'
-          assert hasattr(mosaic, 'load_dataset'),          'load_dataset missing'
-          assert hasattr(mosaic, 'ResultManager'),         'ResultManager missing'
-          assert hasattr(mosaic, 'plot_cv_distributions'), 'plot_cv_distributions missing'
-          assert hasattr(mosaic, 'predict'),               'predict missing'
-          assert not hasattr(mosaic, 'Pipeline'),          'Pipeline must not be public'
-          print(mosaic.__version__, 'wheel OK')
+          import melite
+          assert hasattr(melite, '__version__'),           '__version__ missing'
+          assert hasattr(melite, 'Config'),                'Config missing'
+          assert hasattr(melite, 'load_dataset'),          'load_dataset missing'
+          assert hasattr(melite, 'ResultManager'),         'ResultManager missing'
+          assert hasattr(melite, 'plot_cv_distributions'), 'plot_cv_distributions missing'
+          assert hasattr(melite, 'predict'),               'predict missing'
+          assert not hasattr(melite, 'Pipeline'),          'Pipeline must not be public'
+          print(melite.__version__, 'wheel OK')
           "
 
       - name: Smoke install sdist
@@ -93,16 +93,16 @@ jobs:
           .smoke_sdist_venv/bin/python -m pip install "$SDIST"
           mkdir -p .smoke_sdist_outside
           cd .smoke_sdist_outside
-          ../.smoke_sdist_venv/bin/mosaic --version
+          ../.smoke_sdist_venv/bin/melite --version
           ../.smoke_sdist_venv/bin/python -c "
-          import mosaic
-          assert hasattr(mosaic, '__version__'),           '__version__ missing'
-          assert hasattr(mosaic, 'Config'),                'Config missing'
-          assert hasattr(mosaic, 'load_dataset'),          'load_dataset missing'
-          assert hasattr(mosaic, 'ResultManager'),         'ResultManager missing'
-          assert hasattr(mosaic, 'plot_cv_distributions'), 'plot_cv_distributions missing'
-          assert hasattr(mosaic, 'predict'),               'predict missing'
-          print(mosaic.__version__, 'sdist OK')
+          import melite
+          assert hasattr(melite, '__version__'),           '__version__ missing'
+          assert hasattr(melite, 'Config'),                'Config missing'
+          assert hasattr(melite, 'load_dataset'),          'load_dataset missing'
+          assert hasattr(melite, 'ResultManager'),         'ResultManager missing'
+          assert hasattr(melite, 'plot_cv_distributions'), 'plot_cv_distributions missing'
+          assert hasattr(melite, 'predict'),               'predict missing'
+          print(melite.__version__, 'sdist OK')
           "
 
   docs-build:

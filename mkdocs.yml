@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-site_name: MOSAIC
+site_name: MELITE
 site_description: Multi-model selection, cross-validation and export toolkit for reduced-feature tabular classification
-site_url: https://nanobiostructuresrg.github.io/mosaic/
-repo_url: https://github.com/NanoBiostructuresRG/mosaic
-repo_name: NanoBiostructuresRG/mosaic
+site_url: https://nanobiostructuresrg.github.io/melite/
+repo_url: https://github.com/NanoBiostructuresRG/melite
+repo_name: NanoBiostructuresRG/melite
 
 theme:
   name: material
@@ -38,7 +38,7 @@ theme:
     - content.tabs.link
 
 extra_css:
-  - stylesheets/extra.css?v=0.1.9-workflow
+  - stylesheets/extra.css?v=0.1.10-workflow
 
 extra:
   social:
@@ -46,8 +46,8 @@ extra:
       link: https://nanobiostructuresrg.github.io/
       name: NanoBiostructuresRG
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/mosaic-tabular/
-      name: Planned PyPI package mosaic-tabular
+      link: https://pypi.org/project/melite/
+      name: PyPI package melite
 
 plugins:
   - search

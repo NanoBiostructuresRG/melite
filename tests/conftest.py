@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Shared pytest fixtures for MOSAIC test suite."""
+"""Shared pytest fixtures for MELITE test suite."""
 
 import csv
 from pathlib import Path
@@ -129,7 +129,7 @@ def tmp_results_csv(tmp_path):
 @pytest.fixture
 def base_config(tmp_path):
     """Config instance pointing to tmp_path directories, without calling setup()."""
-    from mosaic.config import Config
+    from melite.config import Config
     cfg = Config()
     cfg.PATHS = {
         "INPUT":   str(tmp_path / "raw") + "/",

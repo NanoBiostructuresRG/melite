@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Model training, grid search and cross-validation for MOSAIC.
+"""Model training, grid search and cross-validation for MELITE.
 
 This module implements the multi-model benchmarking core. It defines an
 abstract base class :class:`ModelTrainer` and the concrete implementation
@@ -20,12 +20,12 @@ __all__ = ["MultiModelTrainer"]
 
 
 class ModelTrainer(ABC):
-    """Abstract base class for MOSAIC model trainers.
+    """Abstract base class for MELITE model trainers.
 
     Parameters
     ----------
-    config : mosaic.config.Config
-        MOSAIC configuration object providing CV settings and hyperparameter
+    config : melite.config.Config
+        MELITE configuration object providing CV settings and hyperparameter
         grids.
     """
 
@@ -65,9 +65,9 @@ class MultiModelTrainer(ModelTrainer):
 
     Parameters
     ----------
-    config : mosaic.config.Config
-        MOSAIC configuration object. Must expose :meth:`~mosaic.config.Config.get_cv_config`
-        and :attr:`~mosaic.config.Config.PARAM_GRID`.
+    config : melite.config.Config
+        MELITE configuration object. Must expose :meth:`~melite.config.Config.get_cv_config`
+        and :attr:`~melite.config.Config.PARAM_GRID`.
 
     Notes
     -----

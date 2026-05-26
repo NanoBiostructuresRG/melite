@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Tests for mosaic.load_dataset."""
+"""Tests for melite.load_dataset."""
 
 import pytest
-from mosaic.load_dataset import load_dataset
+from melite.load_dataset import load_dataset
 
 
 def _make_config(tmp_path):
-    from mosaic.config import Config
+    from melite.config import Config
     cfg = Config()
     cfg.PATHS = {
         "INPUT":   str(tmp_path / "raw") + "/",
@@ -34,7 +34,7 @@ def test_valid_npz_without_y_loads(tmp_path, tmp_labels, tmp_npz_no_y):
 def test_missing_file_warns_and_skips(tmp_path, tmp_labels, caplog):
     import logging
     cfg = _make_config(tmp_path)
-    with caplog.at_level(logging.WARNING, logger="mosaic.load_dataset"):
+    with caplog.at_level(logging.WARNING, logger="melite.load_dataset"):
         result = load_dataset(cfg, "PCA", [70])
     assert result == {}
     assert any("not found" in msg.lower() for msg in caplog.messages)
