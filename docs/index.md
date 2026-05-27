@@ -178,9 +178,7 @@ If you use MELITE in your research, please cite it using the metadata in
 [CITATION.cff](https://github.com/NanoBiostructuresRG/melite/blob/main/CITATION.cff).
 
 ```text
-Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model
-Evaluation and Learning for Inference-ready Tabular Experiments (0.1.11). Tecnologico de
-Monterrey. https://github.com/NanoBiostructuresRG/melite
+Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments. Zenodo. https://doi.org/10.5281/zenodo.20382752
 ```
 
 ## License

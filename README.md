@@ -21,7 +21,7 @@ Project: MELITE
 PyPI distribution: melite
 Import package: melite
 CLI: melite
-Version: 0.1.11
+Version: 0.2.0
 License: LGPL-3.0-or-later
 Status: alpha / pre-stable
 ```
