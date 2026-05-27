@@ -6,6 +6,7 @@ directly but are not part of the public contract.
 
 ```python
 from melite import Config
+from melite import load_datasets
 from melite import load_dataset
 from melite import ResultManager
 from melite import plot_cv_distributions
@@ -22,6 +23,12 @@ from melite import __version__
 ---
 
 ## load_dataset
+
+::: melite.load_dataset.load_datasets
+
+---
+
+## load_dataset legacy wrapper
 
 ::: melite.load_dataset.load_dataset
 

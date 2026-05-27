@@ -9,8 +9,12 @@ override only the settings that need to change.
 [paths]
 output = "my_output/"
 
-[benchmark]
-levels = [70, 85, 95]
+[datasets.morgan_r2_2048]
+path = "data/morgan_r2_2048.npz"
+label_path = "raw/labels.npy"
+family = "fingerprints"
+method = "Morgan"
+variant = "r2_2048"
 
 [models]
 active = ["svc", "rf"]
@@ -29,14 +33,15 @@ MELITE consumes pre-computed feature matrices and labels:
 
 ```text
 raw/labels.npy          <- target vector y, shape (n_samples,)
-data/PCA70.npz          <- required key: X, optional key: y
+data/morgan_r2_2048.npz <- required key: X, optional key: y
+data/maccs.npz
+data/rdkit_descriptors.npz
 data/PCA85.npz
-data/UMAP70.npz
-data/UMAP85.npz
+data/UMAP90.npz
 ```
 
 Each `.npz` file must contain an `X` array. If an embedded `y` array is present,
-MELITE validates it against `raw/labels.npy` to avoid silent feature-label
+MELITE validates it against the configured `label_path` to avoid silent feature-label
 mismatches.
 
 MELITE is tabular at the modeling level. The learning algorithms only consume
@@ -44,25 +49,53 @@ numeric `X` and `y` arrays, so the feature matrix may come from PCA, UMAP,
 fingerprints, descriptors, clinical variables, experimental measurements,
 industrial features, or manually selected numeric features.
 
-The current dataset orchestration still reflects MELITE's PCA/UMAP origin and
-uses concepts such as reduction type and level. Future versions will generalize
-dataset definitions so arbitrary prepared tabular matrices can be registered
-directly. Future configuration may look conceptually like this; it is not
-current behavior:
+Each concrete matrix candidate is registered under `[datasets.<dataset_id>]`.
+Required fields are `path` and `label_path`. Optional metadata fields are
+`family`, `method`, `variant`, `level`, and `description`; they are preserved
+in reports for traceability and do not control special-case execution logic.
 
 ```toml
-[datasets.morgan]
-path = "data/morgan.npz"
+[datasets.morgan_r2_2048]
+path = "data/morgan_r2_2048.npz"
 label_path = "raw/labels.npy"
+family = "fingerprints"
+method = "Morgan"
+variant = "r2_2048"
 
-[datasets.descriptors]
-path = "data/descriptors.npz"
+[datasets.maccs]
+path = "data/maccs.npz"
 label_path = "raw/labels.npy"
+family = "fingerprints"
+method = "MACCS"
+
+[datasets.rdkit_descriptors]
+path = "data/rdkit_descriptors.npz"
+label_path = "raw/labels.npy"
+family = "descriptors"
+method = "RDKit"
 
 [datasets.pca85]
 path = "data/PCA85.npz"
 label_path = "raw/labels.npy"
+family = "dimensionality"
+method = "PCA"
+level = 85
+
+[datasets.umap90]
+path = "data/UMAP90.npz"
+label_path = "raw/labels.npy"
+family = "dimensionality"
+method = "UMAP"
+level = 90
 ```
+
+Registered datasets are loaded strictly. A missing dataset file, missing
+`label_path`, missing `X`, non-2D `X`, non-numeric `X`, length mismatch, or
+embedded `y` mismatch raises an error instead of silently skipping the entry.
+
+Legacy `[benchmark].reduction_types` and `levels` remain supported for
+compatibility. When `[datasets]` is absent, MELITE synthesizes entries such as
+`PCA70` and `UMAP90` with dimensionality metadata.
 
 ## Outputs
 
@@ -72,9 +105,9 @@ By default, MELITE writes results under `output/`:
 output/
 |-- results.txt
 |-- results.csv
-|-- Model_<model>_<reduction><level>.pkl
+|-- Model_<model>_<dataset>.pkl
 `-- figures/
-    `-- <model>_<reduction><level>.png
+    `-- <model>_<dataset>.png
 ```
 
 | Output | Purpose |

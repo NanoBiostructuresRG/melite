@@ -84,7 +84,7 @@ import numpy as np
 from melite import predict
 
 X_new = np.load("examples/sample_PCA70.npz")["X"]
-result = predict("examples/output/Model_SVC_PCA70.pkl", X_new)
+result = predict("examples/output/Model_SVC_sample_pca70.pkl", X_new)
 print(result["predictions"])
 print(result["probabilities"])
 ```
@@ -98,31 +98,41 @@ print(result["probabilities"])
 | Select the best row by F1-macro. | Generate PCA or UMAP reductions from raw data. |
 | Export a final retrained `.pkl` model. | Act as a general AutoML framework. |
 | Run artifact-based inference through `predict()`. | Promise a stable 1.0 API yet. |
-| Handle any numeric tabular matrix. | Use a generalized dataset layer yet; PCA/UMAP naming is historical. |
+| Handle any numeric tabular matrix. | Generate or validate domain-specific descriptors. |
 
-!!! note "Current dataset orchestration"
-    The current dataset orchestration still reflects MELITE's PCA/UMAP origin
-    and uses concepts such as reduction type and level. Future versions will
-    generalize dataset definitions so arbitrary prepared tabular matrices can
-    be registered directly.
-
-Future configuration may look conceptually like this; it is not current
-behavior:
+Datasets are registered as concrete tabular matrix candidates under
+`[datasets.<dataset_id>]`. The `dataset_id` is user-defined and is used in
+`results.csv`, figures, and exported model filenames.
 
 ```toml
-[datasets.morgan]
-path = "data/morgan.npz"
+[datasets.morgan_r2_2048]
+path = "data/morgan_r2_2048.npz"
 label_path = "raw/labels.npy"
+family = "fingerprints"
+method = "Morgan"
+variant = "r2_2048"
 
-[datasets.descriptors]
-path = "data/descriptors.npz"
+[datasets.rdkit_descriptors]
+path = "data/rdkit_descriptors.npz"
 label_path = "raw/labels.npy"
+family = "descriptors"
+method = "RDKit"
 
 [datasets.pca85]
 path = "data/PCA85.npz"
 label_path = "raw/labels.npy"
+family = "dimensionality"
+method = "PCA"
+level = 85
 ```
 
+Each registered dataset must define `path` and `label_path`. Optional metadata
+fields are `family`, `method`, `variant`, `level`, and `description`; they are
+reported for traceability and do not drive special-case model execution.
+Registered datasets are loaded strictly: missing files, missing `X`, non-2D or
+non-numeric `X`, length mismatches, and embedded `y` mismatches fail the run.
+Legacy `[benchmark].reduction_types` and `levels` configs are still accepted
+and are normalized into equivalent dataset entries such as `PCA70` and `UMAP90`.
     
 ## CLI
 
@@ -148,6 +158,7 @@ melite export --row 0 --force
 
 ```python
 from melite import Config
+from melite import load_datasets
 from melite import load_dataset
 from melite import ResultManager
 from melite import plot_cv_distributions
@@ -162,14 +173,14 @@ contract and may change before 0.2.0.
 
 ```text
 raw/labels.npy          <- target vector y, shape (n_samples,)
-data/PCA70.npz          <- required key: X, optional key: y
+data/morgan_r2_2048.npz <- required key: X, optional key: y
+data/rdkit_descriptors.npz
 data/PCA85.npz
-data/UMAP70.npz
-data/UMAP85.npz
+data/UMAP90.npz
 ```
 
 Each `.npz` file must contain an `X` array. If an embedded `y` array is present,
-MELITE validates it against `raw/labels.npy`.
+MELITE validates it against the configured `label_path`.
 
 ## Outputs
 
@@ -177,9 +188,9 @@ MELITE validates it against `raw/labels.npy`.
 output/
 |-- results.txt
 |-- results.csv
-|-- Model_<model>_<reduction><level>.pkl
+|-- Model_<model>_<dataset>.pkl
 `-- figures/
-    `-- <model>_<reduction><level>.png
+    `-- <model>_<dataset>.png
 ```
 
 Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
@@ -187,7 +198,7 @@ Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
 
 ## Validation
 
-The current `dev/v0.1.11` branch targets:
+The current `dev/v0.2.0` branch targets:
 
 ```bash
 python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache
