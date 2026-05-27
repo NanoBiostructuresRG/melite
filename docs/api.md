@@ -1,7 +1,7 @@
 # API Reference
 
 MELITE exposes an intended public API through five symbols. The project is
-pre-stable, so this API may change before 0.2.0. Internal modules are importable
+pre-stable, so this API may change before 1.0. Internal modules are importable
 directly but are not part of the public contract.
 
 ```python

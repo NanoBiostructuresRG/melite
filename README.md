@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1.11-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.2.1-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)]()
 
 **MELITE** is a pre-stable Python toolkit for tabular classification
@@ -21,7 +21,7 @@ Project: MELITE
 PyPI distribution: melite
 Import package: melite
 CLI: melite
-Version: 0.2.0
+Version: 0.2.1
 License: LGPL-3.0-or-later
 Status: alpha / pre-stable
 ```
@@ -133,6 +133,16 @@ Registered datasets are loaded strictly: missing files, missing `X`, non-2D or
 non-numeric `X`, length mismatches, and embedded `y` mismatches fail the run.
 Legacy `[benchmark].reduction_types` and `levels` configs are still accepted
 and are normalized into equivalent dataset entries such as `PCA70` and `UMAP90`.
+
+Model families are controlled by `[models].active`:
+
+```toml
+[models]
+active = ["svc", "rf", "xgb"]
+```
+
+Remove a key to skip that family during training. Valid keys are `svc`, `rf`,
+and `xgb`.
     
 ## CLI
 
@@ -165,7 +175,7 @@ from melite import __version__
 ```
 
 Modules not listed above are importable directly but are not part of the public
-contract and may change before 0.2.0.
+contract and may change before 1.0.
 
 ## Input Format
 
@@ -196,13 +206,14 @@ Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
 
 ## Validation
 
-The current `dev/v0.2.0` branch targets:
+The current `dev/v0.2.1` branch targets:
 
 ```bash
 python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache
 mkdocs build --strict
-python -m build
+python -m build --no-isolation
 python -m twine check dist/*
+python scripts/smoke_install_wheel.py
 melite --help
 melite run --help
 melite export --help
@@ -216,7 +227,7 @@ If you use MELITE in your research, please cite it using the metadata in
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model
-Evaluation and Learning for Inference-ready Tabular Experiments (0.1.11).
+Evaluation and Learning for Inference-ready Tabular Experiments (0.2.1).
 Tecnologico de Monterrey. https://github.com/NanoBiostructuresRG/melite
 ```
 

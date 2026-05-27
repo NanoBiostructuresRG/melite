@@ -86,6 +86,23 @@ class MultiModelTrainer(ModelTrainer):
             "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=-1),
             "xgb": lambda: XGBClassifier(eval_metric="logloss", random_state=rs, n_jobs=-1),
         }
+        self.active_models = self._validate_active_models()
+
+    def _validate_active_models(self):
+        active_models = getattr(self.config, "ACTIVE_MODELS", list(self.model_builders))
+        if not active_models:
+            raise ValueError("ACTIVE_MODELS must contain at least one model key.")
+
+        unknown = [model for model in active_models if model not in self.model_builders]
+        if unknown:
+            unknown_models = ", ".join(unknown)
+            valid_models = ", ".join(self.model_builders)
+            raise ValueError(
+                f"Unknown active model(s): {unknown_models}. "
+                f"Valid model keys are: {valid_models}."
+            )
+
+        return list(active_models)
 
     def _build_cv_strategy(self):
         cv_cfg = self.config.get_cv_config()
@@ -169,7 +186,7 @@ class MultiModelTrainer(ModelTrainer):
     def train_and_select_best_model(self, X_train, y_train, reduction_type, level):
         """Train all active models and return the best configuration.
 
-        For each model key in ``model_builders``, runs grid search followed by
+        For each configured active model key, runs grid search followed by
         cross-validation. The model with the highest mean F1-macro is selected.
 
         Parameters
@@ -209,7 +226,7 @@ class MultiModelTrainer(ModelTrainer):
             "auc": None, "auc_std": None,
         }
 
-        for model_name in self.model_builders:
+        for model_name in self.active_models:
             model = self.model_builders[model_name]()
             param_grid = self._filter_param_grid(model_name)
             tuned_model, params = self.perform_grid_search(model, X_train, y_train, param_grid)

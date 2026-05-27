@@ -38,7 +38,7 @@ theme:
     - content.tabs.link
 
 extra_css:
-  - stylesheets/extra.css?v=0.1.11-readiness
+  - stylesheets/extra.css?v=0.2.1-docs
 
 extra:
   social:

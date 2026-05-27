@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.2.1] - 2026-05-27
+
+### Changed
+- `[models].active` / `ACTIVE_MODELS` now controls which model families are
+  trained during benchmarking.
+- `melite export` now uses strict dataset loading for registry-based datasets
+  and no longer falls back to `arr.files[0]` when an `.npz` file lacks `X`.
+- Added an installed-wheel smoke test that builds the wheel, installs it
+  outside the repository checkout, runs a toy `[datasets.toy]` smoke benchmark,
+  exports row 0 non-interactively, and verifies generated artifacts.
+
+### Compatibility
+- The top-level public API remains unchanged:
+  `Config`, `load_datasets`, `plot_cv_distributions`, `predict`, and
+  `__version__`.
+- Legacy `reduction_type` + `level` export rows remain supported, but
+  individual legacy `.npz` files must now contain an explicit `X` array.
+
+---
+
 ## [v0.2.0] - 2026-05-26
 
 ### Added

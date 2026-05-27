@@ -21,7 +21,7 @@
     </div>
     <div class="ms-badges" aria-label="Project badges">
       <img alt="CI" src="https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg">
-      <img alt="Version" src="https://img.shields.io/badge/version-v0.1.11-blue.svg">
+      <img alt="Version" src="https://img.shields.io/badge/version-v0.2.1-blue.svg">
       <img alt="Python versions" src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue">
       <img alt="License: LGPL v3+" src="https://img.shields.io/badge/License-LGPL_v3%2B-blue.svg">
     </div>
@@ -29,9 +29,9 @@
 </section>
 
 !!! note "Pre-stable"
-    MELITE is currently in alpha-stage development (`v0.1.x`). Publication on
+    MELITE is currently in alpha-stage development (`v0.2.x`). Publication on
     PyPI is prepared under the package name `melite`. Public APIs may
-    change before 0.2.0.
+    change before 1.0.
 
 ## Workflow
 
@@ -118,31 +118,71 @@ industrial features, or manually selected numeric features.
 MELITE uses a dataset registry under `[datasets.<dataset_id>]`. Each
 `dataset_id` names one concrete numeric `X` matrix candidate.
 
-```toml
-[datasets.morgan_r2_2048]
-path = "data/morgan_r2_2048.npz"
-label_path = "raw/labels.npy"
-family = "fingerprints"
-method = "Morgan"
+<section class="ms-dataset-panel" aria-label="Dataset registry examples">
+  <div class="ms-dataset-panel__intro">
+    <span class="ms-dataset-panel__kicker">Registry pattern</span>
+    <strong>One dataset id, one numeric matrix.</strong>
+    <p>Use metadata for reporting and traceability; execution follows the
+    registered files, not hardcoded dataset families.</p>
+  </div>
+</section>
 
-[datasets.rdkit_descriptors]
-path = "data/rdkit_descriptors.npz"
-label_path = "raw/labels.npy"
-family = "descriptors"
-method = "RDKit"
+=== "Fingerprints"
 
-[datasets.pca85]
-path = "data/PCA85.npz"
-label_path = "raw/labels.npy"
-family = "dimensionality"
-method = "PCA"
-level = 85
-```
+    ```toml
+    [datasets.morgan_r2_2048]
+    path = "data/morgan_r2_2048.npz"
+    label_path = "raw/labels.npy"
+    family = "fingerprints"
+    method = "Morgan"
+    variant = "radius2_2048"
+    ```
+
+    `morgan_r2_2048` is just a user-defined id. MELITE treats it as a concrete
+    feature matrix candidate and reports the metadata with its results.
+
+=== "Descriptors"
+
+    ```toml
+    [datasets.rdkit_descriptors]
+    path = "data/rdkit_descriptors.npz"
+    label_path = "raw/labels.npy"
+    family = "descriptors"
+    method = "RDKit"
+    description = "Curated numeric descriptor table"
+    ```
+
+    Descriptor tables follow the same strict contract: numeric, two-dimensional
+    `X`, plus a label vector loaded from `label_path`.
+
+=== "Dimensionality"
+
+    ```toml
+    [datasets.pca85]
+    path = "data/PCA85.npz"
+    label_path = "raw/labels.npy"
+    family = "dimensionality"
+    method = "PCA"
+    level = 85
+
+    [datasets.umap90]
+    path = "data/UMAP90.npz"
+    label_path = "raw/labels.npy"
+    family = "dimensionality"
+    method = "UMAP"
+    level = 90
+    ```
+
+    PCA and UMAP are ordinary dataset entries. `method` and `level` preserve
+    legacy reporting context without driving special execution logic.
 
 Required fields are `path` and `label_path`; optional metadata fields are
 `family`, `method`, `variant`, `level`, and `description`. Legacy
 `[benchmark].reduction_types` and `levels` configs are still normalized into
 dataset entries when `[datasets]` is absent.
+
+Each `.npz` dataset must contain an explicit `X` array; missing `X` fails
+strict dataset loading.
 
 ## Quick Example
 

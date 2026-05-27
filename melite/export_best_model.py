@@ -20,7 +20,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from .config import Config
-from .load_dataset import _load_one_dataset
+from .load_dataset import load_datasets, _load_one_dataset
 from .plot_metrics import plot_cv_distributions
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_validate, RepeatedStratifiedKFold
@@ -70,20 +70,19 @@ class DatasetLoader:
     def load_row(self, row: pd.Series) -> Tuple[np.ndarray, np.ndarray]:
         """Load the dataset referenced by a result row.
 
-        New v0.2.0 result rows are resolved by their ``dataset`` id in
+        Dataset-registry result rows are resolved by their ``dataset`` id in
         ``cfg.DATASETS``. Older result rows without ``dataset`` fall back to
         the legacy ``reduction_type`` + ``level`` lookup.
         """
         if "dataset" in row and _has_value(row.get("dataset")):
             dataset_id = str(row.get("dataset"))
             try:
-                spec = self._cfg.DATASETS[dataset_id]
+                dataset = load_datasets(self._cfg)[dataset_id]
             except KeyError as exc:
                 raise KeyError(
                     f"Dataset '{dataset_id}' from results.csv is not registered "
                     "in cfg.DATASETS."
                 ) from exc
-            dataset = _load_one_dataset(dataset_id, spec)
             return dataset["X"], dataset["y"]
 
         return self.load(row.reduction_type, int(row.level))
@@ -129,9 +128,19 @@ class DatasetLoader:
         fp = self._data_root / f"{reduction}{level}.npz"
         if not fp.exists():
             return None
-        arr = np.load(fp)
-        self._ensure_labels()
-        return arr["X"] if "X" in arr.files else arr[arr.files[0]]
+        dataset_id = f"{reduction}{level}"
+        spec = {
+            "path": fp,
+            "label_path": Path(self._cfg.PATHS["INPUT"]) / "labels.npy",
+            "metadata": {
+                "family": "dimensionality",
+                "method": reduction,
+                "level": level,
+            },
+        }
+        dataset = _load_one_dataset(dataset_id, spec)
+        self._labels = dataset["y"]
+        return dataset["X"]
 
     def _try_aggregated_file(self, reduction: str, level: int) -> np.ndarray | None:
         fp = self._data_root / f"{reduction}s.npz"
@@ -142,7 +151,23 @@ class DatasetLoader:
             key = pattern.format(rtype=reduction, lvl=level)
             if key in arr:
                 self._ensure_labels()
-                return arr[key]
+                X = arr[key]
+                if X.ndim != 2:
+                    raise ValueError(
+                        f"Legacy dataset '{reduction}{level}' X must be 2D; "
+                        f"got shape {X.shape}."
+                    )
+                if not np.issubdtype(X.dtype, np.number):
+                    raise ValueError(
+                        f"Legacy dataset '{reduction}{level}' X must be numeric; "
+                        f"got dtype {X.dtype}."
+                    )
+                if len(self._labels) != X.shape[0]:
+                    raise ValueError(
+                        f"Legacy dataset '{reduction}{level}' X/y length mismatch: "
+                        f"X has {X.shape[0]} rows, y has {len(self._labels)} labels."
+                    )
+                return X
         raise KeyError(f"Level {level} not found inside {fp.name}.")
 
     def _ensure_labels(self) -> None:
