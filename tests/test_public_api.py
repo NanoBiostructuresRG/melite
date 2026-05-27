@@ -14,6 +14,11 @@ def test_load_dataset_importable_from_melite():
     assert callable(load_dataset)
 
 
+def test_load_datasets_importable_from_melite():
+    from melite import load_datasets
+    assert callable(load_datasets)
+
+
 def test_result_manager_importable_from_melite():
     from melite import ResultManager
     assert ResultManager is not None
@@ -37,6 +42,7 @@ def test_version_importable_from_melite():
 def test_dunder_all_contains_expected_symbols():
     expected = {
         "Config",
+        "load_datasets",
         "load_dataset",
         "ResultManager",
         "plot_cv_distributions",

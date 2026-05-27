@@ -78,3 +78,80 @@ def test_config_user_toml_falls_back_to_defaults_for_missing_keys(tmp_path):
     cfg = Config(user_config=user_toml)
     # random_state should still be the default (42)
     assert cfg.RANDOM_STATE == 42
+
+
+def test_config_synthesizes_legacy_dataset_registry(tmp_path):
+    toml_content = (
+        '[paths]\ninput = "raw/"\ndataset = "data/"\noutput = "output/"\n'
+        '[benchmark]\nreduction_types = ["PCA", "UMAP"]\nlevels = [70, 75]\n'
+    )
+    user_toml = tmp_path / "custom.toml"
+    user_toml.write_text(toml_content)
+
+    cfg = Config(user_config=user_toml)
+
+    assert set(cfg.DATASETS) == {"PCA70", "PCA75", "UMAP70", "UMAP75"}
+    assert Path(cfg.DATASETS["PCA70"]["path"]) == Path("data/PCA70.npz")
+    assert Path(cfg.DATASETS["PCA70"]["label_path"]) == Path("raw/labels.npy")
+    assert cfg.DATASETS["PCA70"]["metadata"] == {
+        "family": "dimensionality",
+        "method": "PCA",
+        "level": 70,
+    }
+
+
+def test_config_uses_user_defined_dataset_registry(tmp_path):
+    toml_content = '''
+[datasets.morgan_r2_2048]
+path = "data/morgan_r2_2048.npz"
+label_path = "raw/labels.npy"
+family = "fingerprints"
+method = "Morgan"
+variant = "r2_2048"
+description = "Morgan radius 2 fingerprint"
+
+[datasets.rdkit_descriptors]
+path = "data/rdkit_descriptors.npz"
+label_path = "raw/labels.npy"
+family = "descriptors"
+'''
+    user_toml = tmp_path / "custom.toml"
+    user_toml.write_text(toml_content)
+
+    cfg = Config(user_config=user_toml)
+
+    assert set(cfg.DATASETS) == {"morgan_r2_2048", "rdkit_descriptors"}
+    assert cfg.DATASETS["morgan_r2_2048"] == {
+        "path": "data/morgan_r2_2048.npz",
+        "label_path": "raw/labels.npy",
+        "metadata": {
+            "family": "fingerprints",
+            "method": "Morgan",
+            "variant": "r2_2048",
+            "description": "Morgan radius 2 fingerprint",
+        },
+    }
+
+
+def test_config_user_dataset_requires_path(tmp_path):
+    toml_content = '''
+[datasets.maccs]
+label_path = "raw/labels.npy"
+'''
+    user_toml = tmp_path / "custom.toml"
+    user_toml.write_text(toml_content)
+
+    with pytest.raises(ValueError, match="path"):
+        Config(user_config=user_toml)
+
+
+def test_config_user_dataset_requires_label_path(tmp_path):
+    toml_content = '''
+[datasets.maccs]
+path = "data/maccs.npz"
+'''
+    user_toml = tmp_path / "custom.toml"
+    user_toml.write_text(toml_content)
+
+    with pytest.raises(ValueError, match="label_path"):
+        Config(user_config=user_toml)

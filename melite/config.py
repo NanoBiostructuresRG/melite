@@ -72,6 +72,9 @@ class Config:
         Reduction methods to benchmark (e.g. ``["PCA", "UMAP"]``).
     REDUCTION_LEVELS : list of int
         Variance retention levels to benchmark (e.g. ``[70, 75, 80, 85, 90, 95]``).
+    DATASETS : dict
+        Normalized dataset registry keyed by user-defined dataset id. Each
+        entry contains ``path``, ``label_path``, and ``metadata`` keys.
     ACTIVE_MODELS : list of str
         Model keys to include in the benchmark (e.g. ``["svc", "rf", "xgb"]``).
     CV_CONFIG : dict
@@ -124,6 +127,7 @@ class Config:
         self.REDUCTION_TYPES  = cfg["benchmark"]["reduction_types"]
         self.REDUCTION_LEVELS = cfg["benchmark"]["levels"]
         self.ACTIVE_MODELS    = cfg["models"]["active"]
+        self.DATASETS         = self._build_dataset_registry(cfg)
 
         # Cross-validation
         cv_section = cfg["cv_smoke"] if smoke else cfg["cv"]
@@ -140,6 +144,53 @@ class Config:
     # ------------------------------------------------------------------ #
     # Hyperparameter grids
     # ------------------------------------------------------------------ #
+
+    def _build_dataset_registry(self, cfg: dict) -> dict:
+        datasets = cfg.get("datasets")
+        if datasets:
+            return self._normalize_user_datasets(datasets)
+        return self._synthesize_legacy_datasets()
+
+    @staticmethod
+    def _normalize_user_datasets(datasets: dict) -> dict:
+        optional_metadata = {"family", "method", "variant", "level", "description"}
+        normalized = {}
+        for dataset_id, entry in datasets.items():
+            missing = [key for key in ("path", "label_path") if key not in entry]
+            if missing:
+                missing_keys = ", ".join(missing)
+                raise ValueError(
+                    f"Dataset '{dataset_id}' is missing required field(s): {missing_keys}"
+                )
+            metadata = {
+                key: value
+                for key, value in entry.items()
+                if key in optional_metadata
+            }
+            normalized[dataset_id] = {
+                "path": entry["path"],
+                "label_path": entry["label_path"],
+                "metadata": metadata,
+            }
+        return normalized
+
+    def _synthesize_legacy_datasets(self) -> dict:
+        datasets = {}
+        for reduction_type in self.REDUCTION_TYPES:
+            for level in self.REDUCTION_LEVELS:
+                dataset_id = f"{reduction_type}{level}"
+                datasets[dataset_id] = {
+                    "path": os.path.join(
+                        self.PATHS["DATASET"], f"{dataset_id}.npz"
+                    ),
+                    "label_path": os.path.join(self.PATHS["INPUT"], "labels.npy"),
+                    "metadata": {
+                        "family": "dimensionality",
+                        "method": reduction_type,
+                        "level": level,
+                    },
+                }
+        return datasets
 
     def _build_param_grid(self) -> list:
         if self.SMOKE:
