@@ -57,6 +57,9 @@ def test_write_csv_correct_fieldnames(tmp_path):
     rm.write_csv(SAMPLE_ROWS, csv_path)
     with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
+        assert "dataset" in reader.fieldnames
+        assert "family" in reader.fieldnames
+        assert "method" in reader.fieldnames
         assert "smoke" in reader.fieldnames
         assert "f1_macro" in reader.fieldnames
 

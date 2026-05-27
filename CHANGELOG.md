@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.2.0] - 2026-05-26
+
+### Added
+- Added canonical `[datasets.<dataset_id>]` TOML registry entries for
+  user-defined numeric tabular datasets.
+- Added strict generalized dataset loading through `load_datasets(config)`.
+- Added dataset-aware benchmark result rows with `dataset`, `family`,
+  `method`, `variant`, `level`, and `description` fields.
+- Added dataset-aware final export naming, such as
+  `Model_SVC_morgan_r2_2048.pkl` and `SVC_morgan_r2_2048.png`.
+
+### Changed
+- `melite run` now consumes `cfg.DATASETS` as the canonical execution path.
+- PCA and UMAP inputs are treated as ordinary dataset registry entries.
+- Legacy `[benchmark].reduction_types` and `levels` are normalized into
+  dataset entries when `[datasets]` is absent.
+- `melite export` prefers the new `dataset` column and falls back to legacy
+  `reduction_type` + `level` rows for older CSV files.
+
+### Fixed
+- Registered datasets now fail clearly on missing files, missing `X`,
+  non-2D or non-numeric `X`, X/y length mismatch, and embedded-y mismatch.
+
+---
+
 ## [0.1.11] - 2026-05-26
 
 ### Changed

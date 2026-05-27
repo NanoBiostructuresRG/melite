@@ -9,14 +9,9 @@ def test_config_importable_from_melite():
     assert Config is not None
 
 
-def test_load_dataset_importable_from_melite():
-    from melite import load_dataset
-    assert callable(load_dataset)
-
-
-def test_result_manager_importable_from_melite():
-    from melite import ResultManager
-    assert ResultManager is not None
+def test_load_datasets_importable_from_melite():
+    from melite import load_datasets
+    assert callable(load_datasets)
 
 
 def test_plot_cv_distributions_importable_from_melite():
@@ -37,8 +32,7 @@ def test_version_importable_from_melite():
 def test_dunder_all_contains_expected_symbols():
     expected = {
         "Config",
-        "load_dataset",
-        "ResultManager",
+        "load_datasets",
         "plot_cv_distributions",
         "predict",
         "__version__",
@@ -50,4 +44,11 @@ def test_private_helpers_not_in_dunder_all():
     assert "_load_toml" not in melite.__all__
     assert "_deep_merge" not in melite.__all__
     assert "_scatter_with_jitter" not in melite.__all__
+    assert "load_dataset" not in melite.__all__
+    assert "ResultManager" not in melite.__all__
     assert "Pipeline" not in melite.__all__
+
+
+def test_removed_top_level_symbols_not_exposed():
+    assert not callable(getattr(melite, "load_dataset", None))
+    assert not hasattr(melite, "ResultManager")

@@ -11,9 +11,15 @@ dataset = "examples/"
 output  = "examples/output/"
 
 [benchmark]
-reduction_types = ["PCA"]
-levels          = [70]
 random_state    = 42
+
+[datasets.sample_pca70]
+path = "examples/sample_PCA70.npz"
+label_path = "examples/sample_labels.npy"
+family = "dimensionality"
+method = "PCA"
+level = 70
+description = "Bundled synthetic PCA-style example dataset."
 
 [cv]
 n_splits  = 3

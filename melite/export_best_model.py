@@ -11,6 +11,7 @@ A smoke-mode guard prevents accidental export of non-benchmark-quality results.
 
 import ast
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Any, Tuple
@@ -19,6 +20,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from .config import Config
+from .load_dataset import _load_one_dataset
 from .plot_metrics import plot_cv_distributions
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_validate, RepeatedStratifiedKFold
@@ -36,9 +38,17 @@ MODEL_MAP = {
 }
 
 METRIC_COLUMNS = [
-    "reduction_type", "level", "model_name",
-    "f1_macro", "accuracy", "auc_roc",
+    "dataset", "family", "method", "variant", "level", "description",
+    "reduction_type", "model_name", "f1_macro", "accuracy", "auc_roc",
 ]
+
+
+def _has_value(value: Any) -> bool:
+    return value is not None and not pd.isna(value) and str(value).strip() != ""
+
+
+def _safe_filename_part(value: Any) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value).strip()).strip("_")
 
 
 class DatasetLoader:
@@ -56,6 +66,27 @@ class DatasetLoader:
         self._cfg = cfg
         self._data_root = Path(cfg.PATHS["DATASET"])
         self._labels: np.ndarray | None = None
+
+    def load_row(self, row: pd.Series) -> Tuple[np.ndarray, np.ndarray]:
+        """Load the dataset referenced by a result row.
+
+        New v0.2.0 result rows are resolved by their ``dataset`` id in
+        ``cfg.DATASETS``. Older result rows without ``dataset`` fall back to
+        the legacy ``reduction_type`` + ``level`` lookup.
+        """
+        if "dataset" in row and _has_value(row.get("dataset")):
+            dataset_id = str(row.get("dataset"))
+            try:
+                spec = self._cfg.DATASETS[dataset_id]
+            except KeyError as exc:
+                raise KeyError(
+                    f"Dataset '{dataset_id}' from results.csv is not registered "
+                    "in cfg.DATASETS."
+                ) from exc
+            dataset = _load_one_dataset(dataset_id, spec)
+            return dataset["X"], dataset["y"]
+
+        return self.load(row.reduction_type, int(row.level))
 
     def load(self, reduction: str, level: int) -> Tuple[np.ndarray, np.ndarray]:
         """Load feature matrix and label vector for a given configuration.
@@ -100,7 +131,7 @@ class DatasetLoader:
             return None
         arr = np.load(fp)
         self._ensure_labels()
-        return arr[arr.files[0]]
+        return arr["X"] if "X" in arr.files else arr[arr.files[0]]
 
     def _try_aggregated_file(self, reduction: str, level: int) -> np.ndarray | None:
         fp = self._data_root / f"{reduction}s.npz"
@@ -181,7 +212,7 @@ class Finalizer:
         plot_cv_distributions(
             scores["test_f1"], scores["test_acc"], scores.get("test_auc"),
             model_name=row.model_name, params=row.parameters,
-            save_to=save_dir / f"{row.model_name}_{row.reduction_type}{row.level}.png",
+            save_to=save_dir / f"{row.model_name}_{self._row_dataset_label(row)}.png",
         )
 
     def _check_smoke_guard(self, row: pd.Series) -> None:
@@ -232,18 +263,18 @@ class Finalizer:
         self._show_metrics()
         row = self._get_selected_row()
         self._check_smoke_guard(row)
-        X, y = self._loader.load(row.reduction_type, int(row.level))
+        X, y = self._loader.load_row(row)
         model = self._build_model(row.model_name, row.parameters)
 
         figures_dir = Path(self._cfg.PATHS["OUTPUT"]) / "figures"
         self._cv_and_plot(model, X, y, row, figures_dir)
 
         logger.info(
-            "Training %s on %s%s using all available data...",
-            row.model_name, row.reduction_type, row.level,
+            "Training %s on %s using all available data...",
+            row.model_name, self._row_dataset_label(row),
         )
         print(
-            f"\nTraining {row.model_name} on {row.reduction_type}{row.level} "
+            f"\nTraining {row.model_name} on {self._row_dataset_label(row)} "
             "using all available data..."
         )
         model.fit(X, y)
@@ -282,9 +313,15 @@ class Finalizer:
         except KeyError as exc:
             raise ValueError(f"Unsupported model type: {name}") from exc
 
+    @staticmethod
+    def _row_dataset_label(row: pd.Series) -> str:
+        if "dataset" in row and _has_value(row.get("dataset")):
+            return _safe_filename_part(row.get("dataset"))
+        return _safe_filename_part(f"{row.reduction_type}{int(row.level)}")
+
     def _save_model(self, model: Any, row: pd.Series) -> Path:
         self._output_dir.mkdir(exist_ok=True)
-        filename = f"Model_{row.model_name}_{row.reduction_type}{row.level}.pkl"
+        filename = f"Model_{row.model_name}_{self._row_dataset_label(row)}.pkl"
         path = self._output_dir / filename
         joblib.dump(model, path)
         return path

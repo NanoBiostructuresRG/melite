@@ -35,7 +35,7 @@ import numpy as np
 from melite import predict
 
 X_new = np.load("examples/sample_PCA70.npz")["X"]
-result = predict("examples/output/Model_SVC_PCA70.pkl", X_new)
+result = predict("examples/output/Model_SVC_sample_pca70.pkl", X_new)
 
 print(result["predictions"])    # shape (n_samples,)
 print(result["probabilities"])  # shape (n_samples, n_classes)

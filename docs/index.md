@@ -113,31 +113,36 @@ industrial features, or manually selected numeric features.
 | Select the best row by F1-macro. | Handle raw molecular data directly. |
 | Export a final retrained `.pkl` model. | Require internet access at runtime. |
 | Run artifact-based inference through `predict()`. | Train deep learning models. |
-| Handle any numeric tabular matrix. | Use a generalized dataset layer yet; PCA/UMAP naming is historical. |
+| Handle any numeric tabular matrix. | Generate descriptors or reductions from raw data. |
 
-!!! note "Current dataset orchestration"
-    The current dataset orchestration still reflects MELITE's PCA/UMAP origin
-    and uses concepts such as reduction type and level. Future versions will
-    generalize dataset definitions so arbitrary prepared tabular matrices can
-    be registered directly.
-
-Future configuration may look conceptually like this; it is not current
-behavior:
+MELITE uses a dataset registry under `[datasets.<dataset_id>]`. Each
+`dataset_id` names one concrete numeric `X` matrix candidate.
 
 ```toml
-[datasets.morgan]
-path = "data/morgan.npz"
+[datasets.morgan_r2_2048]
+path = "data/morgan_r2_2048.npz"
 label_path = "raw/labels.npy"
+family = "fingerprints"
+method = "Morgan"
 
-[datasets.descriptors]
-path = "data/descriptors.npz"
+[datasets.rdkit_descriptors]
+path = "data/rdkit_descriptors.npz"
 label_path = "raw/labels.npy"
+family = "descriptors"
+method = "RDKit"
 
 [datasets.pca85]
 path = "data/PCA85.npz"
 label_path = "raw/labels.npy"
+family = "dimensionality"
+method = "PCA"
+level = 85
 ```
 
+Required fields are `path` and `label_path`; optional metadata fields are
+`family`, `method`, `variant`, `level`, and `description`. Legacy
+`[benchmark].reduction_types` and `levels` configs are still normalized into
+dataset entries when `[datasets]` is absent.
 
 ## Quick Example
 
@@ -152,7 +157,7 @@ import numpy as np
 from melite import predict
 
 X_new = np.load("examples/sample_PCA70.npz")["X"]
-result = predict("examples/output/Model_SVC_PCA70.pkl", X_new)
+result = predict("examples/output/Model_SVC_sample_pca70.pkl", X_new)
 print(result["predictions"])
 ```
 
@@ -173,9 +178,7 @@ If you use MELITE in your research, please cite it using the metadata in
 [CITATION.cff](https://github.com/NanoBiostructuresRG/melite/blob/main/CITATION.cff).
 
 ```text
-Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model
-Evaluation and Learning for Inference-ready Tabular Experiments (0.1.11). Tecnologico de
-Monterrey. https://github.com/NanoBiostructuresRG/melite
+Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments. Zenodo. https://doi.org/10.5281/zenodo.20382752
 ```
 
 ## License

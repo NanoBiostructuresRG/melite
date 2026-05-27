@@ -43,14 +43,16 @@ jobs:
         run: |
           python -c "
           import melite
-          assert hasattr(melite, '__version__'),           '__version__ missing'
-          assert hasattr(melite, 'Config'),                'Config missing'
-          assert hasattr(melite, 'load_dataset'),          'load_dataset missing'
-          assert hasattr(melite, 'ResultManager'),         'ResultManager missing'
-          assert hasattr(melite, 'plot_cv_distributions'), 'plot_cv_distributions missing'
-          assert hasattr(melite, 'predict'),               'predict missing'
+          expected = ['Config', 'load_datasets', 'plot_cv_distributions', 'predict', '__version__']
+          assert melite.__all__ == expected, melite.__all__
+          for name in expected:
+              assert hasattr(melite, name), f'{name} missing'
+          assert 'load_dataset' not in melite.__all__,     'load_dataset must not be top-level public API'
+          assert 'ResultManager' not in melite.__all__,    'ResultManager must not be top-level public API'
           assert not hasattr(melite, 'Pipeline'),          'Pipeline must not be public'
           assert not hasattr(melite, '_load_toml'),        '_load_toml must not be public'
+          from melite.result_manager import ResultManager
+          assert ResultManager is not None,                'ResultManager internal import missing'
           print(melite.__version__, 'OK')
           "
 
@@ -73,13 +75,15 @@ jobs:
           ../.smoke_venv/bin/melite --version
           ../.smoke_venv/bin/python -c "
           import melite
-          assert hasattr(melite, '__version__'),           '__version__ missing'
-          assert hasattr(melite, 'Config'),                'Config missing'
-          assert hasattr(melite, 'load_dataset'),          'load_dataset missing'
-          assert hasattr(melite, 'ResultManager'),         'ResultManager missing'
-          assert hasattr(melite, 'plot_cv_distributions'), 'plot_cv_distributions missing'
-          assert hasattr(melite, 'predict'),               'predict missing'
+          expected = ['Config', 'load_datasets', 'plot_cv_distributions', 'predict', '__version__']
+          assert melite.__all__ == expected, melite.__all__
+          for name in expected:
+              assert hasattr(melite, name), f'{name} missing'
+          assert 'load_dataset' not in melite.__all__,     'load_dataset must not be top-level public API'
+          assert 'ResultManager' not in melite.__all__,    'ResultManager must not be top-level public API'
           assert not hasattr(melite, 'Pipeline'),          'Pipeline must not be public'
+          from melite.result_manager import ResultManager
+          assert ResultManager is not None,                'ResultManager internal import missing'
           print(melite.__version__, 'wheel OK')
           "
 
@@ -96,12 +100,14 @@ jobs:
           ../.smoke_sdist_venv/bin/melite --version
           ../.smoke_sdist_venv/bin/python -c "
           import melite
-          assert hasattr(melite, '__version__'),           '__version__ missing'
-          assert hasattr(melite, 'Config'),                'Config missing'
-          assert hasattr(melite, 'load_dataset'),          'load_dataset missing'
-          assert hasattr(melite, 'ResultManager'),         'ResultManager missing'
-          assert hasattr(melite, 'plot_cv_distributions'), 'plot_cv_distributions missing'
-          assert hasattr(melite, 'predict'),               'predict missing'
+          expected = ['Config', 'load_datasets', 'plot_cv_distributions', 'predict', '__version__']
+          assert melite.__all__ == expected, melite.__all__
+          for name in expected:
+              assert hasattr(melite, name), f'{name} missing'
+          assert 'load_dataset' not in melite.__all__,     'load_dataset must not be top-level public API'
+          assert 'ResultManager' not in melite.__all__,    'ResultManager must not be top-level public API'
+          from melite.result_manager import ResultManager
+          assert ResultManager is not None,                'ResultManager internal import missing'
           print(melite.__version__, 'sdist OK')
           "
 
