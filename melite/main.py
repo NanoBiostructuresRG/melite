@@ -7,11 +7,12 @@ invoked via ``melite run`` from the unified CLI.
 """
 
 import logging
-import numpy as np
 from pathlib import Path
 
+import numpy as np
+
 from .config import Config
-from .load_dataset import load_dataset
+from .load_dataset import load_datasets
 from .model_training import MultiModelTrainer
 from .result_manager import ResultManager
 
@@ -36,7 +37,7 @@ class Pipeline:
         self.config = config
         self.model_trainer = MultiModelTrainer(config)
 
-    def run(self, X_train, y_train, reduction_type: str, level: int):
+    def run(self, X_train, y_train, reduction_type: str, level: int | None):
         """Train all models and return the best result for one dataset.
 
         Parameters
@@ -46,9 +47,10 @@ class Pipeline:
         y_train : numpy.ndarray
             Label vector of shape ``(n_samples,)``.
         reduction_type : str
-            Reduction method prefix (e.g. ``"PCA"``).
-        level : int
-            Variance retention level (e.g. ``85``).
+            Legacy reduction method label when available; otherwise the
+            dataset id is passed through for trace logging.
+        level : int or None
+            Legacy variance retention level when available.
 
         Returns
         -------
@@ -88,12 +90,25 @@ class Main:
             for k, v in params.items()
         }
 
+    @staticmethod
+    def _legacy_reduction_type(metadata: dict):
+        method = metadata.get("method")
+        level = metadata.get("level")
+        family = metadata.get("family")
+        if (
+            family == "dimensionality"
+            and method in {"PCA", "UMAP"}
+            and level is not None
+        ):
+            return method
+        return None
+
     def run(self) -> None:
         """Execute the benchmarking pipeline for all configured datasets.
 
-        Iterates over all reduction types and levels defined in the
-        configuration, trains all models for each dataset, and writes
-        ``output/results.txt`` and ``output/results.csv``.
+        Iterates over the normalized ``config.DATASETS`` registry, trains all
+        models for each dataset, and writes ``output/results.txt`` and
+        ``output/results.csv``.
 
         Notes
         -----
@@ -102,61 +117,78 @@ class Main:
         results are not benchmark-quality.
         """
         if self.config.SMOKE:
-            logger.info("SMOKE TEST — reduced grid and CV. Results are not benchmark-quality.")
+            logger.info(
+                "SMOKE TEST - reduced grid and CV. Results are not benchmark-quality."
+            )
             print(_SMOKE_WARNING)
 
-        for reduction_type in self.config.REDUCTION_TYPES:
-            logger.info("Running with %s...", reduction_type)
+        datasets = load_datasets(self.config)
 
-            dataset = load_dataset(
-                self.config, reduction_type, self.config.REDUCTION_LEVELS
+        for dataset_id, dataset in datasets.items():
+            X_train = dataset["X"]
+            y_train = dataset["y"]
+            metadata = dataset.get("metadata", {})
+            family = metadata.get("family")
+            method = metadata.get("method")
+            variant = metadata.get("variant")
+            level = metadata.get("level")
+            description = metadata.get("description")
+            reduction_type = self._legacy_reduction_type(metadata)
+
+            logger.info("Training with dataset %s.", dataset_id)
+
+            (
+                best_model, best_params,
+                best_f1, f1_std,
+                best_acc, acc_std,
+                best_auc, auc_std,
+            ) = self.pipeline.run(X_train, y_train, reduction_type or dataset_id, level)
+
+            params = self._clean_params(best_params)
+            model_name = best_model.__class__.__name__
+
+            metadata_lines = [
+                f"Family: {family}" if family is not None else None,
+                f"Method: {method}" if method is not None else None,
+                f"Variant: {variant}" if variant is not None else None,
+                f"Level: {level}" if level is not None else None,
+                f"Description: {description}" if description is not None else None,
+            ]
+
+            self.final_results.append(
+                "\n".join([
+                    f"Results for dataset {dataset_id}:",
+                    *[line for line in metadata_lines if line is not None],
+                    f"Model Selected: {model_name}",
+                    f"Best ML-model Parameters: {params}",
+                    f"F1-macro (CV mean): {round(best_f1, 4)} +/- {round(f1_std, 4)}",
+                    f"Accuracy (CV mean): {round(best_acc, 4)} +/- {round(acc_std, 4)}",
+                    (
+                        f"AUC-ROC (CV mean): {round(best_auc, 4)} +/- {round(auc_std, 4)}"
+                        if best_auc is not None
+                        else "AUC-ROC (CV mean): N/A"
+                    ),
+                    "------------------------------",
+                ])
             )
-            if not dataset:
-                logger.warning("No data found for %s. Skipping.", reduction_type)
-                continue
 
-            for key, (X_train, y_train) in dataset.items():
-                level = int(key.replace(reduction_type, ""))
-                logger.info("Training with %s (level=%d).", key, level)
-
-                (
-                    best_model, best_params,
-                    best_f1, f1_std,
-                    best_acc, acc_std,
-                    best_auc, auc_std,
-                ) = self.pipeline.run(X_train, y_train, reduction_type, level)
-
-                params = self._clean_params(best_params)
-                model_name = best_model.__class__.__name__
-
-                self.final_results.append(
-                    "\n".join([
-                        f"Results for {key} (level {level}):",
-                        f"Model Selected: {model_name}",
-                        f"Best ML-model Parameters: {params}",
-                        f"F1-macro (CV mean): {round(best_f1, 4)} ± {round(f1_std, 4)}",
-                        f"Accuracy (CV mean): {round(best_acc, 4)} ± {round(acc_std, 4)}",
-                        (
-                            f"AUC-ROC (CV mean): {round(best_auc, 4)} ± {round(auc_std, 4)}"
-                            if best_auc is not None
-                            else "AUC-ROC (CV mean): N/A"
-                        ),
-                        "------------------------------",
-                    ])
-                )
-
-                self.csv_rows.append({
-                    "reduction_type": reduction_type,
-                    "level": int(key.replace(reduction_type, "")),
-                    "model_name": model_name,
-                    "parameters": str(params),
-                    "f1_macro": round(best_f1, 4),
-                    "f1_std": round(f1_std, 4),
-                    "accuracy": round(best_acc, 4),
-                    "acc_std": round(acc_std, 4),
-                    "auc_roc": round(best_auc, 4) if best_auc is not None else "N/A",
-                    "auc_std": round(auc_std, 4) if auc_std is not None else "N/A",
-                })
+            self.csv_rows.append({
+                "dataset": dataset_id,
+                "family": family,
+                "method": method,
+                "variant": variant,
+                "level": level,
+                "description": description,
+                "reduction_type": reduction_type,
+                "model_name": model_name,
+                "parameters": str(params),
+                "f1_macro": round(best_f1, 4),
+                "f1_std": round(f1_std, 4),
+                "accuracy": round(best_acc, 4),
+                "acc_std": round(acc_std, 4),
+                "auc_roc": round(best_auc, 4) if best_auc is not None else "N/A",
+                "auc_std": round(auc_std, 4) if auc_std is not None else "N/A",
+            })
 
         final_report = "\n".join(self.final_results)
         self.result_manager.write_results(final_report)

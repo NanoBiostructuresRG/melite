@@ -91,9 +91,8 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         ----------
         rows : list of dict
             List of result dictionaries, one per trained configuration. Each
-            dict must contain the keys ``reduction_type``, ``level``,
-            ``model_name``, ``parameters``, ``f1_macro``, ``f1_std``,
-            ``accuracy``, ``acc_std``, ``auc_roc``, and ``auc_std``.
+            dict may include dataset identity and metadata fields in addition
+            to model performance metrics.
         path : str or pathlib.Path
             Destination path for the CSV file. Parent directories are created
             automatically if they do not exist.
@@ -114,9 +113,9 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         path.parent.mkdir(parents=True, exist_ok=True)
 
         fieldnames = [
-            "reduction_type", "level", "model_name", "parameters",
-            "f1_macro", "f1_std", "accuracy", "acc_std", "auc_roc", "auc_std",
-            "smoke",
+            "dataset", "family", "method", "variant", "level", "description",
+            "reduction_type", "model_name", "parameters", "f1_macro", "f1_std",
+            "accuracy", "acc_std", "auc_roc", "auc_std", "smoke",
         ]
         try:
             with open(path, mode="w", newline="", encoding="utf-8") as f:
