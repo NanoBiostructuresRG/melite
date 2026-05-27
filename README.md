@@ -159,8 +159,6 @@ melite export --row 0 --force
 ```python
 from melite import Config
 from melite import load_datasets
-from melite import load_dataset
-from melite import ResultManager
 from melite import plot_cv_distributions
 from melite import predict
 from melite import __version__

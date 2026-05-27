@@ -2,7 +2,7 @@
 """Dataset loading and label consistency validation for MELITE.
 
 This module provides :func:`load_datasets` for the generalized dataset
-registry and :func:`load_dataset` as a legacy PCA/UMAP-compatible wrapper.
+registry.
 
 If a ``.npz`` file contains an embedded ``y`` array, it is compared
 element-wise against ``raw/labels.npy``. A :exc:`ValueError` is raised if
@@ -14,7 +14,7 @@ import logging
 import numpy as np
 from pathlib import Path
 
-__all__ = ["load_datasets", "load_dataset"]
+__all__ = ["load_datasets"]
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ def load_datasets(config) -> dict:
     return loaded
 
 
-def load_dataset(config, reduction_type: str, levels: list) -> dict:
+def _load_dataset_legacy(config, reduction_type: str, levels: list) -> dict:
     """Load reduced feature matrices and labels for benchmarking.
 
     Reads ``raw/labels.npy`` as the authoritative label vector, then loads
@@ -138,10 +138,11 @@ def load_dataset(config, reduction_type: str, levels: list) -> dict:
 
     Examples
     --------
-    >>> from melite import Config, load_dataset
+    >>> from melite import Config
     >>> cfg = Config()
     >>> cfg.setup()
-    >>> dataset = load_dataset(cfg, "PCA", [70, 85])
+    >>> from melite.load_dataset import _load_dataset_legacy
+    >>> dataset = _load_dataset_legacy(cfg, "PCA", [70, 85])
     >>> X, y = dataset["PCA70"]
     >>> X.shape
     (182, 37)
