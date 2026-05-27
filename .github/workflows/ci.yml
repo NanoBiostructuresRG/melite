@@ -62,30 +62,8 @@ jobs:
       - name: Check distributions
         run: python -m twine check dist/*
 
-      - name: Smoke install built wheel
-        shell: bash
-        run: |
-          set -euo pipefail
-          WHEEL="$(ls dist/*.whl | head -n 1)"
-          python -m venv .smoke_venv
-          .smoke_venv/bin/python -m pip install --upgrade pip
-          .smoke_venv/bin/python -m pip install "$WHEEL"
-          mkdir -p .smoke_outside_checkout
-          cd .smoke_outside_checkout
-          ../.smoke_venv/bin/melite --version
-          ../.smoke_venv/bin/python -c "
-          import melite
-          expected = ['Config', 'load_datasets', 'plot_cv_distributions', 'predict', '__version__']
-          assert melite.__all__ == expected, melite.__all__
-          for name in expected:
-              assert hasattr(melite, name), f'{name} missing'
-          assert 'load_dataset' not in melite.__all__,     'load_dataset must not be top-level public API'
-          assert 'ResultManager' not in melite.__all__,    'ResultManager must not be top-level public API'
-          assert not hasattr(melite, 'Pipeline'),          'Pipeline must not be public'
-          from melite.result_manager import ResultManager
-          assert ResultManager is not None,                'ResultManager internal import missing'
-          print(melite.__version__, 'wheel OK')
-          "
+      - name: Smoke installed wheel toy workflow
+        run: python scripts/smoke_install_wheel.py
 
       - name: Smoke install sdist
         shell: bash
