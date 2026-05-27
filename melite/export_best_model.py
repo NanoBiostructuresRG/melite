@@ -70,7 +70,7 @@ class DatasetLoader:
     def load_row(self, row: pd.Series) -> Tuple[np.ndarray, np.ndarray]:
         """Load the dataset referenced by a result row.
 
-        New v0.2.0 result rows are resolved by their ``dataset`` id in
+        Dataset-registry result rows are resolved by their ``dataset`` id in
         ``cfg.DATASETS``. Older result rows without ``dataset`` fall back to
         the legacy ``reduction_type`` + ``level`` lookup.
         """

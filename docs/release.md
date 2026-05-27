@@ -1,29 +1,19 @@
 # Release Notes
 
-MELITE `0.2.0` introduces the generalized tabular dataset registry and keeps
-legacy PCA/UMAP configuration compatibility.
+MELITE `0.2.1` hardens the generalized tabular dataset workflow while
+preserving the top-level public API.
 
-## 0.2.0 Highlights
+## 0.2.1 Highlights
 
-- Registers concrete tabular matrices under `[datasets.<dataset_id>]`.
-- Requires `path` and `label_path`; preserves optional metadata fields
-  `family`, `method`, `variant`, `level`, and `description`.
-- Runs benchmarks through strict `cfg.DATASETS` loading.
-- Exports dataset-based artifacts such as `Model_SVC_morgan_r2_2048.pkl`.
-- Falls back to legacy `reduction_type` + `level` export rows for older CSVs.
-
-## 0.1.11 Highlights
-
-MELITE `0.1.11` prepared the project documentation and package metadata for
-the first PyPI publication as `melite`.
-
-- Uses final release metadata version `0.1.11`.
-- Clarifies that MELITE is tabular at the modeling level and consumes numeric
-  `X` and `y` arrays.
-- Documented generalized `[datasets.*]` definitions as a future direction at
-  that time.
-- Does not change functional training, selection, export, prediction, or CLI
-  behavior.
+- `[models].active` controls which model families are trained.
+- Export uses strict dataset loading and requires explicit `X` in individual
+  `.npz` files.
+- Installed-wheel smoke validation runs and exports a toy `[datasets.toy]`
+  workflow outside the repository checkout.
+- The public API remains `Config`, `load_datasets`, `plot_cv_distributions`,
+  `predict`, and `__version__`.
+- Legacy `reduction_type` + `level` export rows remain supported, but
+  individual legacy `.npz` files must contain an explicit `X` array.
 
 ## Validation Targets
 
@@ -32,8 +22,9 @@ Before release, validate:
 ```bash
 mkdocs build --strict
 python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache
-python -m build
+python -m build --no-isolation
 python -m twine check dist/*
+python scripts/smoke_install_wheel.py
 melite --help
 melite run --help
 melite export --help
@@ -42,6 +33,6 @@ melite --version
 
 ## Full Changelog
 
-The complete version history is maintained in the repository changelog:
+The complete release history is maintained in the repository changelog:
 
 --8<-- "CHANGELOG.md"

@@ -49,5 +49,5 @@ melite --version
 Expected version for this release:
 
 ```text
-MELITE 0.1.11
+MELITE 0.2.1
 ```
