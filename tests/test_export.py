@@ -44,6 +44,14 @@ def _write_npz(tmp_path, name, X, y):
     return path
 
 
+def _write_npz_without_X(tmp_path, name, Z):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    path = data_dir / f"{name}.npz"
+    np.savez(path, Z=Z)
+    return path
+
+
 def _write_results_csv(path, fieldnames, row):
     path.parent.mkdir(exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
@@ -152,7 +160,81 @@ def test_export_dataset_row_uses_dataset_id_for_artifact(monkeypatch, tmp_path):
     assert (tmp_path / "output" / "Model_SVC_morgan_r2_2048.pkl").exists()
 
 
-def test_export_legacy_row_falls_back_to_reduction_and_level(monkeypatch, tmp_path):
+def test_export_dataset_row_uses_strict_load_datasets(monkeypatch, tmp_path):
+    import melite.export_best_model as export_module
+
+    label_path, y = _write_labels(tmp_path)
+    cfg = _make_config(tmp_path)
+    cfg.DATASETS = {
+        "maccs": {
+            "path": str(tmp_path / "data" / "maccs.npz"),
+            "label_path": str(label_path),
+            "metadata": {"family": "fingerprints", "method": "MACCS"},
+        }
+    }
+    csv_path = tmp_path / "output" / "results.csv"
+    _write_results_csv(
+        csv_path,
+        ["dataset", "model_name", "parameters", "smoke"],
+        {
+            "dataset": "maccs",
+            "model_name": "SVC",
+            "parameters": "{'kernel': 'linear', 'C': 1}",
+            "smoke": False,
+        },
+    )
+    calls = []
+
+    def fake_load_datasets(config):
+        calls.append(config)
+        return {
+            "maccs": {
+                "X": np.ones((20, 5)),
+                "y": y,
+                "metadata": {"family": "fingerprints", "method": "MACCS"},
+            }
+        }
+
+    monkeypatch.setattr(export_module, "load_datasets", fake_load_datasets)
+    monkeypatch.setattr(Finalizer, "_build_model", staticmethod(lambda *_: DummyModel()))
+    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
+
+    Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
+
+    assert calls == [cfg]
+    assert (tmp_path / "output" / "Model_SVC_maccs.pkl").exists()
+
+
+def test_export_dataset_npz_without_X_fails_clearly(monkeypatch, tmp_path):
+    label_path, _ = _write_labels(tmp_path)
+    dataset_path = _write_npz_without_X(tmp_path, "maccs", np.ones((20, 5)))
+    cfg = _make_config(tmp_path)
+    cfg.DATASETS = {
+        "maccs": {
+            "path": str(dataset_path),
+            "label_path": str(label_path),
+            "metadata": {"family": "fingerprints", "method": "MACCS"},
+        }
+    }
+    csv_path = tmp_path / "output" / "results.csv"
+    _write_results_csv(
+        csv_path,
+        ["dataset", "model_name", "parameters", "smoke"],
+        {
+            "dataset": "maccs",
+            "model_name": "SVC",
+            "parameters": "{'kernel': 'linear', 'C': 1}",
+            "smoke": False,
+        },
+    )
+    monkeypatch.setattr(Finalizer, "_build_model", staticmethod(lambda *_: DummyModel()))
+    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
+
+    with pytest.raises(ValueError, match="Required key 'X' not found"):
+        Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
+
+
+def test_export_legacy_row_with_valid_X_and_labels_succeeds(monkeypatch, tmp_path):
     _, y = _write_labels(tmp_path)
     _write_npz(tmp_path, "PCA70", np.ones((20, 5)), y)
     cfg = _make_config(tmp_path)
@@ -180,6 +262,37 @@ def test_export_legacy_row_falls_back_to_reduction_and_level(monkeypatch, tmp_pa
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     assert (tmp_path / "output" / "Model_SVC_PCA70.pkl").exists()
+
+
+def test_export_legacy_npz_without_X_does_not_fallback_to_first_key(
+    monkeypatch, tmp_path
+):
+    _write_labels(tmp_path)
+    _write_npz_without_X(tmp_path, "PCA70", np.ones((20, 5)))
+    cfg = _make_config(tmp_path)
+    csv_path = tmp_path / "output" / "results.csv"
+    _write_results_csv(
+        csv_path,
+        [
+            "reduction_type", "level", "model_name", "parameters",
+            "f1_macro", "accuracy", "auc_roc", "smoke",
+        ],
+        {
+            "reduction_type": "PCA",
+            "level": 70,
+            "model_name": "SVC",
+            "parameters": "{'kernel': 'linear', 'C': 1}",
+            "f1_macro": 0.8,
+            "accuracy": 0.8,
+            "auc_roc": 0.9,
+            "smoke": False,
+        },
+    )
+    monkeypatch.setattr(Finalizer, "_build_model", staticmethod(lambda *_: DummyModel()))
+    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
+
+    with pytest.raises(ValueError, match="Required key 'X' not found"):
+        Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
 
 def test_cv_plot_uses_dataset_id_for_figure(monkeypatch, tmp_path):
