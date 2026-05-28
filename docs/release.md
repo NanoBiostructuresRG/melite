@@ -1,19 +1,15 @@
 # Release Notes
 
-MELITE `0.2.1` hardens the generalized tabular dataset workflow while
-preserving the top-level public API.
+MELITE `0.2.2` adds SVC feature scaling while preserving the top-level public
+API and existing CLI behavior.
 
-## 0.2.1 Highlights
+## 0.2.2 Highlights
 
-- `[models].active` controls which model families are trained.
-- Export uses strict dataset loading and requires explicit `X` in individual
-  `.npz` files.
-- Installed-wheel smoke validation runs and exports a toy `[datasets.toy]`
-  workflow outside the repository checkout.
-- The public API remains `Config`, `load_datasets`, `plot_cv_distributions`,
-  `predict`, and `__version__`.
-- Legacy `reduction_type` + `level` export rows remain supported, but
-  individual legacy `.npz` files must contain an explicit `X` array.
+- SVC is trained as a `StandardScaler` -> `SVC` sklearn `Pipeline`.
+- Scaling is applied only to SVC; Random Forest and XGBoost remain unscaled.
+- Exported SVC models preserve the same `StandardScaler` -> `SVC` pipeline.
+- Legacy export compatibility is preserved for older unprefixed SVC
+  parameter dictionaries such as `{"C": 1, "kernel": "linear"}`.
 
 ## Validation Targets
 

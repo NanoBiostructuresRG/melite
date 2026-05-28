@@ -3,11 +3,15 @@
 
 import csv
 
+import joblib
 import numpy as np
 import pytest
 
 from melite.config import Config
 from melite.export_best_model import Finalizer
+from sklearn.pipeline import Pipeline as SklearnPipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 
 
 class DummyModel:
@@ -145,7 +149,7 @@ def test_export_dataset_row_uses_dataset_id_for_artifact(monkeypatch, tmp_path):
             "description": "",
             "reduction_type": "",
             "model_name": "SVC",
-            "parameters": "{'kernel': 'linear', 'C': 1}",
+            "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "f1_macro": 0.8,
             "accuracy": 0.8,
             "auc_roc": 0.9,
@@ -179,7 +183,7 @@ def test_export_dataset_row_uses_strict_load_datasets(monkeypatch, tmp_path):
         {
             "dataset": "maccs",
             "model_name": "SVC",
-            "parameters": "{'kernel': 'linear', 'C': 1}",
+            "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "smoke": False,
         },
     )
@@ -223,7 +227,7 @@ def test_export_dataset_npz_without_X_fails_clearly(monkeypatch, tmp_path):
         {
             "dataset": "maccs",
             "model_name": "SVC",
-            "parameters": "{'kernel': 'linear', 'C': 1}",
+            "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "smoke": False,
         },
     )
@@ -249,7 +253,7 @@ def test_export_legacy_row_with_valid_X_and_labels_succeeds(monkeypatch, tmp_pat
             "reduction_type": "PCA",
             "level": 70,
             "model_name": "SVC",
-            "parameters": "{'kernel': 'linear', 'C': 1}",
+            "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "f1_macro": 0.8,
             "accuracy": 0.8,
             "auc_roc": 0.9,
@@ -262,6 +266,48 @@ def test_export_legacy_row_with_valid_X_and_labels_succeeds(monkeypatch, tmp_pat
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     assert (tmp_path / "output" / "Model_SVC_PCA70.pkl").exists()
+
+
+def test_export_svc_saves_scaler_pipeline(monkeypatch, tmp_path):
+    label_path, y = _write_labels(tmp_path)
+    dataset_path = _write_npz(tmp_path, "toy", np.ones((20, 5)), y)
+    cfg = _make_config(tmp_path)
+    cfg.DATASETS = {
+        "toy": {
+            "path": str(dataset_path),
+            "label_path": str(label_path),
+            "metadata": {"family": "smoke", "method": "toy"},
+        }
+    }
+    csv_path = tmp_path / "output" / "results.csv"
+    _write_results_csv(
+        csv_path,
+        ["dataset", "model_name", "parameters", "smoke"],
+        {
+            "dataset": "toy",
+            "model_name": "SVC",
+            "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
+            "smoke": False,
+        },
+    )
+    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
+
+    Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
+
+    model = joblib.load(tmp_path / "output" / "Model_SVC_toy.pkl")
+    assert isinstance(model, SklearnPipeline)
+    assert list(model.named_steps) == ["scaler", "svc"]
+    assert isinstance(model.named_steps["scaler"], StandardScaler)
+    assert isinstance(model.named_steps["svc"], SVC)
+    assert model.named_steps["svc"].kernel == "linear"
+
+
+def test_export_svc_accepts_legacy_unprefixed_parameters():
+    model = Finalizer._build_model("SVC", "{'kernel': 'linear', 'C': 1}")
+
+    assert isinstance(model, SklearnPipeline)
+    assert model.named_steps["svc"].kernel == "linear"
+    assert model.named_steps["svc"].C == 1
 
 
 def test_export_legacy_npz_without_X_does_not_fallback_to_first_key(
@@ -281,7 +327,7 @@ def test_export_legacy_npz_without_X_does_not_fallback_to_first_key(
             "reduction_type": "PCA",
             "level": 70,
             "model_name": "SVC",
-            "parameters": "{'kernel': 'linear', 'C': 1}",
+            "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "f1_macro": 0.8,
             "accuracy": 0.8,
             "auc_roc": 0.9,
@@ -306,7 +352,7 @@ def test_cv_plot_uses_dataset_id_for_figure(monkeypatch, tmp_path):
         {
             "dataset": "rdkit_descriptors",
             "model_name": "SVC",
-            "parameters": "{'kernel': 'linear', 'C': 1}",
+            "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "smoke": False,
         },
     )

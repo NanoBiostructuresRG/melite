@@ -3,7 +3,11 @@
 
 import numpy as np
 import pytest
+import joblib
 from melite.predict import predict
+from sklearn.pipeline import Pipeline as SklearnPipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 
 
 def test_predict_returns_dict(tmp_model):
@@ -73,3 +77,20 @@ def test_3d_input_raises_value_error(tmp_model):
     X_3d = np.random.rand(10, 5, 3).astype(np.float32)
     with pytest.raises(ValueError, match="2-D numpy array"):
         predict(tmp_model, X_3d)
+
+
+def test_predict_loads_exported_svc_pipeline(tmp_path):
+    X_train = np.random.rand(20, 5).astype(np.float32)
+    y_train = np.array([0, 1] * 10, dtype=np.int64)
+    model = SklearnPipeline([
+        ("scaler", StandardScaler()),
+        ("svc", SVC(kernel="linear", C=1, probability=True, random_state=42)),
+    ])
+    model.fit(X_train, y_train)
+    model_path = tmp_path / "Model_SVC_toy.pkl"
+    joblib.dump(model, model_path)
+
+    result = predict(model_path, np.random.rand(4, 5).astype(np.float32))
+
+    assert result["predictions"].shape == (4,)
+    assert result["probabilities"].shape == (4, 2)

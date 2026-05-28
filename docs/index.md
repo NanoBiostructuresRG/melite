@@ -21,7 +21,7 @@
     </div>
     <div class="ms-badges" aria-label="Project badges">
       <img alt="CI" src="https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg">
-      <img alt="Version" src="https://img.shields.io/badge/version-v0.2.1-blue.svg">
+      <img alt="Version" src="https://img.shields.io/badge/version-v0.2.2-blue.svg">
       <img alt="Python versions" src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue">
       <img alt="License: LGPL v3+" src="https://img.shields.io/badge/License-LGPL_v3%2B-blue.svg">
     </div>

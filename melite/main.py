@@ -10,6 +10,8 @@ import logging
 from pathlib import Path
 
 import numpy as np
+from sklearn.pipeline import Pipeline as SklearnPipeline
+from sklearn.svm import SVC
 
 from .config import Config
 from .load_dataset import load_datasets
@@ -103,6 +105,12 @@ class Main:
             return method
         return None
 
+    @staticmethod
+    def _model_name(model):
+        if isinstance(model, SklearnPipeline) and isinstance(model.steps[-1][1], SVC):
+            return "SVC"
+        return model.__class__.__name__
+
     def run(self) -> None:
         """Execute the benchmarking pipeline for all configured datasets.
 
@@ -145,7 +153,7 @@ class Main:
             ) = self.pipeline.run(X_train, y_train, reduction_type or dataset_id, level)
 
             params = self._clean_params(best_params)
-            model_name = best_model.__class__.__name__
+            model_name = self._model_name(best_model)
 
             metadata_lines = [
                 f"Family: {family}" if family is not None else None,

@@ -48,6 +48,51 @@ def test_config_smoke_false_uses_full_grids():
     assert has_multiple
 
 
+def test_config_svc_grid_uses_pipeline_parameter_names():
+    cfg = Config()
+    svc_entries = [
+        entry for entry in cfg.PARAM_GRID
+        if entry["model"] == ["svc"]
+    ]
+
+    assert svc_entries
+    for entry in svc_entries:
+        assert "C" not in entry
+        assert "kernel" not in entry
+        assert "gamma" not in entry
+        assert "svc__C" in entry
+        assert "svc__kernel" in entry
+
+
+def test_config_full_svc_grid_includes_linear_kernel_without_unused_params():
+    cfg = Config()
+
+    linear_entries = [
+        entry for entry in cfg.PARAM_GRID
+        if entry["model"] == ["svc"] and entry["svc__kernel"] == ["linear"]
+    ]
+
+    assert linear_entries == [{
+        "model": ["svc"],
+        "svc__kernel": ["linear"],
+        "svc__C": [0.01, 0.1, 1, 10],
+    }]
+    assert "svc__gamma" not in linear_entries[0]
+    assert "svc__degree" not in linear_entries[0]
+    assert "svc__coef0" not in linear_entries[0]
+
+
+def test_config_smoke_svc_grid_uses_pipeline_parameter_names():
+    cfg = Config(smoke=True)
+    svc_entry = next(
+        entry for entry in cfg.PARAM_GRID
+        if entry["model"] == ["svc"]
+    )
+
+    assert svc_entry["svc__kernel"] == ["linear"]
+    assert svc_entry["svc__C"] == [1]
+
+
 def test_config_setup_creates_directories(tmp_path):
     cfg = Config()
     cfg.PATHS = {
