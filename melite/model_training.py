@@ -13,6 +13,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, cross_validate
+from sklearn.pipeline import Pipeline as SklearnPipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 
@@ -82,7 +84,10 @@ class MultiModelTrainer(ModelTrainer):
         rs = getattr(self.config, "RANDOM_STATE", 42)
 
         self.model_builders = {
-            "svc": lambda: SVC(probability=True, random_state=rs),
+            "svc": lambda: SklearnPipeline([
+                ("scaler", StandardScaler()),
+                ("svc", SVC(probability=True, random_state=rs)),
+            ]),
             "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=-1),
             "xgb": lambda: XGBClassifier(eval_metric="logloss", random_state=rs, n_jobs=-1),
         }

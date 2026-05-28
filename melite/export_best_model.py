@@ -24,6 +24,8 @@ from .load_dataset import load_datasets, _load_one_dataset
 from .plot_metrics import plot_cv_distributions
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_validate, RepeatedStratifiedKFold
+from sklearn.pipeline import Pipeline as SklearnPipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 
@@ -32,7 +34,6 @@ __all__ = ["Finalizer"]
 logger = logging.getLogger(__name__)
 
 MODEL_MAP = {
-    "SVC": SVC,
     "RandomForestClassifier": RandomForestClassifier,
     "XGBClassifier": XGBClassifier,
 }
@@ -332,7 +333,16 @@ class Finalizer:
     def _build_model(name: str, serialised_params: str) -> Any:
         params = ast.literal_eval(serialised_params)
         if name == "SVC":
-            params = {**params, "probability": True}
+            model = SklearnPipeline([
+                ("scaler", StandardScaler()),
+                ("svc", SVC()),
+            ])
+            svc_params = {
+                key if "__" in key else f"svc__{key}": value
+                for key, value in params.items()
+            }
+            svc_params.setdefault("svc__probability", True)
+            return model.set_params(**svc_params)
         try:
             return MODEL_MAP[name](**params)
         except KeyError as exc:

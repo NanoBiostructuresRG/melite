@@ -6,6 +6,12 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline as SklearnPipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from xgboost import XGBClassifier
+
 from melite.model_training import MultiModelTrainer
 
 
@@ -14,7 +20,7 @@ def _config(active_models):
         ACTIVE_MODELS=active_models,
         RANDOM_STATE=42,
         PARAM_GRID=[
-            {"model": ["svc"], "C": [1], "kernel": ["linear"]},
+            {"model": ["svc"], "svc__C": [1], "svc__kernel": ["linear"]},
             {"model": ["rf"], "n_estimators": [10]},
             {"model": ["xgb"], "n_estimators": [10]},
         ],
@@ -78,6 +84,38 @@ def test_active_models_rf_trains_only_rf():
     assert [model_name for model_name, _ in calls] == ["rf"]
     assert result[0] == "rf-tuned"
     assert result[1] == {"model": "rf"}
+
+
+def test_svc_builder_returns_scaler_then_svc_pipeline():
+    trainer = MultiModelTrainer(_config(["svc"]))
+
+    model = trainer.model_builders["svc"]()
+
+    assert isinstance(model, SklearnPipeline)
+    assert list(model.named_steps) == ["scaler", "svc"]
+    assert isinstance(model.named_steps["scaler"], StandardScaler)
+    assert isinstance(model.named_steps["svc"], SVC)
+    assert model.named_steps["svc"].probability is True
+
+
+def test_rf_and_xgb_builders_remain_unscaled_direct_estimators():
+    trainer = MultiModelTrainer(_config(["rf", "xgb"]))
+
+    rf = trainer.model_builders["rf"]()
+    xgb = trainer.model_builders["xgb"]()
+
+    assert isinstance(rf, RandomForestClassifier)
+    assert isinstance(xgb, XGBClassifier)
+    assert not isinstance(rf, SklearnPipeline)
+    assert not isinstance(xgb, SklearnPipeline)
+
+
+def test_filter_param_grid_preserves_svc_pipeline_prefixes():
+    trainer = MultiModelTrainer(_config(["svc"]))
+
+    grid = trainer._filter_param_grid("svc")
+
+    assert grid == [{"svc__C": [1], "svc__kernel": ["linear"]}]
 
 
 def test_invalid_active_model_raises_clear_error():
