@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SVC is now trained as a `StandardScaler` -> `SVC` sklearn `Pipeline`.
 - Scaling is applied only to SVC; `RandomForestClassifier` and
   `XGBClassifier` remain unscaled direct estimators.
+- The full SVC search grid now includes a linear kernel with `svc__C` values
+  `[0.01, 0.1, 1, 10]`.
 - Exported SVC models now preserve the same `StandardScaler` -> `SVC`
   pipeline used during benchmarking.
 

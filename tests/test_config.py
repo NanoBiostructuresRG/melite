@@ -64,6 +64,24 @@ def test_config_svc_grid_uses_pipeline_parameter_names():
         assert "svc__kernel" in entry
 
 
+def test_config_full_svc_grid_includes_linear_kernel_without_unused_params():
+    cfg = Config()
+
+    linear_entries = [
+        entry for entry in cfg.PARAM_GRID
+        if entry["model"] == ["svc"] and entry["svc__kernel"] == ["linear"]
+    ]
+
+    assert linear_entries == [{
+        "model": ["svc"],
+        "svc__kernel": ["linear"],
+        "svc__C": [0.01, 0.1, 1, 10],
+    }]
+    assert "svc__gamma" not in linear_entries[0]
+    assert "svc__degree" not in linear_entries[0]
+    assert "svc__coef0" not in linear_entries[0]
+
+
 def test_config_smoke_svc_grid_uses_pipeline_parameter_names():
     cfg = Config(smoke=True)
     svc_entry = next(
