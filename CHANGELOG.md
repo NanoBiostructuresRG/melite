@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.2.2] - 2026-05-28
+
+### Changed
+- SVC is now trained as a `StandardScaler` -> `SVC` sklearn `Pipeline`.
+- Scaling is applied only to SVC; `RandomForestClassifier` and
+  `XGBClassifier` remain unscaled direct estimators.
+- Exported SVC models now preserve the same `StandardScaler` -> `SVC`
+  pipeline used during benchmarking.
+
+### Compatibility
+- Legacy export compatibility is preserved for older SVC parameter
+  dictionaries that use unprefixed keys such as `C` and `kernel` instead of
+  pipeline keys such as `svc__C` and `svc__kernel`.
+
+---
+
 ## [v0.2.1] - 2026-05-27
 
 ### Changed

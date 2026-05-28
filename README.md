@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.2.1-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.2.2-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)]()
 
 **MELITE** is a pre-stable Python toolkit for tabular classification
@@ -21,7 +21,7 @@ Project: MELITE
 PyPI distribution: melite
 Import package: melite
 CLI: melite
-Version: 0.2.1
+Version: 0.2.2
 License: LGPL-3.0-or-later
 Status: alpha / pre-stable
 ```
@@ -143,6 +143,9 @@ active = ["svc", "rf", "xgb"]
 
 Remove a key to skip that family during training. Valid keys are `svc`, `rf`,
 and `xgb`.
+
+SVC is trained and exported as a `StandardScaler` -> `SVC` sklearn pipeline.
+Random Forest and XGBoost are trained as unscaled estimators.
     
 ## CLI
 
@@ -206,7 +209,7 @@ Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
 
 ## Validation
 
-The current `dev/v0.2.1` branch targets:
+The current `dev/v0.2.2` branch targets:
 
 ```bash
 python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache
@@ -226,20 +229,14 @@ If you use MELITE in your research, please cite it using the metadata in
 [CITATION.cff](CITATION.cff).
 
 ```text
-Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model
-Evaluation and Learning for Inference-ready Tabular Experiments (0.2.1).
-Tecnologico de Monterrey. https://github.com/NanoBiostructuresRG/melite
+Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments. Zenodo. https://doi.org/10.5281/zenodo.20382752
 ```
 
 ## Authors
 
-Developed by **Flavio F. Contreras-Torres**
+Developed by **Flavio F. Contreras-Torres**. Tecnologico de Monterrey
 
-Tecnologico de Monterrey
-
-Co-author: **Ana C. Murrieta**
-
-Tecnologico de Monterrey
+Co-author: **Ana C. Murrieta**. Tecnologico de Monterrey
 
 ## License
 
