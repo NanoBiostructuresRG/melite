@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.2.3] - 2026-06-01
+
+### Added
+- Added opt-in experimental stacking via the `stack` model key in
+  `[models].active`.
+- Added sklearn `StackingClassifier` support using `stack_method="predict_proba"`,
+  `passthrough=False`, and `LogisticRegression` as the final estimator.
+- Added export and prediction coverage for saved stacking `.pkl` artifacts.
+
+### Changed
+- Standalone SVC remains a `StandardScaler` -> `SVC` pipeline.
+- The SVC base estimator inside stacking is also scaled and uses
+  `SVC(probability=True)` so stacking combines probability outputs.
+- Random Forest and XGBoost remain unscaled direct estimators because they are
+  tree-based models and do not require feature scaling by default.
+- Stacking-internal CV uses the configured split count and random state with
+  one repeat to satisfy sklearn's out-of-fold prediction requirements.
+
+### Notes
+- Stacking is experimental and disabled by default.
+- Export remains `.pkl` via `joblib`.
+- Optuna and MLflow are intentionally out of scope for v0.2.3.
+
+---
+
 ## [v0.2.2] - 2026-05-28
 
 ### Changed

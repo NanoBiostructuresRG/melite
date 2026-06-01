@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.2.2-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.2.3-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)]()
 
 **MELITE** is a pre-stable Python toolkit for tabular classification
@@ -21,7 +21,7 @@ Project: MELITE
 PyPI distribution: melite
 Import package: melite
 CLI: melite
-Version: 0.2.2
+Version: 0.2.3
 License: LGPL-3.0-or-later
 Status: alpha / pre-stable
 ```
@@ -94,7 +94,7 @@ print(result["probabilities"])
 | MELITE does | MELITE does not |
 |-------------|-----------------|
 | Accept prepared `X` and `y` arrays. | Generate fingerprints. |
-| Benchmark SVC, Random Forest, and XGBoost classifiers. | Process SMILES. |
+| Benchmark SVC, Random Forest, XGBoost, and opt-in experimental stacking classifiers. | Process SMILES. |
 | Select the best row by F1-macro. | Generate PCA or UMAP reductions from raw data. |
 | Export a final retrained `.pkl` model. | Act as a general AutoML framework. |
 | Run artifact-based inference through `predict()`. | Promise a stable 1.0 API yet. |
@@ -142,10 +142,19 @@ active = ["svc", "rf", "xgb"]
 ```
 
 Remove a key to skip that family during training. Valid keys are `svc`, `rf`,
-and `xgb`.
+`xgb`, and experimental `stack`. Stacking is opt-in; add `"stack"` to
+`active` to evaluate an sklearn `StackingClassifier` alongside the default
+families.
 
-SVC is trained and exported as a `StandardScaler` -> `SVC` sklearn pipeline.
-Random Forest and XGBoost are trained as unscaled estimators.
+Standalone SVC is trained and exported as a `StandardScaler` -> `SVC` sklearn
+pipeline because SVM/kernel-based methods are sensitive to feature scale.
+Random Forest and XGBoost are tree-based models and remain unscaled by
+default. Experimental stacking uses `stack_method="predict_proba"` with a
+scaled probabilistic SVC base estimator, unscaled RF/XGBoost base estimators,
+and a logistic regression final estimator. Its internal stacking CV uses the
+configured split count and random state with one repeat to satisfy sklearn's
+out-of-fold prediction requirements. Final exports remain `.pkl` artifacts
+serialized with `joblib`; Optuna and MLflow are not part of v0.2.3.
     
 ## CLI
 
@@ -209,7 +218,7 @@ Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
 
 ## Validation
 
-The current `dev/v0.2.2` branch targets:
+The current `dev/v0.2.3` branch targets:
 
 ```bash
 python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache

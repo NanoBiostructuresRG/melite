@@ -7,11 +7,14 @@ import numpy as np
 import pytest
 
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import StackingClassifier
+from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 
+import melite.model_training as model_training
 from melite.model_training import MultiModelTrainer
 
 
@@ -23,6 +26,7 @@ def _config(active_models):
             {"model": ["svc"], "svc__C": [1], "svc__kernel": ["linear"]},
             {"model": ["rf"], "n_estimators": [10]},
             {"model": ["xgb"], "n_estimators": [10]},
+            {"model": ["stack"]},
         ],
         get_cv_config=lambda: {
             "n_splits": 2,
@@ -38,6 +42,7 @@ def _trainer_with_fake_training(active_models):
         "svc": lambda: "svc-estimator",
         "rf": lambda: "rf-estimator",
         "xgb": lambda: "xgb-estimator",
+        "stack": lambda: "stack-estimator",
     }
     calls = []
 
@@ -110,12 +115,88 @@ def test_rf_and_xgb_builders_remain_unscaled_direct_estimators():
     assert not isinstance(xgb, SklearnPipeline)
 
 
+def test_stacking_builder_returns_experimental_stacking_classifier():
+    trainer = MultiModelTrainer(_config(["stack"]))
+
+    model = trainer.model_builders["stack"]()
+    estimators = dict(model.estimators)
+    svc = estimators["svc"]
+    rf = estimators["rf"]
+    xgb = estimators["xgb"]
+
+    assert isinstance(model, StackingClassifier)
+    assert model.stack_method == "predict_proba"
+    assert model.passthrough is False
+    assert isinstance(svc, SklearnPipeline)
+    assert list(svc.named_steps) == ["scaler", "svc"]
+    assert isinstance(svc.named_steps["scaler"], StandardScaler)
+    assert isinstance(svc.named_steps["svc"], SVC)
+    assert svc.named_steps["svc"].probability is True
+    assert isinstance(rf, RandomForestClassifier)
+    assert isinstance(xgb, XGBClassifier)
+    assert not isinstance(rf, SklearnPipeline)
+    assert not isinstance(xgb, SklearnPipeline)
+
+
+def test_stacking_builder_reuses_repeated_stratified_cv_strategy():
+    trainer = MultiModelTrainer(_config(["stack"]))
+
+    model = trainer.model_builders["stack"]()
+
+    assert isinstance(model.cv, RepeatedStratifiedKFold)
+    assert model.cv.cvargs["n_splits"] == 2
+    assert model.cv.n_repeats == 1
+    assert model.cv.random_state == 42
+
+
 def test_filter_param_grid_preserves_svc_pipeline_prefixes():
     trainer = MultiModelTrainer(_config(["svc"]))
 
     grid = trainer._filter_param_grid("svc")
 
     assert grid == [{"svc__C": [1], "svc__kernel": ["linear"]}]
+
+
+def test_filter_param_grid_supports_minimal_stack_grid():
+    trainer = MultiModelTrainer(_config(["stack"]))
+
+    grid = trainer._filter_param_grid("stack")
+
+    assert grid == [{}]
+
+
+def test_grid_search_uses_f1_macro_scoring(monkeypatch):
+    captured = {}
+
+    class DummyGridSearchCV:
+        def __init__(self, model, param_grid, scoring, cv, n_jobs):
+            captured.update({
+                "model": model,
+                "param_grid": param_grid,
+                "scoring": scoring,
+                "cv": cv,
+                "n_jobs": n_jobs,
+            })
+            self.best_estimator_ = "best-estimator"
+            self.best_params_ = {"best": True}
+
+        def fit(self, X_train, y_train):
+            captured["fit_shape"] = X_train.shape
+
+    monkeypatch.setattr(model_training, "GridSearchCV", DummyGridSearchCV)
+    trainer = MultiModelTrainer(_config(["svc"]))
+
+    estimator, params = trainer.perform_grid_search(
+        "estimator",
+        np.ones((4, 2)),
+        np.array([0, 1, 0, 1]),
+        [{"param": [1]}],
+    )
+
+    assert captured["scoring"] == "f1_macro"
+    assert isinstance(captured["cv"], RepeatedStratifiedKFold)
+    assert estimator == "best-estimator"
+    assert params == {"best": True}
 
 
 def test_invalid_active_model_raises_clear_error():

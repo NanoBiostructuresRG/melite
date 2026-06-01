@@ -126,15 +126,22 @@ output/
 active = ["svc", "rf", "xgb"]
 ```
 
-Remove a key from `active` to skip that model family in a run. The detailed
-hyperparameter grids are defined in `melite/config.py`; they are
-developer-facing defaults rather than user TOML settings.
+Remove a key from `active` to skip that model family in a run. Add `"stack"`
+to opt in to the experimental stacking workflow. The detailed hyperparameter
+grids are defined in `melite/config.py`; they are developer-facing defaults
+rather than user TOML settings.
 
 | Config key | Model family | Benchmark coverage |
 |------------|--------------|--------------------|
 | `svc` | Support Vector Classifier | Full runs evaluate polynomial and RBF kernels. Smoke mode uses a linear SVC only. |
 | `rf` | Random Forest Classifier | Evaluates tree count, tree depth, feature sampling, and split/leaf controls. |
 | `xgb` | XGBoost Classifier | Evaluates tree count, learning rate, depth, sampling, gamma, and regularization. |
+| `stack` | Experimental StackingClassifier | Opt-in stack of scaled SVC, unscaled RF, and unscaled XGBoost with logistic regression as the final estimator. |
+
+Standalone SVC is trained and exported as a `StandardScaler` -> `SVC` sklearn
+pipeline because SVM/kernel-based models are sensitive to feature scale. Random
+Forest and XGBoost are tree-based models and do not require feature scaling by
+default, so MELITE keeps them as unscaled estimators.
 
 ### SVC Kernels
 
@@ -160,3 +167,30 @@ Current full-run SVC grids:
 These grids can be restricted at the family level through `[models].active`.
 Changing the individual hyperparameter values currently requires editing
 `melite/config.py`.
+
+### Experimental Stacking
+
+Stacking is disabled by default. Enable it explicitly:
+
+```toml
+[models]
+active = ["svc", "rf", "xgb", "stack"]
+```
+
+!!! note
+    The stacking workflow uses sklearn `StackingClassifier` with
+    `stack_method="predict_proba"`, `passthrough=False`, and `LogisticRegression`
+    as the initial final estimator. Its SVC base estimator is a
+    `StandardScaler` -> `SVC(probability=True)` pipeline so that the stack combines
+    probability outputs from SVC, Random Forest, and XGBoost. RF and XGBoost remain
+    unscaled inside the stack.
+
+    The stacking-internal CV uses the configured split count and random state
+    without repeated splits because sklearn stacking builds out-of-fold
+    meta-features with `cross_val_predict`. This ensures each training sample
+    contributes exactly one out-of-fold prediction for training the final
+    estimator, while the outer **MELITE** grid search and reporting workflow
+    still uses the existing repeated CV/F1 evaluation.
+
+    Export remains a `.pkl` artifact serialized with `joblib`; Optuna and
+    MLflow are not part of this workflow.

@@ -11,7 +11,8 @@ cross-validation.
 from abc import ABC, abstractmethod
 
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, cross_validate
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
@@ -90,8 +91,44 @@ class MultiModelTrainer(ModelTrainer):
             ]),
             "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=-1),
             "xgb": lambda: XGBClassifier(eval_metric="logloss", random_state=rs, n_jobs=-1),
+            "stack": lambda: self._build_stacking_classifier(rs),
         }
         self.active_models = self._validate_active_models()
+
+    def _build_stacking_classifier(self, random_state):
+        cv = self._build_cv_strategy()
+        # StackingClassifier uses cross_val_predict internally, which requires
+        # one partition of the data rather than repeated test assignments.
+        stacking_cv = RepeatedStratifiedKFold(
+            n_splits=cv.cvargs["n_splits"],
+            n_repeats=1,
+            random_state=cv.random_state,
+        )
+        return StackingClassifier(
+            estimators=[
+                ("svc", SklearnPipeline([
+                    ("scaler", StandardScaler()),
+                    ("svc", SVC(probability=True, random_state=random_state)),
+                ])),
+                ("rf", RandomForestClassifier(random_state=random_state, n_jobs=-1)),
+                (
+                    "xgb",
+                    XGBClassifier(
+                        eval_metric="logloss",
+                        random_state=random_state,
+                        n_jobs=-1,
+                    ),
+                ),
+            ],
+            final_estimator=LogisticRegression(
+                random_state=random_state,
+                max_iter=1000,
+            ),
+            cv=stacking_cv,
+            stack_method="predict_proba",
+            passthrough=False,
+            n_jobs=-1,
+        )
 
     def _validate_active_models(self):
         active_models = getattr(self.config, "ACTIVE_MODELS", list(self.model_builders))
