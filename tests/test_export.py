@@ -9,9 +9,11 @@ import pytest
 
 from melite.config import Config
 from melite.export_best_model import Finalizer
+from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+from xgboost import XGBClassifier
 
 
 class DummyModel:
@@ -156,7 +158,9 @@ def test_export_dataset_row_uses_dataset_id_for_artifact(monkeypatch, tmp_path):
             "smoke": False,
         },
     )
-    monkeypatch.setattr(Finalizer, "_build_model", staticmethod(lambda *_: DummyModel()))
+    monkeypatch.setattr(
+        Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
+    )
     monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
 
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
@@ -200,7 +204,9 @@ def test_export_dataset_row_uses_strict_load_datasets(monkeypatch, tmp_path):
         }
 
     monkeypatch.setattr(export_module, "load_datasets", fake_load_datasets)
-    monkeypatch.setattr(Finalizer, "_build_model", staticmethod(lambda *_: DummyModel()))
+    monkeypatch.setattr(
+        Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
+    )
     monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
 
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
@@ -231,7 +237,9 @@ def test_export_dataset_npz_without_X_fails_clearly(monkeypatch, tmp_path):
             "smoke": False,
         },
     )
-    monkeypatch.setattr(Finalizer, "_build_model", staticmethod(lambda *_: DummyModel()))
+    monkeypatch.setattr(
+        Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
+    )
     monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
 
     with pytest.raises(ValueError, match="Required key 'X' not found"):
@@ -260,7 +268,9 @@ def test_export_legacy_row_with_valid_X_and_labels_succeeds(monkeypatch, tmp_pat
             "smoke": False,
         },
     )
-    monkeypatch.setattr(Finalizer, "_build_model", staticmethod(lambda *_: DummyModel()))
+    monkeypatch.setattr(
+        Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
+    )
     monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
 
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
@@ -310,6 +320,69 @@ def test_export_svc_accepts_legacy_unprefixed_parameters():
     assert model.named_steps["svc"].C == 1
 
 
+def test_export_builds_stacking_classifier_with_expected_contract():
+    cv_config = {"n_splits": 2, "n_repeats": 1, "random_state": 42}
+
+    model = Finalizer._build_model(
+        "StackingClassifier",
+        "{}",
+        cv_config=cv_config,
+        random_state=42,
+    )
+    estimators = dict(model.estimators)
+    svc = estimators["svc"]
+    rf = estimators["rf"]
+    xgb = estimators["xgb"]
+
+    assert isinstance(model, StackingClassifier)
+    assert model.stack_method == "predict_proba"
+    assert model.passthrough is False
+    assert model.cv.cvargs["n_splits"] == 2
+    assert model.cv.n_repeats == 1
+    assert model.cv.random_state == 42
+    assert isinstance(svc, SklearnPipeline)
+    assert list(svc.named_steps) == ["scaler", "svc"]
+    assert isinstance(svc.named_steps["scaler"], StandardScaler)
+    assert isinstance(svc.named_steps["svc"], SVC)
+    assert svc.named_steps["svc"].probability is True
+    assert isinstance(rf, RandomForestClassifier)
+    assert isinstance(xgb, XGBClassifier)
+    assert not isinstance(rf, SklearnPipeline)
+    assert not isinstance(xgb, SklearnPipeline)
+
+
+def test_export_can_rebuild_and_save_stacking_model(monkeypatch, tmp_path):
+    label_path, y = _write_labels(tmp_path)
+    dataset_path = _write_npz(tmp_path, "toy", np.ones((20, 5)), y)
+    cfg = _make_config(tmp_path)
+    cfg.CV_CONFIG = {"n_splits": 2, "n_repeats": 1, "random_state": 42}
+    cfg.DATASETS = {
+        "toy": {
+            "path": str(dataset_path),
+            "label_path": str(label_path),
+            "metadata": {"family": "smoke", "method": "toy"},
+        }
+    }
+    csv_path = tmp_path / "output" / "results.csv"
+    _write_results_csv(
+        csv_path,
+        ["dataset", "model_name", "parameters", "smoke"],
+        {
+            "dataset": "toy",
+            "model_name": "StackingClassifier",
+            "parameters": "{'rf__n_estimators': 2, 'xgb__n_estimators': 2}",
+            "smoke": False,
+        },
+    )
+    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
+
+    Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
+
+    model = joblib.load(tmp_path / "output" / "Model_StackingClassifier_toy.pkl")
+    assert isinstance(model, StackingClassifier)
+    assert model.stack_method == "predict_proba"
+
+
 def test_export_legacy_npz_without_X_does_not_fallback_to_first_key(
     monkeypatch, tmp_path
 ):
@@ -334,7 +407,9 @@ def test_export_legacy_npz_without_X_does_not_fallback_to_first_key(
             "smoke": False,
         },
     )
-    monkeypatch.setattr(Finalizer, "_build_model", staticmethod(lambda *_: DummyModel()))
+    monkeypatch.setattr(
+        Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
+    )
     monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
 
     with pytest.raises(ValueError, match="Required key 'X' not found"):

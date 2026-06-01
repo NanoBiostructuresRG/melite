@@ -76,7 +76,8 @@ class Config:
         Normalized dataset registry keyed by user-defined dataset id. Each
         entry contains ``path``, ``label_path``, and ``metadata`` keys.
     ACTIVE_MODELS : list of str
-        Model keys to include in the benchmark (e.g. ``["svc", "rf", "xgb"]``).
+        Model keys to include in the benchmark (e.g. ``["svc", "rf", "xgb"]``;
+        add ``"stack"`` to opt in to experimental stacking).
     CV_CONFIG : dict
         Cross-validation settings with keys ``n_splits``, ``n_repeats``, and
         ``random_state``.
@@ -84,7 +85,7 @@ class Config:
         Raw hyperparameter grid definitions, one entry per model configuration.
     PARAM_GRID_BY_MODEL : dict
         Compiled :class:`~sklearn.model_selection.ParameterGrid` objects keyed
-        by model name (``"svc"``, ``"rf"``, ``"xgb"``).
+        by model name (``"svc"``, ``"rf"``, ``"xgb"``, ``"stack"``).
 
     Examples
     --------
@@ -219,6 +220,9 @@ class Config:
                     "reg_alpha": [0],
                     "reg_lambda": [1],
                 },
+                {
+                    "model": ["stack"],
+                },
             ]
         return [
             {
@@ -259,6 +263,9 @@ class Config:
                 "reg_alpha": [0, 0.5],
                 "reg_lambda": [1, 2],
             },
+            {
+                "model": ["stack"],
+            },
         ]
 
     def _group_param_grid_by_model(self) -> dict:
@@ -291,7 +298,7 @@ class Config:
         Parameters
         ----------
         model : str
-            Model key. One of ``"svc"``, ``"rf"``, or ``"xgb"``.
+            Model key. One of ``"svc"``, ``"rf"``, ``"xgb"``, or ``"stack"``.
 
         Returns
         -------

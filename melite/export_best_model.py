@@ -22,7 +22,8 @@ import pandas as pd
 from .config import Config
 from .load_dataset import load_datasets, _load_one_dataset
 from .plot_metrics import plot_cv_distributions
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_validate, RepeatedStratifiedKFold
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
@@ -50,6 +51,49 @@ def _has_value(value: Any) -> bool:
 
 def _safe_filename_part(value: Any) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value).strip()).strip("_")
+
+
+def _build_cv_strategy(cv_config: dict | None):
+    if cv_config is None:
+        cv_config = {"n_splits": 10, "n_repeats": 5, "random_state": 42}
+    # StackingClassifier uses cross_val_predict internally, which requires
+    # one partition of the data rather than repeated test assignments.
+    return RepeatedStratifiedKFold(
+        n_splits=cv_config["n_splits"],
+        n_repeats=1,
+        random_state=cv_config["random_state"],
+    )
+
+
+def _build_stacking_classifier(
+    random_state: int = 42,
+    cv_config: dict | None = None,
+) -> StackingClassifier:
+    return StackingClassifier(
+        estimators=[
+            ("svc", SklearnPipeline([
+                ("scaler", StandardScaler()),
+                ("svc", SVC(probability=True, random_state=random_state)),
+            ])),
+            ("rf", RandomForestClassifier(random_state=random_state, n_jobs=-1)),
+            (
+                "xgb",
+                XGBClassifier(
+                    eval_metric="logloss",
+                    random_state=random_state,
+                    n_jobs=-1,
+                ),
+            ),
+        ],
+        final_estimator=LogisticRegression(
+            random_state=random_state,
+            max_iter=1000,
+        ),
+        cv=_build_cv_strategy(cv_config),
+        stack_method="predict_proba",
+        passthrough=False,
+        n_jobs=-1,
+    )
 
 
 class DatasetLoader:
@@ -290,7 +334,12 @@ class Finalizer:
         row = self._get_selected_row()
         self._check_smoke_guard(row)
         X, y = self._loader.load_row(row)
-        model = self._build_model(row.model_name, row.parameters)
+        model = self._build_model(
+            row.model_name,
+            row.parameters,
+            cv_config=self._cfg.get_cv_config(),
+            random_state=getattr(self._cfg, "RANDOM_STATE", 42),
+        )
 
         figures_dir = Path(self._cfg.PATHS["OUTPUT"]) / "figures"
         self._cv_and_plot(model, X, y, row, figures_dir)
@@ -330,7 +379,12 @@ class Finalizer:
             print("[ERR] Invalid row number; please try again.")
 
     @staticmethod
-    def _build_model(name: str, serialised_params: str) -> Any:
+    def _build_model(
+        name: str,
+        serialised_params: str,
+        cv_config: dict | None = None,
+        random_state: int = 42,
+    ) -> Any:
         params = ast.literal_eval(serialised_params)
         if name == "SVC":
             model = SklearnPipeline([
@@ -343,6 +397,12 @@ class Finalizer:
             }
             svc_params.setdefault("svc__probability", True)
             return model.set_params(**svc_params)
+        if name == "StackingClassifier":
+            model = _build_stacking_classifier(
+                random_state=random_state,
+                cv_config=cv_config,
+            )
+            return model.set_params(**params)
         try:
             return MODEL_MAP[name](**params)
         except KeyError as exc:

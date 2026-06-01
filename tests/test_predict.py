@@ -4,6 +4,7 @@
 import numpy as np
 import pytest
 import joblib
+from melite.export_best_model import Finalizer
 from melite.predict import predict
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
@@ -88,6 +89,25 @@ def test_predict_loads_exported_svc_pipeline(tmp_path):
     ])
     model.fit(X_train, y_train)
     model_path = tmp_path / "Model_SVC_toy.pkl"
+    joblib.dump(model, model_path)
+
+    result = predict(model_path, np.random.rand(4, 5).astype(np.float32))
+
+    assert result["predictions"].shape == (4,)
+    assert result["probabilities"].shape == (4, 2)
+
+
+def test_predict_loads_exported_stacking_classifier(tmp_path):
+    X_train = np.random.rand(20, 5).astype(np.float32)
+    y_train = np.array([0, 1] * 10, dtype=np.int64)
+    model = Finalizer._build_model(
+        "StackingClassifier",
+        "{'rf__n_estimators': 2, 'xgb__n_estimators': 2}",
+        cv_config={"n_splits": 2, "n_repeats": 1, "random_state": 42},
+        random_state=42,
+    )
+    model.fit(X_train, y_train)
+    model_path = tmp_path / "Model_StackingClassifier_toy.pkl"
     joblib.dump(model, model_path)
 
     result = predict(model_path, np.random.rand(4, 5).astype(np.float32))
