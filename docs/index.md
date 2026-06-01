@@ -21,7 +21,7 @@
     </div>
     <div class="ms-badges" aria-label="Project badges">
       <img alt="CI" src="https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg">
-      <img alt="Version" src="https://img.shields.io/badge/version-v0.2.2-blue.svg">
+      <img alt="Version" src="https://img.shields.io/badge/version-v0.2.3-blue.svg">
       <img alt="Python versions" src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue">
       <img alt="License: LGPL v3+" src="https://img.shields.io/badge/License-LGPL_v3%2B-blue.svg">
     </div>
@@ -109,7 +109,7 @@ industrial features, or manually selected numeric features.
 | MELITE does | MELITE does not |
 |-------------|-----------------|
 | Accept prepared `X` and `y` arrays. | Generate PCA or UMAP representations. |
-| Benchmark SVC, Random Forest, and XGBoost classifiers. | Engineer molecular fingerprints or descriptors. |
+| Benchmark SVC, Random Forest, XGBoost, and opt-in experimental stacking classifiers. | Engineer molecular fingerprints or descriptors. |
 | Select the best row by F1-macro. | Handle raw molecular data directly. |
 | Export a final retrained `.pkl` model. | Require internet access at runtime. |
 | Run artifact-based inference through `predict()`. | Train deep learning models. |
