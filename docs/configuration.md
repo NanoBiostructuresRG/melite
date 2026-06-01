@@ -177,13 +177,20 @@ Stacking is disabled by default. Enable it explicitly:
 active = ["svc", "rf", "xgb", "stack"]
 ```
 
-The stacking workflow uses sklearn `StackingClassifier` with
-`stack_method="predict_proba"`, `passthrough=False`, and `LogisticRegression`
-as the initial final estimator. Its SVC base estimator is a
-`StandardScaler` -> `SVC(probability=True)` pipeline so that the stack combines
-probability outputs from SVC, Random Forest, and XGBoost. RF and XGBoost remain
-unscaled inside the stack. The stacking-internal CV uses the configured split
-count and random state with one repeat because sklearn stacking builds
-out-of-fold meta-features with `cross_val_predict`, which requires a single
-partition of the training data. Export remains a `.pkl` artifact serialized
-with `joblib`; Optuna and MLflow are not part of this workflow.
+!!! note
+    The stacking workflow uses sklearn `StackingClassifier` with
+    `stack_method="predict_proba"`, `passthrough=False`, and `LogisticRegression`
+    as the initial final estimator. Its SVC base estimator is a
+    `StandardScaler` -> `SVC(probability=True)` pipeline so that the stack combines
+    probability outputs from SVC, Random Forest, and XGBoost. RF and XGBoost remain
+    unscaled inside the stack.
+
+    The stacking-internal CV uses the configured split count and random state
+    without repeated splits because sklearn stacking builds out-of-fold
+    meta-features with `cross_val_predict`. This ensures each training sample
+    contributes exactly one out-of-fold prediction for training the final
+    estimator, while the outer **MELITE** grid search and reporting workflow
+    still uses the existing repeated CV/F1 evaluation.
+
+    Export remains a `.pkl` artifact serialized with `joblib`; Optuna and
+    MLflow are not part of this workflow.
