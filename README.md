@@ -74,7 +74,7 @@ melite run --smoke --config examples/example_config.toml
 Export a selected model artifact:
 
 ```bash
-melite export --row 0 --csv examples/output/results.csv --outdir examples/output/
+melite export --config examples/example_config.toml --row 0 --csv examples/output/results.csv --outdir examples/output/
 ```
 
 Run artifact-based inference:
