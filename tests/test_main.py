@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import melite.main as main_module
-from melite.main import Main
+from melite.main import Main, Pipeline
 
 
 class SVC:
@@ -38,6 +38,30 @@ class DummyPipeline:
             0.03,
         )
 
+    def run_with_evaluations(self, X_train, y_train, reduction_type, level):
+        selected_result = self.run(X_train, y_train, reduction_type, level)
+        evaluations = [{
+            "model_key": "svc",
+            "dataset_marker": reduction_type,
+            "selected": True,
+        }]
+        return selected_result, evaluations
+
+
+class DummyTrainer:
+    def __init__(self):
+        self.legacy_result = object()
+        self.rich_result = (object(), [{"model_key": "svc", "selected": True}])
+        self.calls = []
+
+    def train_and_select_best_model(self, *args):
+        self.calls.append(("legacy", args))
+        return self.legacy_result
+
+    def evaluate_and_select_models(self, *args):
+        self.calls.append(("rich", args))
+        return self.rich_result
+
 
 def _write_labels(path, n_samples=8):
     path.mkdir(parents=True, exist_ok=True)
@@ -57,6 +81,28 @@ def _write_npz(path, name, X, y):
 def _rows(csv_path):
     with open(csv_path, encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def test_pipeline_run_preserves_legacy_trainer_result():
+    trainer = DummyTrainer()
+    pipeline = Pipeline.__new__(Pipeline)
+    pipeline.model_trainer = trainer
+
+    result = pipeline.run("X", "y", "PCA", 70)
+
+    assert result is trainer.legacy_result
+    assert trainer.calls == [("legacy", ("X", "y", "PCA", 70))]
+
+
+def test_pipeline_run_with_evaluations_returns_rich_result_unchanged():
+    trainer = DummyTrainer()
+    pipeline = Pipeline.__new__(Pipeline)
+    pipeline.model_trainer = trainer
+
+    result = pipeline.run_with_evaluations("X", "y", "PCA", 70)
+
+    assert result is trainer.rich_result
+    assert trainer.calls == [("rich", ("X", "y", "PCA", 70))]
 
 
 def test_main_run_uses_arbitrary_dataset_ids(monkeypatch, tmp_path):
@@ -99,7 +145,8 @@ method = "PCA"
 level = 85
 ''')
 
-    Main(user_config=config_path).run()
+    main = Main(user_config=config_path)
+    main.run()
 
     rows = _rows(output_dir / "results.csv")
     assert [row["dataset"] for row in rows] == [
@@ -121,6 +168,18 @@ level = 85
     assert DummyPipeline.calls[1]["reduction_type"] == "rdkit_descriptors"
     assert DummyPipeline.calls[2]["reduction_type"] == "PCA"
     assert DummyPipeline.calls[2]["level"] == 85
+    assert list(main.evaluations_by_dataset) == [
+        "morgan_r2_2048",
+        "rdkit_descriptors",
+        "pca85",
+    ]
+    assert main.evaluations_by_dataset["morgan_r2_2048"] == [{
+        "model_key": "svc",
+        "dataset_marker": "morgan_r2_2048",
+        "selected": True,
+    }]
+    assert "outer_scores" not in rows[0]
+    assert "selected" not in rows[0]
 
 
 def test_main_run_uses_legacy_registry_metadata(monkeypatch, tmp_path):

@@ -64,6 +64,14 @@ class Pipeline:
             X_train, y_train, reduction_type, level
         )
 
+    def run_with_evaluations(
+        self, X_train, y_train, reduction_type: str, level: int | None
+    ):
+        """Return the selected result and all model-family evaluations."""
+        return self.model_trainer.evaluate_and_select_models(
+            X_train, y_train, reduction_type, level
+        )
+
 
 class Main:
     """Orchestrate the full MELITE benchmarking pipeline.
@@ -84,6 +92,7 @@ class Main:
         self.result_manager = ResultManager(self.config.RESULTS_FILE)
         self.final_results = []
         self.csv_rows = []
+        self.evaluations_by_dataset = {}
 
     @staticmethod
     def _clean_params(params):
@@ -145,12 +154,17 @@ class Main:
 
             logger.info("Training with dataset %s.", dataset_id)
 
+            selected_result, evaluations = self.pipeline.run_with_evaluations(
+                X_train, y_train, reduction_type or dataset_id, level
+            )
+            self.evaluations_by_dataset[dataset_id] = evaluations
+
             (
                 best_model, best_params,
                 best_f1, f1_std,
                 best_acc, acc_std,
                 best_auc, auc_std,
-            ) = self.pipeline.run(X_train, y_train, reduction_type or dataset_id, level)
+            ) = selected_result
 
             params = self._clean_params(best_params)
             model_name = self._model_name(best_model)
