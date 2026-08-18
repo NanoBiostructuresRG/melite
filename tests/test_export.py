@@ -10,6 +10,7 @@ import pytest
 from melite.config import Config
 from melite.export_best_model import Finalizer
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -321,7 +322,12 @@ def test_export_svc_accepts_legacy_unprefixed_parameters():
 
 
 def test_export_builds_stacking_classifier_with_expected_contract():
-    cv_config = {"n_splits": 2, "n_repeats": 1, "random_state": 42}
+    cv_config = {
+        "n_splits": 2,
+        "n_repeats": 1,
+        "inner_n_splits": 3,
+        "random_state": 42,
+    }
 
     model = Finalizer._build_model(
         "StackingClassifier",
@@ -337,9 +343,10 @@ def test_export_builds_stacking_classifier_with_expected_contract():
     assert isinstance(model, StackingClassifier)
     assert model.stack_method == "predict_proba"
     assert model.passthrough is False
-    assert model.cv.cvargs["n_splits"] == 2
-    assert model.cv.n_repeats == 1
-    assert model.cv.random_state == 42
+    assert isinstance(model.cv, StratifiedKFold)
+    assert model.cv.n_splits == cv_config["inner_n_splits"]
+    assert model.cv.shuffle is True
+    assert model.cv.random_state == cv_config["random_state"]
     assert isinstance(svc, SklearnPipeline)
     assert list(svc.named_steps) == ["scaler", "svc"]
     assert isinstance(svc.named_steps["scaler"], StandardScaler)
@@ -355,7 +362,12 @@ def test_export_can_rebuild_and_save_stacking_model(monkeypatch, tmp_path):
     label_path, y = _write_labels(tmp_path)
     dataset_path = _write_npz(tmp_path, "toy", np.ones((20, 5)), y)
     cfg = _make_config(tmp_path)
-    cfg.CV_CONFIG = {"n_splits": 2, "n_repeats": 1, "random_state": 42}
+    cfg.CV_CONFIG = {
+        "n_splits": 2,
+        "n_repeats": 1,
+        "inner_n_splits": 2,
+        "random_state": 42,
+    }
     cfg.DATASETS = {
         "toy": {
             "path": str(dataset_path),

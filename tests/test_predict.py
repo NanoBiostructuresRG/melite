@@ -103,7 +103,12 @@ def test_predict_loads_exported_stacking_classifier(tmp_path):
     model = Finalizer._build_model(
         "StackingClassifier",
         "{'rf__n_estimators': 2, 'xgb__n_estimators': 2}",
-        cv_config={"n_splits": 2, "n_repeats": 1, "random_state": 42},
+        cv_config={
+            "n_splits": 2,
+            "n_repeats": 1,
+            "inner_n_splits": 2,
+            "random_state": 42
+        },
         random_state=42,
     )
     model.fit(X_train, y_train)

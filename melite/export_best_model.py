@@ -24,7 +24,11 @@ from .load_dataset import load_datasets, _load_one_dataset
 from .plot_metrics import plot_cv_distributions
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_validate, RepeatedStratifiedKFold
+from sklearn.model_selection import (
+    cross_validate,
+    RepeatedStratifiedKFold,
+    StratifiedKFold,
+)
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -55,12 +59,17 @@ def _safe_filename_part(value: Any) -> str:
 
 def _build_cv_strategy(cv_config: dict | None):
     if cv_config is None:
-        cv_config = {"n_splits": 10, "n_repeats": 5, "random_state": 42}
+        cv_config = {
+            "n_splits": 5,
+            "n_repeats": 3,
+            "inner_n_splits": 3,
+            "random_state": 42,
+        }
     # StackingClassifier uses cross_val_predict internally, which requires
     # one partition of the data rather than repeated test assignments.
-    return RepeatedStratifiedKFold(
-        n_splits=cv_config["n_splits"],
-        n_repeats=1,
+    return StratifiedKFold(
+        n_splits=cv_config["inner_n_splits"],
+        shuffle=True,
         random_state=cv_config["random_state"],
     )
 
