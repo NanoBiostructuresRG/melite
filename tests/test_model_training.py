@@ -45,6 +45,26 @@ def _config(active_models):
     )
 
 
+def _rich_evaluation(f1_macro, accuracy=0.8, auc_roc=0.9):
+    return {
+        "f1_macro": f1_macro,
+        "f1_std": 0.01,
+        "accuracy": accuracy,
+        "acc_std": 0.02,
+        "auc_roc": auc_roc,
+        "auc_std": 0.03,
+        "outer_scores": [],
+    }
+
+
+def _family_evaluation(model_key, f1_macro, accuracy=0.8, auc_roc=0.9):
+    return {
+        "model_key": model_key,
+        **_rich_evaluation(f1_macro, accuracy, auc_roc),
+        "selected": False,
+    }
+
+
 def test_outer_cv_uses_configured_repeated_stratified_folds():
     cv = MultiModelTrainer(_config(["svc"]))._build_outer_cv()
 
@@ -93,15 +113,18 @@ def test_tunable_family_evaluation_wraps_fresh_model_in_grid_search(
 
     def fake_cross_validate(model, X_train, y_train):
         captured["evaluated"] = model
-        return 0.7, 0.01, 0.8, 0.02, 0.9, 0.03
+        return _rich_evaluation(0.7)
 
     monkeypatch.setattr(trainer, "_build_grid_search", fake_build_grid_search)
-    monkeypatch.setattr(trainer, "cross_validate_model", fake_cross_validate)
+    monkeypatch.setattr(
+        trainer, "_cross_validate_model_with_scores", fake_cross_validate
+    )
 
-    trainer._evaluate_model_family(model_name, X, Y)
+    evaluation = trainer._evaluate_model_family(model_name, X, Y)
 
     assert captured["evaluated"] is sentinel_grid
     assert captured["param_grid"] == trainer._filter_param_grid(model_name)
+    assert evaluation == _family_evaluation(model_name, 0.7)
 
 
 def test_cross_validate_evaluates_search_with_outer_cv_and_single_job(monkeypatch):
@@ -133,23 +156,60 @@ def test_cross_validate_evaluates_search_with_outer_cv_and_single_job(monkeypatc
     assert metrics == pytest.approx((0.7, 0.1, 0.8, 0.1, 0.9, 0.1))
 
 
+def test_rich_cross_validation_preserves_raw_outer_scores_and_indexing(monkeypatch):
+    calls = []
+    raw_scores = {
+        "test_f1": np.array([0.60, 0.70, 0.80, 0.90, 0.65, 0.75]),
+        "test_acc": np.array([0.61, 0.71, 0.81, 0.91, 0.66, 0.76]),
+        "test_auc": np.array([0.62, 0.72, 0.82, 0.92, 0.67, 0.77]),
+    }
+
+    def fake_cross_validate(*args, **kwargs):
+        calls.append((args, kwargs))
+        return raw_scores
+
+    monkeypatch.setattr(model_training, "cross_validate", fake_cross_validate)
+    trainer = MultiModelTrainer(_config(["svc"]))
+
+    evaluation = trainer._cross_validate_model_with_scores(object(), X, Y)
+
+    assert len(calls) == 1
+    assert evaluation["f1_macro"] == pytest.approx(raw_scores["test_f1"].mean())
+    assert evaluation["f1_std"] == pytest.approx(raw_scores["test_f1"].std())
+    assert evaluation["accuracy"] == pytest.approx(raw_scores["test_acc"].mean())
+    assert evaluation["acc_std"] == pytest.approx(raw_scores["test_acc"].std())
+    assert evaluation["auc_roc"] == pytest.approx(raw_scores["test_auc"].mean())
+    assert evaluation["auc_std"] == pytest.approx(raw_scores["test_auc"].std())
+    assert evaluation["outer_scores"] == [
+        {
+            "outer_split": split,
+            "outer_repeat": split // 2,
+            "outer_fold": split % 2,
+            "f1_macro": raw_scores["test_f1"][split],
+            "accuracy": raw_scores["test_acc"][split],
+            "auc_roc": raw_scores["test_auc"][split],
+        }
+        for split in range(6)
+    ]
+
+
 def test_selection_uses_outer_f1_and_runs_one_final_search_for_winner(monkeypatch):
     trainer = MultiModelTrainer(_config(["svc", "rf", "xgb"]))
     trainer.model_builders = {
         name: (lambda name=name: f"{name}-fresh")
         for name in ("svc", "rf", "xgb", "stack")
     }
-    outer_metrics = {
-        "svc": (0.70, 0.01, 0.71, 0.02, 0.72, 0.03),
-        "rf": (0.85, 0.11, 0.81, 0.12, 0.82, 0.13),
-        "xgb": (0.75, 0.21, 0.91, 0.22, 0.92, 0.23),
+    family_evaluations = {
+        "svc": _family_evaluation("svc", 0.70, 0.71, 0.72),
+        "rf": _family_evaluation("rf", 0.85, 0.81, 0.82),
+        "xgb": _family_evaluation("xgb", 0.75, 0.91, 0.92),
     }
     evaluated = []
     final_searches = []
 
     def fake_evaluate(model_name, X_train, y_train):
         evaluated.append(model_name)
-        return outer_metrics[model_name]
+        return family_evaluations[model_name]
 
     def fake_final_search(model, X_train, y_train, param_grid):
         final_searches.append((model, param_grid, X_train, y_train))
@@ -158,9 +218,11 @@ def test_selection_uses_outer_f1_and_runs_one_final_search_for_winner(monkeypatc
     monkeypatch.setattr(trainer, "_evaluate_model_family", fake_evaluate)
     monkeypatch.setattr(trainer, "perform_grid_search", fake_final_search)
 
-    result = trainer.train_and_select_best_model(X, Y, "PCA", 70)
+    result, evaluations = trainer.evaluate_and_select_models(X, Y, "PCA", 70)
 
     assert evaluated == ["svc", "rf", "xgb"]
+    assert [item["model_key"] for item in evaluations] == ["svc", "rf", "xgb"]
+    assert [item["selected"] for item in evaluations] == [False, True, False]
     assert len(final_searches) == 1
     assert final_searches[0][0] == "rf-fresh"
     assert np.shares_memory(final_searches[0][2], X)
@@ -168,9 +230,32 @@ def test_selection_uses_outer_f1_and_runs_one_final_search_for_winner(monkeypatc
     assert result == (
         "rf-final-estimator",
         {"n_estimators": 10},
-        *outer_metrics["rf"],
+        0.85, 0.01, 0.81, 0.02, 0.82, 0.03,
     )
     assert len(result) == 8
+
+
+def test_exact_outer_f1_tie_selects_first_active_model(monkeypatch):
+    trainer = MultiModelTrainer(_config(["svc", "rf"]))
+    monkeypatch.setattr(
+        trainer,
+        "_evaluate_model_family",
+        lambda name, X_train, y_train: _family_evaluation(name, 0.8),
+    )
+    final_searches = []
+
+    def fake_final_search(model, X_train, y_train, param_grid):
+        final_searches.append(model)
+        return "svc-final", {"svc__C": 1}
+
+    monkeypatch.setattr(trainer, "perform_grid_search", fake_final_search)
+
+    result, evaluations = trainer.evaluate_and_select_models(X, Y, "PCA", 70)
+
+    assert result[:2] == ("svc-final", {"svc__C": 1})
+    assert [item["selected"] for item in evaluations] == [True, False]
+    assert len(final_searches) == 1
+    assert isinstance(final_searches[0], SklearnPipeline)
 
 
 def test_stack_is_evaluated_directly_without_grid_search(monkeypatch):
@@ -184,10 +269,12 @@ def test_stack_is_evaluated_directly_without_grid_search(monkeypatch):
 
     def fake_cross_validate(model, X_train, y_train):
         captured["model"] = model
-        return 0.7, 0.01, 0.8, 0.02, 0.9, 0.03
+        return _rich_evaluation(0.7)
 
     monkeypatch.setattr(trainer, "_build_grid_search", forbidden_grid_search)
-    monkeypatch.setattr(trainer, "cross_validate_model", fake_cross_validate)
+    monkeypatch.setattr(
+        trainer, "_cross_validate_model_with_scores", fake_cross_validate
+    )
 
     trainer._evaluate_model_family("stack", X, Y)
 
@@ -223,8 +310,8 @@ def test_stack_winner_fits_fresh_estimator_on_all_data(monkeypatch):
     trainer.model_builders["stack"] = build_stack
     monkeypatch.setattr(
         trainer,
-        "cross_validate_model",
-        lambda model, X_train, y_train: (0.8, 0.1, 0.7, 0.2, 0.9, 0.3),
+        "_cross_validate_model_with_scores",
+        lambda model, X_train, y_train: _rich_evaluation(0.8, 0.7, 0.9),
     )
 
     result = trainer.train_and_select_best_model(X, Y, "PCA", 70)
@@ -234,7 +321,7 @@ def test_stack_winner_fits_fresh_estimator_on_all_data(monkeypatch):
     assert result[0] is not instances[0]
     assert result[0].fit_args == (X, Y)
     assert result[1] == {}
-    assert result[2:] == (0.8, 0.1, 0.7, 0.2, 0.9, 0.3)
+    assert result[2:] == (0.8, 0.01, 0.7, 0.02, 0.9, 0.03)
     assert len(result) == 8
 
 
@@ -245,7 +332,7 @@ def test_active_model_filtering_remains_intact(monkeypatch):
         trainer,
         "_evaluate_model_family",
         lambda name, X_train, y_train: (
-            evaluated.append(name) or (0.8, 0.1, 0.7, 0.2, 0.9, 0.3)
+            evaluated.append(name) or _family_evaluation(name, 0.8, 0.7, 0.9)
         ),
     )
     monkeypatch.setattr(
@@ -258,6 +345,7 @@ def test_active_model_filtering_remains_intact(monkeypatch):
 
     assert evaluated == ["rf"]
     assert result[:2] == ("rf-final", {"best": True})
+    assert len(result) == 8
 
 
 def test_svc_builder_returns_scaler_then_svc_pipeline():

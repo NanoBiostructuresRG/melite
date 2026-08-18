@@ -150,8 +150,9 @@ class MultiModelTrainer(ModelTrainer):
 
         return list(active_models)
 
-    def _build_outer_cv(self):
-        cv_cfg = self.config.get_cv_config()
+    def _build_outer_cv(self, cv_cfg=None):
+        if cv_cfg is None:
+            cv_cfg = self.config.get_cv_config()
         return RepeatedStratifiedKFold(
             n_splits=cv_cfg["n_splits"],
             n_repeats=cv_cfg["n_repeats"],
@@ -234,21 +235,57 @@ class MultiModelTrainer(ModelTrainer):
         auc_mean : float or None
         auc_std : float or None
         """
-        cv = self._build_outer_cv()
+        evaluation = self._cross_validate_model_with_scores(
+            model, X_train, y_train
+        )
+        return (
+            evaluation["f1_macro"],
+            evaluation["f1_std"],
+            evaluation["accuracy"],
+            evaluation["acc_std"],
+            evaluation["auc_roc"],
+            evaluation["auc_std"],
+        )
+
+    def _cross_validate_model_with_scores(self, model, X_train, y_train):
+        cv_cfg = self.config.get_cv_config()
+        cv = self._build_outer_cv(cv_cfg)
         scoring = {"f1": "f1_macro", "acc": "accuracy", "auc": "roc_auc"}
         scores = cross_validate(
             model, X_train, y_train,
             scoring=scoring, cv=cv, n_jobs=1, return_train_score=False,
         )
 
-        f1_mean, f1_std = scores["test_f1"].mean(), scores["test_f1"].std()
-        acc_mean, acc_std = scores["test_acc"].mean(), scores["test_acc"].std()
+        f1_vals = scores["test_f1"]
+        acc_vals = scores["test_acc"]
         auc_vals = scores.get("test_auc")
         auc_mean, auc_std = (
             (auc_vals.mean(), auc_vals.std()) if auc_vals is not None else (None, None)
         )
+        n_splits = cv_cfg["n_splits"]
+        outer_scores = [
+            {
+                "outer_split": outer_split,
+                "outer_repeat": outer_split // n_splits,
+                "outer_fold": outer_split % n_splits,
+                "f1_macro": f1_value,
+                "accuracy": acc_vals[outer_split],
+                "auc_roc": (
+                    auc_vals[outer_split] if auc_vals is not None else None
+                ),
+            }
+            for outer_split, f1_value in enumerate(f1_vals)
+        ]
 
-        return f1_mean, f1_std, acc_mean, acc_std, auc_mean, auc_std
+        return {
+            "f1_macro": f1_vals.mean(),
+            "f1_std": f1_vals.std(),
+            "accuracy": acc_vals.mean(),
+            "acc_std": acc_vals.std(),
+            "auc_roc": auc_mean,
+            "auc_std": auc_std,
+            "outer_scores": outer_scores,
+        }
 
     def _evaluate_model_family(self, model_name, X_train, y_train):
         model = self.model_builders[model_name]()
@@ -257,10 +294,17 @@ class MultiModelTrainer(ModelTrainer):
         else:
             param_grid = self._filter_param_grid(model_name)
             evaluation_estimator = self._build_grid_search(model, param_grid)
-        return self.cross_validate_model(evaluation_estimator, X_train, y_train)
+        evaluation = self._cross_validate_model_with_scores(
+            evaluation_estimator, X_train, y_train
+        )
+        return {
+            "model_key": model_name,
+            **evaluation,
+            "selected": False,
+        }
 
-    def train_and_select_best_model(self, X_train, y_train, reduction_type, level):
-        """Train all active models and return the best configuration.
+    def evaluate_and_select_models(self, X_train, y_train, reduction_type, level):
+        """Evaluate every active family and return the selected model and evidence.
 
         Each tunable family is evaluated with nested cross-validation; stacking
         is evaluated directly. The family with the highest outer mean F1-macro
@@ -279,56 +323,42 @@ class MultiModelTrainer(ModelTrainer):
 
         Returns
         -------
-        model : estimator
-            Best fitted estimator.
-        params : dict
-            Best hyperparameter combination.
-        f1 : float
-            Mean F1-macro across CV folds.
-        f1_std : float
-            Standard deviation of F1-macro across CV folds.
-        acc : float
-            Mean accuracy across CV folds.
-        acc_std : float
-            Standard deviation of accuracy across CV folds.
-        auc : float or None
-            Mean AUC-ROC across CV folds, or ``None`` if not available.
-        auc_std : float or None
-            Standard deviation of AUC-ROC across CV folds, or ``None``.
+        selected_result : tuple
+            Existing eight-element selected-model result.
+        evaluations : list of dict
+            Outer-CV aggregate and per-split evidence for every active family.
         """
-        best = {
-            "model_name": None,
-            "f1": -1, "f1_std": 0,
-            "acc": 0, "acc_std": 0,
-            "auc": None, "auc_std": None,
-        }
+        evaluations = [
+            self._evaluate_model_family(model_name, X_train, y_train)
+            for model_name in self.active_models
+        ]
+        best = evaluations[0]
+        for evaluation in evaluations[1:]:
+            if evaluation["f1_macro"] > best["f1_macro"]:
+                best = evaluation
+        best["selected"] = True
 
-        for model_name in self.active_models:
-            f1_mean, f1_std, acc_mean, acc_std, auc_mean, auc_std = (
-                self._evaluate_model_family(model_name, X_train, y_train)
-            )
-
-            if f1_mean > best["f1"]:
-                best.update({
-                    "model_name": model_name,
-                    "f1": f1_mean, "f1_std": f1_std,
-                    "acc": acc_mean, "acc_std": acc_std,
-                    "auc": auc_mean, "auc_std": auc_std,
-                })
-
-        winning_model = self.model_builders[best["model_name"]]()
-        if best["model_name"] == "stack":
+        winning_model = self.model_builders[best["model_key"]]()
+        if best["model_key"] == "stack":
             winning_model.fit(X_train, y_train)
             params = {}
         else:
-            param_grid = self._filter_param_grid(best["model_name"])
+            param_grid = self._filter_param_grid(best["model_key"])
             winning_model, params = self.perform_grid_search(
                 winning_model, X_train, y_train, param_grid
             )
 
-        return (
+        selected_result = (
             winning_model, params,
-            best["f1"], best["f1_std"],
-            best["acc"], best["acc_std"],
-            best["auc"], best["auc_std"],
+            best["f1_macro"], best["f1_std"],
+            best["accuracy"], best["acc_std"],
+            best["auc_roc"], best["auc_std"],
         )
+        return selected_result, evaluations
+
+    def train_and_select_best_model(self, X_train, y_train, reduction_type, level):
+        """Train all active models and return the best configuration."""
+        selected_result, _ = self.evaluate_and_select_models(
+            X_train, y_train, reduction_type, level
+        )
+        return selected_result
