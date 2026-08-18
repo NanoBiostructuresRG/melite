@@ -40,11 +40,54 @@ class DummyPipeline:
 
     def run_with_evaluations(self, X_train, y_train, reduction_type, level):
         selected_result = self.run(X_train, y_train, reduction_type, level)
-        evaluations = [{
-            "model_key": "svc",
-            "dataset_marker": reduction_type,
-            "selected": True,
-        }]
+        evaluations = [
+            {
+                "model_key": "svc",
+                "f1_macro": 0.8123456789,
+                "f1_std": 0.0123456789,
+                "accuracy": 0.8234567891,
+                "acc_std": 0.0234567891,
+                "auc_roc": 0.9345678912,
+                "auc_std": 0.0345678912,
+                "outer_scores": [
+                    {
+                        "outer_split": 0,
+                        "outer_repeat": 0,
+                        "outer_fold": 0,
+                        "f1_macro": 0.8012345678,
+                        "accuracy": 0.8123456789,
+                        "auc_roc": 0.9234567891,
+                    },
+                    {
+                        "outer_split": 1,
+                        "outer_repeat": 0,
+                        "outer_fold": 1,
+                        "f1_macro": 0.8234567891,
+                        "accuracy": 0.8345678912,
+                        "auc_roc": 0.9456789123,
+                    },
+                ],
+                "selected": True,
+            },
+            {
+                "model_key": "rf",
+                "f1_macro": 0.7123456789,
+                "f1_std": 0.0456789123,
+                "accuracy": 0.7234567891,
+                "acc_std": 0.0567891234,
+                "auc_roc": None,
+                "auc_std": None,
+                "outer_scores": [{
+                    "outer_split": 0,
+                    "outer_repeat": 0,
+                    "outer_fold": 0,
+                    "f1_macro": 0.7123456789,
+                    "accuracy": 0.7234567891,
+                    "auc_roc": None,
+                }],
+                "selected": False,
+            },
+        ]
         return selected_result, evaluations
 
 
@@ -173,13 +216,41 @@ level = 85
         "rdkit_descriptors",
         "pca85",
     ]
-    assert main.evaluations_by_dataset["morgan_r2_2048"] == [{
-        "model_key": "svc",
-        "dataset_marker": "morgan_r2_2048",
-        "selected": True,
-    }]
+    retained = main.evaluations_by_dataset["morgan_r2_2048"]
+    assert [evaluation["model_key"] for evaluation in retained] == ["svc", "rf"]
+    assert [evaluation["selected"] for evaluation in retained] == [True, False]
     assert "outer_scores" not in rows[0]
     assert "selected" not in rows[0]
+
+    evaluation_rows = _rows(output_dir / "evaluations.csv")
+    fold_rows = _rows(output_dir / "evaluation_folds.csv")
+    assert len(evaluation_rows) == 6
+    assert len(fold_rows) == 9
+    assert list(evaluation_rows[0]) == [
+        "dataset", "family", "method", "variant", "level", "description",
+        "reduction_type", "model_name", "f1_macro", "f1_std", "accuracy",
+        "acc_std", "auc_roc", "auc_std", "selected", "smoke",
+    ]
+    assert list(fold_rows[0]) == [
+        "dataset", "family", "method", "variant", "level", "description",
+        "reduction_type", "model_name", "outer_split", "outer_repeat",
+        "outer_fold", "f1_macro", "accuracy", "auc_roc", "selected", "smoke",
+    ]
+    assert evaluation_rows[0]["dataset"] == "morgan_r2_2048"
+    assert evaluation_rows[0]["family"] == "fingerprints"
+    assert evaluation_rows[0]["method"] == "Morgan"
+    assert evaluation_rows[0]["variant"] == "r2_2048"
+    assert evaluation_rows[0]["description"] == "Morgan radius 2 fingerprint"
+    assert evaluation_rows[0]["model_name"] == "SVC"
+    assert evaluation_rows[0]["f1_macro"] == "0.8123456789"
+    assert evaluation_rows[0]["selected"] == "True"
+    assert evaluation_rows[0]["smoke"] == "False"
+    assert evaluation_rows[1]["model_name"] == "RandomForestClassifier"
+    assert evaluation_rows[1]["auc_roc"] == ""
+    assert fold_rows[1]["outer_split"] == "1"
+    assert fold_rows[1]["outer_fold"] == "1"
+    assert fold_rows[1]["f1_macro"] == "0.8234567891"
+    assert fold_rows[1]["selected"] == "True"
 
 
 def test_main_run_uses_legacy_registry_metadata(monkeypatch, tmp_path):

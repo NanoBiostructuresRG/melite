@@ -18,6 +18,54 @@ SAMPLE_ROWS = [
     }
 ]
 
+EVALUATION_FIELDS = [
+    "dataset", "family", "method", "variant", "level", "description",
+    "reduction_type", "model_name", "f1_macro", "f1_std", "accuracy",
+    "acc_std", "auc_roc", "auc_std", "selected", "smoke",
+]
+
+FOLD_FIELDS = [
+    "dataset", "family", "method", "variant", "level", "description",
+    "reduction_type", "model_name", "outer_split", "outer_repeat",
+    "outer_fold", "f1_macro", "accuracy", "auc_roc", "selected", "smoke",
+]
+
+EVALUATION_ROW = {
+    "dataset": "morgan",
+    "family": "fingerprints",
+    "method": "Morgan",
+    "variant": "r2_2048",
+    "level": None,
+    "description": "Morgan fingerprint",
+    "reduction_type": None,
+    "model_name": "SVC",
+    "f1_macro": 0.8123456789,
+    "f1_std": 0.0123456789,
+    "accuracy": 0.8234567891,
+    "acc_std": 0.0234567891,
+    "auc_roc": None,
+    "auc_std": None,
+    "selected": True,
+}
+
+FOLD_ROW = {
+    "dataset": "morgan",
+    "family": "fingerprints",
+    "method": "Morgan",
+    "variant": "r2_2048",
+    "level": None,
+    "description": "Morgan fingerprint",
+    "reduction_type": None,
+    "model_name": "SVC",
+    "outer_split": 3,
+    "outer_repeat": 1,
+    "outer_fold": 1,
+    "f1_macro": 0.8012345678,
+    "accuracy": 0.8123456789,
+    "auc_roc": None,
+    "selected": True,
+}
+
 
 def test_write_results_creates_file(tmp_path):
     output_file = tmp_path / "results.txt"
@@ -57,11 +105,11 @@ def test_write_csv_correct_fieldnames(tmp_path):
     rm.write_csv(SAMPLE_ROWS, csv_path)
     with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        assert "dataset" in reader.fieldnames
-        assert "family" in reader.fieldnames
-        assert "method" in reader.fieldnames
-        assert "smoke" in reader.fieldnames
-        assert "f1_macro" in reader.fieldnames
+        assert reader.fieldnames == [
+            "dataset", "family", "method", "variant", "level", "description",
+            "reduction_type", "model_name", "parameters", "f1_macro", "f1_std",
+            "accuracy", "acc_std", "auc_roc", "auc_std", "smoke",
+        ]
 
 
 def test_write_csv_smoke_true(tmp_path):
@@ -91,4 +139,55 @@ def test_write_csv_empty_rows_produces_no_file(tmp_path):
     csv_path = tmp_path / "results.csv"
     rm = ResultManager(str(output_file))
     rm.write_csv([], csv_path)
+    assert not csv_path.exists()
+
+
+def test_write_evaluations_csv_uses_exact_schema_and_raw_values(tmp_path):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    csv_path = tmp_path / "nested" / "evaluations.csv"
+
+    rm.write_evaluations_csv([EVALUATION_ROW], csv_path, smoke=True)
+
+    with open(csv_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    assert reader.fieldnames == EVALUATION_FIELDS
+    assert len(rows) == 1
+    assert rows[0]["f1_macro"] == "0.8123456789"
+    assert rows[0]["auc_roc"] == ""
+    assert rows[0]["selected"] == "True"
+    assert rows[0]["smoke"] == "True"
+
+
+def test_write_evaluation_folds_csv_uses_exact_schema_and_raw_values(tmp_path):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    csv_path = tmp_path / "nested" / "evaluation_folds.csv"
+
+    rm.write_evaluation_folds_csv([FOLD_ROW], csv_path, smoke=True)
+
+    with open(csv_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    assert reader.fieldnames == FOLD_FIELDS
+    assert len(rows) == 1
+    assert rows[0]["outer_split"] == "3"
+    assert rows[0]["f1_macro"] == "0.8012345678"
+    assert rows[0]["auc_roc"] == ""
+    assert rows[0]["selected"] == "True"
+    assert rows[0]["smoke"] == "True"
+
+
+@pytest.mark.parametrize(
+    ("method_name", "filename"),
+    [
+        ("write_evaluations_csv", "evaluations.csv"),
+        ("write_evaluation_folds_csv", "evaluation_folds.csv"),
+    ],
+)
+def test_evaluation_csv_writers_skip_empty_rows(tmp_path, method_name, filename):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    csv_path = tmp_path / filename
+
+    getattr(rm, method_name)([], csv_path, smoke=True)
+
     assert not csv_path.exists()

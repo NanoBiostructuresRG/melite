@@ -125,3 +125,51 @@ Repository: https://github.com/NanoBiostructuresRG/melite
                     writer.writerow({**row, "smoke": smoke})
         except Exception as e:
             print(f"Error writing CSV: {e}")
+
+    @staticmethod
+    def _write_evaluation_csv(
+        rows: list[dict],
+        path: Path | str,
+        fieldnames: list[str],
+        smoke: bool,
+        error_message: str,
+    ) -> None:
+        if not rows:
+            return
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(path, mode="w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                for row in rows:
+                    writer.writerow({**row, "smoke": smoke})
+        except Exception as e:
+            print(f"{error_message}: {e}")
+
+    def write_evaluations_csv(
+        self, rows: list[dict], path: Path | str, smoke: bool = False
+    ) -> None:
+        """Write one aggregate evaluation row per dataset and model family."""
+        fieldnames = [
+            "dataset", "family", "method", "variant", "level", "description",
+            "reduction_type", "model_name", "f1_macro", "f1_std", "accuracy",
+            "acc_std", "auc_roc", "auc_std", "selected", "smoke",
+        ]
+        self._write_evaluation_csv(
+            rows, path, fieldnames, smoke, "Error writing evaluations CSV"
+        )
+
+    def write_evaluation_folds_csv(
+        self, rows: list[dict], path: Path | str, smoke: bool = False
+    ) -> None:
+        """Write one evaluation row per dataset, model family, and outer fold."""
+        fieldnames = [
+            "dataset", "family", "method", "variant", "level", "description",
+            "reduction_type", "model_name", "outer_split", "outer_repeat",
+            "outer_fold", "f1_macro", "accuracy", "auc_roc", "selected", "smoke",
+        ]
+        self._write_evaluation_csv(
+            rows, path, fieldnames, smoke, "Error writing evaluation folds CSV"
+        )

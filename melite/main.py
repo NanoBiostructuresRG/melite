@@ -25,6 +25,13 @@ _SMOKE_WARNING = (
     "Results are not benchmark-quality.\n"
 )
 
+_MODEL_NAMES = {
+    "svc": "SVC",
+    "rf": "RandomForestClassifier",
+    "xgb": "XGBClassifier",
+    "stack": "StackingClassifier",
+}
+
 
 class Pipeline:
     """Thin wrapper around :class:`~melite.model_training.MultiModelTrainer`.
@@ -93,6 +100,8 @@ class Main:
         self.final_results = []
         self.csv_rows = []
         self.evaluations_by_dataset = {}
+        self.evaluation_rows = []
+        self.evaluation_fold_rows = []
 
     @staticmethod
     def _clean_params(params):
@@ -159,6 +168,39 @@ class Main:
             )
             self.evaluations_by_dataset[dataset_id] = evaluations
 
+            for evaluation in evaluations:
+                evaluation_metadata = {
+                    "dataset": dataset_id,
+                    "family": family,
+                    "method": method,
+                    "variant": variant,
+                    "level": level,
+                    "description": description,
+                    "reduction_type": reduction_type,
+                    "model_name": _MODEL_NAMES[evaluation["model_key"]],
+                }
+                self.evaluation_rows.append({
+                    **evaluation_metadata,
+                    "f1_macro": evaluation["f1_macro"],
+                    "f1_std": evaluation["f1_std"],
+                    "accuracy": evaluation["accuracy"],
+                    "acc_std": evaluation["acc_std"],
+                    "auc_roc": evaluation["auc_roc"],
+                    "auc_std": evaluation["auc_std"],
+                    "selected": evaluation["selected"],
+                })
+                for outer_score in evaluation["outer_scores"]:
+                    self.evaluation_fold_rows.append({
+                        **evaluation_metadata,
+                        "outer_split": outer_score["outer_split"],
+                        "outer_repeat": outer_score["outer_repeat"],
+                        "outer_fold": outer_score["outer_fold"],
+                        "f1_macro": outer_score["f1_macro"],
+                        "accuracy": outer_score["accuracy"],
+                        "auc_roc": outer_score["auc_roc"],
+                        "selected": evaluation["selected"],
+                    })
+
             (
                 best_model, best_params,
                 best_f1, f1_std,
@@ -219,3 +261,13 @@ class Main:
         csv_path = Path(self.config.PATHS["OUTPUT"]) / "results.csv"
         self.result_manager.write_csv(self.csv_rows, csv_path, smoke=self.config.SMOKE)
         logger.info("CSV file written to %s", csv_path)
+
+        evaluations_path = Path(self.config.PATHS["OUTPUT"]) / "evaluations.csv"
+        self.result_manager.write_evaluations_csv(
+            self.evaluation_rows, evaluations_path, smoke=self.config.SMOKE
+        )
+
+        folds_path = Path(self.config.PATHS["OUTPUT"]) / "evaluation_folds.csv"
+        self.result_manager.write_evaluation_folds_csv(
+            self.evaluation_fold_rows, folds_path, smoke=self.config.SMOKE
+        )
