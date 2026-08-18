@@ -17,14 +17,33 @@ def test_config_instantiates_without_filesystem_side_effects(tmp_path):
 
 def test_config_smoke_false_uses_full_cv():
     cfg = Config(smoke=False)
-    assert cfg.CV_CONFIG["n_splits"] == 10
-    assert cfg.CV_CONFIG["n_repeats"] == 5
+    assert cfg.CV_CONFIG == {
+        "n_splits": 5,
+        "n_repeats": 3,
+        "inner_n_splits": 3,
+        "random_state": 42,
+    }
 
 
 def test_config_smoke_true_uses_reduced_cv():
     cfg = Config(smoke=True)
-    assert cfg.CV_CONFIG["n_splits"] == 3
-    assert cfg.CV_CONFIG["n_repeats"] == 1
+    assert cfg.CV_CONFIG == {
+        "n_splits": 3,
+        "n_repeats": 1,
+        "inner_n_splits": 2,
+        "random_state": 42,
+    }
+
+
+def test_config_user_cv_override_inherits_default_inner_splits(tmp_path):
+    user_toml = tmp_path / "custom.toml"
+    user_toml.write_text("[cv]\nn_splits = 4\nn_repeats = 2\n")
+
+    cfg = Config(user_config=user_toml)
+
+    assert cfg.CV_CONFIG["n_splits"] == 4
+    assert cfg.CV_CONFIG["n_repeats"] == 2
+    assert cfg.CV_CONFIG["inner_n_splits"] == 3
 
 
 def test_config_smoke_true_uses_single_value_grids():

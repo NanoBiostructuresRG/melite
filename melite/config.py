@@ -79,8 +79,8 @@ class Config:
         Model keys to include in the benchmark (e.g. ``["svc", "rf", "xgb"]``;
         add ``"stack"`` to opt in to experimental stacking).
     CV_CONFIG : dict
-        Cross-validation settings with keys ``n_splits``, ``n_repeats``, and
-        ``random_state``.
+        Cross-validation settings with keys ``n_splits``, ``n_repeats``,
+        ``inner_n_splits``, and ``random_state``.
     PARAM_GRID : list of dict
         Raw hyperparameter grid definitions, one entry per model configuration.
     PARAM_GRID_BY_MODEL : dict
@@ -133,9 +133,10 @@ class Config:
         # Cross-validation
         cv_section = cfg["cv_smoke"] if smoke else cfg["cv"]
         self.CV_CONFIG = {
-            "n_splits":     cv_section["n_splits"],
-            "n_repeats":    cv_section["n_repeats"],
-            "random_state": self.RANDOM_STATE,
+            "n_splits":       cv_section["n_splits"],
+            "n_repeats":      cv_section["n_repeats"],
+            "inner_n_splits": cv_section["inner_n_splits"],
+            "random_state":   self.RANDOM_STATE,
         }
 
         # Hyperparameter grids — developer-facing, defined in Python
@@ -287,8 +288,8 @@ class Config:
         Returns
         -------
         dict
-            Dictionary with keys ``n_splits``, ``n_repeats``, and
-            ``random_state``.
+            Dictionary with keys ``n_splits``, ``n_repeats``,
+            ``inner_n_splits``, and ``random_state``.
         """
         return self.CV_CONFIG
 
