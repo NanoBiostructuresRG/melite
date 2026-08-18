@@ -2,9 +2,9 @@
 """Final model export workflow for MELITE.
 
 This module provides :class:`Finalizer`, which reads a benchmark results CSV,
-lets the user select a configuration row, retrains the corresponding model on
-all available data, generates a CV metric distribution plot, and serialises
-the trained model as a ``.pkl`` artifact.
+lets the user select a configuration row, reconstructs the selected model,
+retrains it on all available data, and serialises the trained model as a
+``.pkl`` artifact.
 
 A smoke-mode guard prevents accidental export of non-benchmark-quality results.
 """
@@ -21,14 +21,9 @@ import numpy as np
 import pandas as pd
 from .config import Config
 from .load_dataset import load_datasets, _load_one_dataset
-from .plot_metrics import plot_cv_distributions
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import (
-    cross_validate,
-    RepeatedStratifiedKFold,
-    StratifiedKFold,
-)
+from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -277,23 +272,6 @@ class Finalizer:
         self._metrics = pd.read_csv(csv_path)
         self._loader = DatasetLoader(cfg)
 
-    def _cv_and_plot(self, model, X, y, row, save_dir: Path) -> None:
-        cv_cfg = self._cfg.get_cv_config()
-        cv = RepeatedStratifiedKFold(
-            n_splits=cv_cfg["n_splits"],
-            n_repeats=cv_cfg["n_repeats"],
-            random_state=cv_cfg["random_state"],
-        )
-        scoring = {"f1": "f1_macro", "acc": "accuracy", "auc": "roc_auc"}
-        scores = cross_validate(
-            model, X, y, scoring=scoring, cv=cv, n_jobs=-1, return_train_score=False
-        )
-        plot_cv_distributions(
-            scores["test_f1"], scores["test_acc"], scores.get("test_auc"),
-            model_name=row.model_name, params=row.parameters,
-            save_to=save_dir / f"{row.model_name}_{self._row_dataset_label(row)}.png",
-        )
-
     def _check_smoke_guard(self, row: pd.Series) -> None:
         """Block export of smoke-mode results unless ``--force`` is active.
 
@@ -330,9 +308,9 @@ class Finalizer:
         """Execute the full export workflow.
 
         Displays the metrics table, prompts or uses ``--row`` to select a
-        configuration, checks the smoke guard, loads the dataset, runs CV and
-        generates a metric plot, retrains the model on all data, and saves the
-        ``.pkl`` artifact.
+        configuration, checks the smoke guard, loads the dataset, reconstructs the
+        selected model, retrains it on all available data, and saves the ``.pkl``
+        artifact.
 
         Notes
         -----
@@ -349,9 +327,6 @@ class Finalizer:
             cv_config=self._cfg.get_cv_config(),
             random_state=getattr(self._cfg, "RANDOM_STATE", 42),
         )
-
-        figures_dir = Path(self._cfg.PATHS["OUTPUT"]) / "figures"
-        self._cv_and_plot(model, X, y, row, figures_dir)
 
         logger.info(
             "Training %s on %s using all available data...",

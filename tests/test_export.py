@@ -162,8 +162,6 @@ def test_export_dataset_row_uses_dataset_id_for_artifact(monkeypatch, tmp_path):
     monkeypatch.setattr(
         Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     assert (tmp_path / "output" / "Model_SVC_morgan_r2_2048.pkl").exists()
@@ -208,8 +206,6 @@ def test_export_dataset_row_uses_strict_load_datasets(monkeypatch, tmp_path):
     monkeypatch.setattr(
         Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     assert calls == [cfg]
@@ -241,8 +237,6 @@ def test_export_dataset_npz_without_X_fails_clearly(monkeypatch, tmp_path):
     monkeypatch.setattr(
         Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     with pytest.raises(ValueError, match="Required key 'X' not found"):
         Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
@@ -272,8 +266,6 @@ def test_export_legacy_row_with_valid_X_and_labels_succeeds(monkeypatch, tmp_pat
     monkeypatch.setattr(
         Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     assert (tmp_path / "output" / "Model_SVC_PCA70.pkl").exists()
@@ -301,8 +293,6 @@ def test_export_svc_saves_scaler_pipeline(monkeypatch, tmp_path):
             "smoke": False,
         },
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     model = joblib.load(tmp_path / "output" / "Model_SVC_toy.pkl")
@@ -386,8 +376,6 @@ def test_export_can_rebuild_and_save_stacking_model(monkeypatch, tmp_path):
             "smoke": False,
         },
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     model = joblib.load(tmp_path / "output" / "Model_StackingClassifier_toy.pkl")
@@ -422,47 +410,5 @@ def test_export_legacy_npz_without_X_does_not_fallback_to_first_key(
     monkeypatch.setattr(
         Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     with pytest.raises(ValueError, match="Required key 'X' not found"):
         Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
-
-
-def test_cv_plot_uses_dataset_id_for_figure(monkeypatch, tmp_path):
-    import melite.export_best_model as export_module
-
-    cfg = _make_config(tmp_path)
-    csv_path = tmp_path / "output" / "results.csv"
-    _write_results_csv(
-        csv_path,
-        ["dataset", "model_name", "parameters", "smoke"],
-        {
-            "dataset": "rdkit_descriptors",
-            "model_name": "SVC",
-            "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
-            "smoke": False,
-        },
-    )
-    saved = {}
-    monkeypatch.setattr(
-        export_module,
-        "cross_validate",
-        lambda *args, **kwargs: {
-            "test_f1": np.array([0.8]),
-            "test_acc": np.array([0.8]),
-            "test_auc": np.array([0.9]),
-        },
-    )
-    monkeypatch.setattr(
-        export_module,
-        "plot_cv_distributions",
-        lambda *args, **kwargs: saved.update({"save_to": kwargs["save_to"]}),
-    )
-    finalizer = Finalizer(csv_path, tmp_path / "output", cfg, row_index=0)
-    row = finalizer._get_selected_row()
-
-    finalizer._cv_and_plot(
-        DummyModel(), np.ones((20, 5)), np.array([0, 1] * 10), row, tmp_path
-    )
-
-    assert saved["save_to"] == tmp_path / "SVC_rdkit_descriptors.png"
