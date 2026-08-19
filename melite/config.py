@@ -77,7 +77,7 @@ class Config:
         entry contains ``path``, ``label_path``, and ``metadata`` keys.
     ACTIVE_MODELS : list of str
         Model keys to include in the benchmark (e.g. ``["svc", "rf", "xgb"]``;
-        add ``"stack"`` to opt in to experimental stacking).
+        add ``"stack"`` to opt in to stacking).
     CV_CONFIG : dict
         Cross-validation settings with keys ``n_splits``, ``n_repeats``,
         ``inner_n_splits``, and ``random_state``.

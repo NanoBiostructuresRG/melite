@@ -365,7 +365,7 @@ def test_rf_and_xgb_builders_remain_unscaled_direct_estimators():
     assert isinstance(trainer.model_builders["xgb"](), XGBClassifier)
 
 
-def test_stacking_builder_returns_experimental_stacking_classifier():
+def test_stacking_builder_returns_expected_stacking_classifier():
     model = MultiModelTrainer(_config(["stack"])).model_builders["stack"]()
     estimators = dict(model.estimators)
     svc = estimators["svc"]
