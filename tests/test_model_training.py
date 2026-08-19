@@ -355,7 +355,7 @@ def test_svc_builder_returns_scaler_then_svc_pipeline():
     assert list(model.named_steps) == ["scaler", "svc"]
     assert isinstance(model.named_steps["scaler"], StandardScaler)
     assert isinstance(model.named_steps["svc"], SVC)
-    assert model.named_steps["svc"].probability is True
+    assert model.named_steps["svc"].probability is False
 
 
 def test_rf_and_xgb_builders_remain_unscaled_direct_estimators():

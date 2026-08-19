@@ -91,7 +91,7 @@ class MultiModelTrainer(ModelTrainer):
         self.model_builders = {
             "svc": lambda: SklearnPipeline([
                 ("scaler", StandardScaler()),
-                ("svc", SVC(probability=True, random_state=rs)),
+                ("svc", SVC(probability=False, random_state=rs)),
             ]),
             "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=-1),
             "xgb": lambda: XGBClassifier(eval_metric="logloss", random_state=rs, n_jobs=-1),
