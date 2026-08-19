@@ -333,6 +333,8 @@ def test_export_builds_stacking_classifier_with_expected_contract():
     assert isinstance(model, StackingClassifier)
     assert model.stack_method == "predict_proba"
     assert model.passthrough is False
+    assert model.n_jobs == -1
+
     assert isinstance(model.cv, StratifiedKFold)
     assert model.cv.n_splits == cv_config["inner_n_splits"]
     assert model.cv.shuffle is True
@@ -342,11 +344,15 @@ def test_export_builds_stacking_classifier_with_expected_contract():
     assert isinstance(svc.named_steps["scaler"], StandardScaler)
     assert isinstance(svc.named_steps["svc"], SVC)
     assert svc.named_steps["svc"].probability is True
+
     assert isinstance(rf, RandomForestClassifier)
+    assert rf.n_jobs == 1
+
     assert isinstance(xgb, XGBClassifier)
+    assert xgb.n_jobs == 1
+
     assert not isinstance(rf, SklearnPipeline)
     assert not isinstance(xgb, SklearnPipeline)
-
 
 def test_export_can_rebuild_and_save_stacking_model(monkeypatch, tmp_path):
     label_path, y = _write_labels(tmp_path)

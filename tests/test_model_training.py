@@ -361,8 +361,13 @@ def test_svc_builder_returns_scaler_then_svc_pipeline():
 def test_rf_and_xgb_builders_remain_unscaled_direct_estimators():
     trainer = MultiModelTrainer(_config(["rf", "xgb"]))
 
-    assert isinstance(trainer.model_builders["rf"](), RandomForestClassifier)
-    assert isinstance(trainer.model_builders["xgb"](), XGBClassifier)
+    rf = trainer.model_builders["rf"]()
+    xgb = trainer.model_builders["xgb"]()
+
+    assert isinstance(rf, RandomForestClassifier)
+    assert isinstance(xgb, XGBClassifier)
+    assert rf.n_jobs == 1
+    assert xgb.n_jobs == 1
 
 
 def test_stacking_builder_returns_expected_stacking_classifier():
@@ -375,13 +380,20 @@ def test_stacking_builder_returns_expected_stacking_classifier():
     assert isinstance(model, StackingClassifier)
     assert model.stack_method == "predict_proba"
     assert model.passthrough is False
+    assert model.n_jobs == -1
+
     assert isinstance(svc, SklearnPipeline)
     assert list(svc.named_steps) == ["scaler", "svc"]
     assert isinstance(svc.named_steps["scaler"], StandardScaler)
     assert isinstance(svc.named_steps["svc"], SVC)
     assert svc.named_steps["svc"].probability is True
+
     assert isinstance(rf, RandomForestClassifier)
+    assert rf.n_jobs == 1
+
     assert isinstance(xgb, XGBClassifier)
+    assert xgb.n_jobs == 1
+
     assert not isinstance(rf, SklearnPipeline)
     assert not isinstance(xgb, SklearnPipeline)
 

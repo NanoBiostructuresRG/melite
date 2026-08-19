@@ -93,8 +93,8 @@ class MultiModelTrainer(ModelTrainer):
                 ("scaler", StandardScaler()),
                 ("svc", SVC(probability=False, random_state=rs)),
             ]),
-            "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=-1),
-            "xgb": lambda: XGBClassifier(eval_metric="logloss", random_state=rs, n_jobs=-1),
+            "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=1),
+            "xgb": lambda: XGBClassifier(eval_metric="logloss", random_state=rs, n_jobs=1),
             "stack": lambda: self._build_stacking_classifier(rs),
         }
         self.active_models = self._validate_active_models()
@@ -114,13 +114,13 @@ class MultiModelTrainer(ModelTrainer):
                     ("scaler", StandardScaler()),
                     ("svc", SVC(probability=True, random_state=random_state)),
                 ])),
-                ("rf", RandomForestClassifier(random_state=random_state, n_jobs=-1)),
+                ("rf", RandomForestClassifier(random_state=random_state, n_jobs=1)),
                 (
                     "xgb",
                     XGBClassifier(
                         eval_metric="logloss",
                         random_state=random_state,
-                        n_jobs=-1,
+                        n_jobs=1,
                     ),
                 ),
             ],

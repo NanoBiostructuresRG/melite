@@ -79,13 +79,13 @@ def _build_stacking_classifier(
                 ("scaler", StandardScaler()),
                 ("svc", SVC(probability=True, random_state=random_state)),
             ])),
-            ("rf", RandomForestClassifier(random_state=random_state, n_jobs=-1)),
+            ("rf", RandomForestClassifier(random_state=random_state, n_jobs=1)),
             (
                 "xgb",
                 XGBClassifier(
                     eval_metric="logloss",
                     random_state=random_state,
-                    n_jobs=-1,
+                    n_jobs=1,
                 ),
             ),
         ],
