@@ -8,12 +8,21 @@ produced by the main evaluation pipeline.
 
 import csv
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+
+from .plot_metrics import plot_f1_macro_evidence
 from .version import PROJECT_LICENSE, PROJECT_NAME, __version__
 
 __all__ = ["ResultManager"]
+
+
+def _safe_filename_part(value: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value).strip()).strip("_")
+    return safe or "dataset"
 
 
 class ResultManager:
@@ -172,3 +181,35 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         self._write_evaluation_csv(
             rows, path, fieldnames, smoke, "Error writing evaluation folds CSV"
         )
+
+    def write_evaluation_figures(
+        self, rows: list[dict], smoke: bool = False
+    ) -> None:
+        """Write one outer-CV F1-macro evidence figure per dataset."""
+        if not rows:
+            return
+
+        scores_by_dataset = {}
+        selected_by_dataset = {}
+        for row in rows:
+            dataset_id = row["dataset"]
+            model_name = row["model_name"]
+            family_scores = scores_by_dataset.setdefault(dataset_id, {})
+            family_scores.setdefault(model_name, []).append(row["f1_macro"])
+            if row["selected"] is True:
+                selected_by_dataset[dataset_id] = model_name
+
+        figures_dir = Path(self.output_file).parent / "figures"
+        for dataset_id, family_scores in scores_by_dataset.items():
+            save_to = (
+                figures_dir
+                / f"evaluation_f1_macro_{_safe_filename_part(dataset_id)}.png"
+            )
+            fig = plot_f1_macro_evidence(
+                family_scores=family_scores,
+                selected_family=selected_by_dataset[dataset_id],
+                dataset_id=dataset_id,
+                save_to=save_to,
+                smoke=smoke,
+            )
+            plt.close(fig)

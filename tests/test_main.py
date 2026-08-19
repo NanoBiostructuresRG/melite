@@ -151,6 +151,16 @@ def test_pipeline_run_with_evaluations_returns_rich_result_unchanged():
 def test_main_run_uses_arbitrary_dataset_ids(monkeypatch, tmp_path):
     DummyPipeline.calls = []
     monkeypatch.setattr(main_module, "Pipeline", DummyPipeline)
+    figure_calls = []
+
+    def fake_write_evaluation_figures(self, rows, smoke=False):
+        figure_calls.append({"rows": rows, "smoke": smoke})
+
+    monkeypatch.setattr(
+        main_module.ResultManager,
+        "write_evaluation_figures",
+        fake_write_evaluation_figures,
+    )
 
     raw_dir = tmp_path / "raw"
     data_dir = tmp_path / "data"
@@ -251,6 +261,9 @@ level = 85
     assert fold_rows[1]["outer_fold"] == "1"
     assert fold_rows[1]["f1_macro"] == "0.8234567891"
     assert fold_rows[1]["selected"] == "True"
+    assert len(figure_calls) == 1
+    assert figure_calls[0]["rows"] is main.evaluation_fold_rows
+    assert figure_calls[0]["smoke"] is False
 
 
 def test_main_run_uses_legacy_registry_metadata(monkeypatch, tmp_path):

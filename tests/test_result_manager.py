@@ -4,6 +4,8 @@
 import csv
 import pytest
 from pathlib import Path
+
+import melite.result_manager as result_manager_module
 from melite.result_manager import ResultManager
 from melite.version import __version__
 
@@ -191,3 +193,56 @@ def test_evaluation_csv_writers_skip_empty_rows(tmp_path, method_name, filename)
     getattr(rm, method_name)([], csv_path, smoke=True)
 
     assert not csv_path.exists()
+
+
+def test_write_evaluation_figures_groups_existing_outer_scores(monkeypatch, tmp_path):
+    rows = [
+        {
+            **FOLD_ROW,
+            "outer_split": 0,
+            "outer_repeat": 0,
+            "outer_fold": 0,
+            "f1_macro": 0.80,
+        },
+        {
+            **FOLD_ROW,
+            "outer_split": 1,
+            "outer_repeat": 0,
+            "outer_fold": 1,
+            "f1_macro": 0.82,
+        },
+        {
+            **FOLD_ROW,
+            "model_name": "RandomForestClassifier",
+            "outer_split": 0,
+            "outer_repeat": 0,
+            "outer_fold": 0,
+            "f1_macro": 0.71,
+            "selected": False,
+        },
+    ]
+    calls = []
+    closed = []
+    sentinel_figure = object()
+
+    def fake_plot(**kwargs):
+        calls.append(kwargs)
+        return sentinel_figure
+
+    monkeypatch.setattr(result_manager_module, "plot_f1_macro_evidence", fake_plot)
+    monkeypatch.setattr(result_manager_module.plt, "close", closed.append)
+    rm = ResultManager(str(tmp_path / "results.txt"))
+
+    rm.write_evaluation_figures(rows, smoke=True)
+
+    assert calls == [{
+        "family_scores": {
+            "SVC": [0.80, 0.82],
+            "RandomForestClassifier": [0.71],
+        },
+        "selected_family": "SVC",
+        "dataset_id": "morgan",
+        "save_to": tmp_path / "figures" / "evaluation_f1_macro_morgan.png",
+        "smoke": True,
+    }]
+    assert closed == [sentinel_figure]

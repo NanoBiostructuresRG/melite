@@ -273,3 +273,7 @@ class Main:
         self.result_manager.write_evaluation_folds_csv(
             self.evaluation_fold_rows, folds_path, smoke=self.config.SMOKE
         )
+        self.result_manager.write_evaluation_figures(
+            self.evaluation_fold_rows,
+            smoke=self.config.SMOKE,
+        )
