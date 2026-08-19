@@ -14,9 +14,9 @@ def test_load_datasets_importable_from_melite():
     assert callable(load_datasets)
 
 
-def test_plot_cv_distributions_importable_from_melite():
-    from melite import plot_cv_distributions
-    assert callable(plot_cv_distributions)
+def test_plot_f1_macro_evidence_importable_from_melite():
+    from melite import plot_f1_macro_evidence
+    assert callable(plot_f1_macro_evidence)
 
 
 def test_predict_importable_from_melite():
@@ -33,7 +33,7 @@ def test_dunder_all_contains_expected_symbols():
     expected = {
         "Config",
         "load_datasets",
-        "plot_cv_distributions",
+        "plot_f1_macro_evidence",
         "predict",
         "__version__",
     }

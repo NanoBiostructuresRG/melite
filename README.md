@@ -181,7 +181,7 @@ melite export --row 0 --force
 ```python
 from melite import Config
 from melite import load_datasets
-from melite import plot_cv_distributions
+from melite import plot_f1_macro_evidence
 from melite import predict
 from melite import __version__
 ```

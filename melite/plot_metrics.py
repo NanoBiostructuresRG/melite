@@ -1,111 +1,135 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Cross-validation metric distribution plots for MELITE.
+"""Outer cross-validation evidence plots for MELITE.
 
-This module provides :func:`plot_cv_distributions`, which generates a
-three-panel figure showing the distribution of F1, Accuracy, and AUC-ROC
-scores across cross-validation folds. Each panel combines a box plot with
-jittered scatter points for individual fold scores.
+This module provides :func:`plot_f1_macro_evidence`, which visualizes the
+outer-CV F1-macro scores for every evaluated model family in one dataset and
+identifies the family selected by mean outer-CV F1-macro.
 """
+
+from pathlib import Path
+from typing import Mapping, Optional, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pathlib import Path
-from typing import Iterable, Optional
+from matplotlib.figure import Figure
 
-__all__ = ["plot_cv_distributions"]
-
-
-def _scatter_with_jitter(ax, data, color="black", s=20, jitter_scale=0.04):
-    np.random.seed(42)
-    x_vals = 1 + np.random.normal(0, jitter_scale, len(data))
-    ax.scatter(x_vals, data, color=color, s=s, zorder=3)
+__all__ = ["plot_f1_macro_evidence"]
 
 
-def plot_cv_distributions(
-    f1: Iterable[float],
-    acc: Iterable[float],
-    auc: Optional[Iterable[float]],
-    model_name: str,
-    params: str,
+def plot_f1_macro_evidence(
+    family_scores: Mapping[str, Sequence[float]],
+    selected_family: str,
+    dataset_id: str,
     save_to: Optional[Path] = None,
-) -> None:
-    """Generate and optionally save a three-panel CV metric distribution plot.
+    smoke: bool = False,
+) -> Figure:
+    """Plot outer-CV F1-macro evidence for all evaluated model families.
 
-    Creates a figure with one panel per metric (F1, Accuracy, AUC-ROC). Each
-    panel shows a box plot overlaid with jittered scatter points representing
-    individual cross-validation fold scores. If *auc* is ``None``, the
-    AUC-ROC panel is hidden.
+    Each model family is represented by its individual outer-CV F1-macro
+    scores together with the mean and standard deviation. The selected family
+    is explicitly marked.
 
     Parameters
     ----------
-    f1 : iterable of float
-        F1-macro scores from each cross-validation fold.
-    acc : iterable of float
-        Accuracy scores from each cross-validation fold.
-    auc : iterable of float or None
-        AUC-ROC scores from each cross-validation fold. Pass ``None`` to hide
-        the AUC-ROC panel (e.g. for binary classifiers without probability
-        support).
-    model_name : str
-        Model name shown in the figure title (e.g. ``"SVC"``).
-    params : str
-        Serialised hyperparameter string shown in the figure subtitle.
+    family_scores : mapping of str to sequence of float
+        Outer-CV F1-macro scores keyed by model-family name.
+    selected_family : str
+        Family selected by mean outer-CV F1-macro.
+    dataset_id : str
+        Dataset identifier shown in the figure title.
     save_to : pathlib.Path or None, optional
         Destination path for the PNG file. Parent directories are created
-        automatically if they do not exist. If ``None``, the figure is
-        displayed interactively via :func:`matplotlib.pyplot.show`. Default
-        is ``None``.
+        automatically. If ``None``, the figure is returned without being
+        displayed or saved.
+    smoke : bool, optional
+        Whether the evidence comes from a smoke-mode run.
 
-    Notes
-    -----
-    When *save_to* is provided, the figure is saved at 300 DPI with
-    ``bbox_inches="tight"`` and the directory tree is created automatically.
-    The function does not close the figure after saving; callers are
-    responsible for calling :func:`matplotlib.pyplot.close` if needed.
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Generated figure.
 
-    Examples
-    --------
-    Save a plot for an SVC model to a nested directory:
-
-    >>> from pathlib import Path
-    >>> from melite import plot_cv_distributions
-    >>> f1  = [0.76, 0.90, 0.82]
-    >>> acc = [0.77, 0.90, 0.82]
-    >>> auc = [0.83, 0.95, 0.89]
-    >>> plot_cv_distributions(
-    ...     f1, acc, auc,
-    ...     model_name="SVC",
-    ...     params="{'kernel': 'linear', 'C': 1}",
-    ...     save_to=Path("output/figures/SVC_PCA70.png"),
-    ... )
+    Raises
+    ------
+    ValueError
+        If *family_scores* is empty or *selected_family* is not present.
     """
-    metrics = [("F1 Score", f1), ("Accuracy", acc), ("AUC-ROC", auc)]
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=False)
+    if not family_scores:
+        raise ValueError("family_scores must contain at least one model family.")
 
-    for ax, (title, data) in zip(axes, metrics):
-        if data is None:
-            ax.set_visible(False)
-            continue
-
-        ax.boxplot(
-            data,
-            patch_artist=True,
-            boxprops={"facecolor": "#5DA5DA", "alpha": 0.6},
+    if selected_family not in family_scores:
+        raise ValueError(
+            f"selected_family '{selected_family}' is not present in family_scores."
         )
-        _scatter_with_jitter(ax, data)
-        ax.set_title(title)
-        ax.set_xticks([])
-        ax.set_ylabel(title)
 
-    fig.suptitle(
-        f"CV Metrics Distribution - {model_name}\nHyperparameters: {params}",
-        fontsize=13,
-    )
-    fig.tight_layout()
+    families = list(family_scores)
+    scores_by_family = [
+        np.asarray(family_scores[family], dtype=float)
+        for family in families
+    ]
 
-    if save_to:
+    fig, ax = plt.subplots(figsize=(8, 5))
+    rng = np.random.default_rng(42)
+
+    for index, (family, scores) in enumerate(zip(families, scores_by_family)):
+        jitter = rng.normal(0.0, 0.04, size=len(scores))
+        ax.scatter(
+            index + jitter,
+            scores,
+            s=28,
+            alpha=0.75,
+            zorder=2,
+        )
+
+        mean = float(np.mean(scores))
+        std = float(np.std(scores))
+
+        marker = "*" if family == selected_family else "o"
+        markersize = 11 if family == selected_family else 7
+
+        ax.errorbar(
+            index,
+            mean,
+            yerr=std,
+            fmt=marker,
+            markersize=markersize,
+            capsize=5,
+            linewidth=1.5,
+            zorder=3,
+        )
+
+        if family == selected_family:
+            ax.text(
+                index,
+                0.03,
+                "Selected",
+                ha="center",
+                va="bottom",
+                fontweight="bold",
+            )
+
+    ax.set_xticks(range(len(families)))
+    ax.set_xticklabels(families)
+    ax.set_ylabel("Outer-CV F1-macro")
+    ax.set_ylim(0.0, 1.0)
+    ax.set_title(f"Model-family evaluation — {dataset_id}")
+    ax.grid(axis="y", alpha=0.2)
+
+    if smoke:
+        fig.text(
+            0.5,
+            0.01,
+            "SMOKE MODE — not for final model selection",
+            ha="center",
+            va="bottom",
+            fontweight="bold",
+        )
+
+    fig.tight_layout(rect=(0, 0.04 if smoke else 0, 1, 1))
+
+    if save_to is not None:
         save_to = Path(save_to)
         save_to.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_to, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
+
+    return fig
