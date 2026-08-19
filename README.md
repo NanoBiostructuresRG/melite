@@ -1,13 +1,13 @@
-# MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments
+# MELITE — Multi-Model Classifier Evaluator
 
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v0.2.3-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)]()
 
-**MELITE** is a pre-stable Python toolkit for tabular classification
-benchmarking, model selection, repeated stratified cross-validation, final
-model export, and artifact-based inference.
+**MELITE** is a pre-stable multi-model classifier evaluator for tabular
+classification, model selection with nested cross-validation, final model
+export, and artifact-based inference.
 
 MELITE is tabular at the modeling level. The learning algorithms consume
 numeric `X` and `y` arrays, so the feature matrix may come from PCA, UMAP,
@@ -65,7 +65,7 @@ python -m pip install -e ".[docs]"
 
 ## Quick Start
 
-Run a fast smoke benchmark with the bundled synthetic example dataset:
+Run a fast smoke evaluation with the bundled synthetic example dataset:
 
 ```bash
 melite run --smoke --config examples/example_config.toml
@@ -94,15 +94,15 @@ print(result["probabilities"])
 | MELITE does | MELITE does not |
 |-------------|-----------------|
 | Accept prepared `X` and `y` arrays. | Generate fingerprints. |
-| Benchmark SVC, Random Forest, XGBoost, and opt-in experimental stacking classifiers. | Process SMILES. |
-| Select the best row by F1-macro. | Generate PCA or UMAP reductions from raw data. |
+| Evaluate SVC, Random Forest, XGBoost, and opt-in Stacking classifiers. | Process SMILES. |
+| Select the best active model family by mean outer-CV F1-macro for each dataset. | Generate PCA or UMAP reductions from raw data. |
 | Export a final retrained `.pkl` model. | Act as a general AutoML framework. |
 | Run artifact-based inference through `predict()`. | Promise a stable 1.0 API yet. |
 | Handle any numeric tabular matrix. | Generate or validate domain-specific descriptors. |
 
 Datasets are registered as concrete tabular matrix candidates under
 `[datasets.<dataset_id>]`. The `dataset_id` is user-defined and is used in
-`results.csv`, figures, and exported model filenames.
+evaluation outputs and exported model filenames.
 
 ```toml
 [datasets.morgan_r2_2048]
@@ -142,20 +142,20 @@ active = ["svc", "rf", "xgb"]
 ```
 
 Remove a key to skip that family during training. Valid keys are `svc`, `rf`,
-`xgb`, and experimental `stack`. Stacking is opt-in; add `"stack"` to
-`active` to evaluate an sklearn `StackingClassifier` alongside the default
-families.
+`xgb`, and `stack`. Stacking is opt-in; add `"stack"` to `active` to evaluate
+a scikit-learn `StackingClassifier` alongside the default families.
 
-Standalone SVC is trained and exported as a `StandardScaler` -> `SVC` sklearn
-pipeline because SVM/kernel-based methods are sensitive to feature scale.
-Random Forest and XGBoost are tree-based models and remain unscaled by
-default. Experimental stacking uses `stack_method="predict_proba"` with a
-scaled probabilistic SVC base estimator, unscaled RF/XGBoost base estimators,
-and a logistic regression final estimator. Its internal stacking CV uses the
-configured split count and random state with one repeat to satisfy sklearn's
-out-of-fold prediction requirements. Final exports remain `.pkl` artifacts
-serialized with `joblib`; Optuna and MLflow are not part of v0.2.3.
-    
+Standalone SVC uses a `StandardScaler` -> `SVC` scikit-learn pipeline because
+SVM/kernel-based methods are sensitive to feature scale. Probability fitting
+is disabled during standalone SVC evaluation and enabled for exported SVC
+artifacts used for inference. Random Forest and XGBoost are tree-based models
+and remain unscaled by default. Opt-in stacking uses
+`stack_method="predict_proba"` with a scaled probabilistic SVC base estimator,
+unscaled RF/XGBoost base estimators, and a logistic regression final estimator.
+Its internal stacking CV uses the configured `inner_n_splits` and random state.
+Final exports remain `.pkl` artifacts serialized with `joblib`; Optuna and
+MLflow are not part of v0.2.4.
+
 ## CLI
 
 ```bash
@@ -186,8 +186,6 @@ from melite import predict
 from melite import __version__
 ```
 
-Modules not listed above are importable directly but are not part of the public
-contract and may change before 1.0.
 
 ## Input Format
 
@@ -208,9 +206,9 @@ MELITE validates it against the configured `label_path`.
 output/
 |-- results.txt
 |-- results.csv
-|-- Model_<model>_<dataset>.pkl
-`-- figures/
-    `-- <model>_<dataset>.png
+|-- evaluations.csv
+|-- evaluation_folds.csv
+`-- Model_<model>_<dataset>.pkl
 ```
 
 Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
@@ -218,7 +216,7 @@ Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
 
 ## Validation
 
-The current `dev/v0.2.3` branch targets:
+The current `dev/v0.2.4` branch targets:
 
 ```bash
 python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache

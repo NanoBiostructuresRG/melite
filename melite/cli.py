@@ -4,7 +4,7 @@
 This module provides the ``melite`` command registered in ``pyproject.toml``
 under ``[project.scripts]``. It exposes two subcommands:
 
-- ``melite run`` — execute the full benchmarking pipeline.
+- ``melite run`` — execute the full evaluation pipeline.
 - ``melite export`` — retrain a selected model and export a ``.pkl`` artifact.
 
 Global flags (``--verbose``, ``--config``, ``--version``) are available to
@@ -46,7 +46,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="melite",
-        description="MELITE — multi-model selection, cross-validation and export toolkit.",
+        description="MELITE — Multi-Model Classifier Evaluator.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         parents=[global_parent],
     )
@@ -64,16 +64,16 @@ def _build_parser() -> argparse.ArgumentParser:
     # ------------------------------------------------------------------ #
     run_parser = subparsers.add_parser(
         "run",
-        help="Run the full benchmarking pipeline.",
-        description="Run grid search and cross-validation over all configured datasets and models.",
+        help="Run the full evaluation pipeline.",
+        description="Evaluate configured model families across all registered datasets.",
         parents=[global_parent],
     )
     run_parser.add_argument(
         "--smoke",
         action="store_true",
         help=(
-            "Lightweight mode: single-value grids and 3-fold CV. "
-            "Results are not benchmark-quality."
+            "Lightweight mode: reduced search and cross-validation settings. "
+            "Results are not suitable for final model selection."
         ),
     )
 

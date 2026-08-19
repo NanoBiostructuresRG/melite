@@ -45,9 +45,9 @@ class ResultManager:
         return f"""
 =====================================================
                        {PROJECT_NAME}
-    Tabular classification benchmarking toolkit
+            Multi-Model Classifier Evaluator
 -----------------------------------------------------
-Models: SVC, RandomForest, XGBoost
+Models: SVC, RandomForest, XGBoost, Stacking (opt-in)
 CLI: melite run | melite export
 Package: melite
 Version: {__version__}
