@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Result writing utilities for MELITE.
 
-This module provides :class:`ResultManager`, which writes benchmark outputs
-to disk: a human-readable TXT report and a structured CSV file. Both outputs
-are produced by the main benchmarking pipeline after all model configurations
-have been evaluated.
+This module provides :class:`ResultManager`, which writes evaluation outputs
+to disk, including the human-readable TXT report and structured CSV evidence
+produced by the main evaluation pipeline.
 """
 
 import csv
@@ -18,7 +17,7 @@ __all__ = ["ResultManager"]
 
 
 class ResultManager:
-    """Write benchmark results to TXT and CSV files.
+    """Write evaluation results and evidence to TXT and CSV files.
 
     Parameters
     ----------
@@ -69,7 +68,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         ----------
         content : str
             Body of the report, typically the concatenated per-configuration
-            result strings produced by the benchmarking pipeline.
+            result strings produced by the evaluation pipeline.
 
         Notes
         -----
@@ -85,7 +84,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
             print(f"Error writing results: {e}")
 
     def write_csv(self, rows: list[dict], path: Path | str, smoke: bool = False) -> None:
-        """Write benchmark results to a CSV file.
+        """Write selected evaluation results to a CSV file.
 
         Parameters
         ----------

@@ -69,14 +69,14 @@ class Config:
     RANDOM_STATE : int
         Global random seed. Default is ``42``.
     REDUCTION_TYPES : list of str
-        Reduction methods to benchmark (e.g. ``["PCA", "UMAP"]``).
+        Reduction methods to evaluate (e.g. ``["PCA", "UMAP"]``).
     REDUCTION_LEVELS : list of int
-        Variance retention levels to benchmark (e.g. ``[70, 75, 80, 85, 90, 95]``).
+        Variance retention levels to evaluate (e.g. ``[70, 75, 80, 85, 90, 95]``).
     DATASETS : dict
         Normalized dataset registry keyed by user-defined dataset id. Each
         entry contains ``path``, ``label_path``, and ``metadata`` keys.
     ACTIVE_MODELS : list of str
-        Model keys to include in the benchmark (e.g. ``["svc", "rf", "xgb"]``;
+        Model keys to include in the evaluation (e.g. ``["svc", "rf", "xgb"]``;
         add ``"stack"`` to opt in to stacking).
     CV_CONFIG : dict
         Cross-validation settings with keys ``n_splits``, ``n_repeats``,
@@ -123,7 +123,7 @@ class Config:
         }
         self.RESULTS_FILE = os.path.join(self.PATHS["OUTPUT"], "results.txt")
 
-        # Benchmark settings
+        # Evaluation settings
         self.RANDOM_STATE     = cfg["benchmark"]["random_state"]
         self.REDUCTION_TYPES  = cfg["benchmark"]["reduction_types"]
         self.REDUCTION_LEVELS = cfg["benchmark"]["levels"]

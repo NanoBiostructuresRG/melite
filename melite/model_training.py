@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Model training, grid search and cross-validation for MELITE.
 
-This module implements the multi-model benchmarking core. It defines an
+This module implements the multi-model evaluation core. It defines an
 abstract base class :class:`ModelTrainer` and the concrete implementation
 :class:`MultiModelTrainer`, which evaluates SVC, Random Forest, and XGBoost
 classifiers with nested cross-validation and supports opt-in stacking.

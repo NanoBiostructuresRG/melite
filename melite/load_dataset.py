@@ -100,7 +100,7 @@ def load_datasets(config) -> dict:
 
 
 def _load_dataset_legacy(config, reduction_type: str, levels: list) -> dict:
-    """Load reduced feature matrices and labels for benchmarking.
+    """Load reduced feature matrices and labels for evaluation.
 
     Reads ``raw/labels.npy`` as the authoritative label vector, then loads
     each ``{reduction_type}{level}.npz`` file from ``data/``. If a file

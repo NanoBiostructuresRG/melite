@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Final model export workflow for MELITE.
 
-This module provides :class:`Finalizer`, which reads a benchmark results CSV,
+This module provides :class:`Finalizer`, which reads an evaluation results file,
 lets the user select a configuration row, reconstructs the selected model,
 retrains it on all available data, and serialises the trained model as a
 ``.pkl`` artifact.
 
-A smoke-mode guard prevents accidental export of non-benchmark-quality results.
+A smoke-mode guard prevents accidental export of smoke-mode results.
 """
 
 import ast
@@ -231,7 +231,7 @@ class Finalizer:
     Parameters
     ----------
     csv_path : pathlib.Path
-        Path to the ``results.csv`` file produced by the benchmarking phase.
+        Path to the ``results.csv`` file produced by the evaluation workflow.
     output_dir : pathlib.Path
         Directory where the ``.pkl`` artifact will be saved.
     cfg : melite.config.Config
@@ -266,7 +266,7 @@ class Finalizer:
         if not Path(csv_path).exists():
             raise FileNotFoundError(
                 f"Results file not found: {csv_path}. "
-                "Run 'melite run' first to generate benchmark results."
+                "Run 'melite run' first to generate evaluation results."
             )
 
         self._metrics = pd.read_csv(csv_path)
@@ -291,8 +291,9 @@ class Finalizer:
         if is_smoke and not self._force:
             print(
                 "\n[ERROR] This result was generated in smoke mode and is not "
-                "benchmark-quality.\n"
-                "        Run 'melite run' (without --smoke) to generate valid results,\n"
+                "suitable for final model export.\n"
+                "        Run 'melite run' (without --smoke) to generate full "
+                "evaluation results,\n"
                 "        or use 'melite export --force' to override this guard.\n"
             )
             logger.error("Export blocked: smoke-mode result. Use --force to override.")
@@ -300,7 +301,7 @@ class Finalizer:
         if is_smoke and self._force:
             print(
                 "\n[WARNING] Exporting a smoke-mode result. "
-                "This model is NOT benchmark-quality.\n"
+                "This model is not intended for final use.\n"
             )
             logger.warning("Exporting smoke-mode result (--force override active).")
 

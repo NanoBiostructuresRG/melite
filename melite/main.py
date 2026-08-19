@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Main benchmarking pipeline for MELITE.
+"""Main evaluation pipeline for MELITE.
 
-This module implements the end-to-end benchmarking workflow: dataset loading,
-multi-model grid search and cross-validation, and result writing. It is
-invoked via ``melite run`` from the unified CLI.
+This module implements the end-to-end evaluation workflow: dataset loading,
+multi-model evaluation and selection with nested cross-validation, and result
+writing. It is invoked via ``melite run`` from the unified CLI.
 """
 
 import logging
@@ -21,8 +21,8 @@ from .result_manager import ResultManager
 logger = logging.getLogger(__name__)
 
 _SMOKE_WARNING = (
-    "\n[SMOKE TEST] Using reduced grid and CV. "
-    "Results are not benchmark-quality.\n"
+    "\n[SMOKE TEST] Using reduced search and cross-validation settings. "
+    "Results are not suitable for final model selection.\n"
 )
 
 _MODEL_NAMES = {
@@ -81,12 +81,13 @@ class Pipeline:
 
 
 class Main:
-    """Orchestrate the full MELITE benchmarking pipeline.
+    """Orchestrate the full MELITE evaluation pipeline.
 
     Parameters
     ----------
     smoke : bool, optional
-        If ``True``, run in smoke mode with reduced grids and 3-fold CV.
+        If ``True``, run in smoke mode with reduced search and cross-validation
+        settings.
         Default is ``False``.
     user_config : pathlib.Path or None, optional
         Path to a user-supplied TOML configuration file. Default is ``None``.
@@ -130,21 +131,22 @@ class Main:
         return model.__class__.__name__
 
     def run(self) -> None:
-        """Execute the benchmarking pipeline for all configured datasets.
+        """Execute the evaluation pipeline for all configured datasets.
 
-        Iterates over the normalized ``config.DATASETS`` registry, trains all
-        models for each dataset, and writes ``output/results.txt`` and
-        ``output/results.csv``.
+        Iterates over the normalized ``config.DATASETS`` registry, evaluates all
+        active model families for each dataset, selects the best family, and writes
+        the result and evaluation evidence outputs.
 
         Notes
         -----
         When smoke mode is active, a visible banner is printed to stdout
         regardless of the logging level, to ensure the user is aware that
-        results are not benchmark-quality.
+        results are not suitable for final model selection.
         """
         if self.config.SMOKE:
             logger.info(
-                "SMOKE TEST - reduced grid and CV. Results are not benchmark-quality."
+                "SMOKE TEST - reduced search and cross-validation settings. "
+                "Results are not suitable for final model selection."
             )
             print(_SMOKE_WARNING)
 
