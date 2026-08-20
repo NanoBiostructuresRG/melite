@@ -1,9 +1,9 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
-title: "MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments"
-version: "0.2.3"
-date-released: "2026-05-28"
+title: "MELITE — Multi-Model Classifier Evaluator"
+version: "0.2.4"
+date-released: "2026-08-20"
 authors:
   - family-names: "Contreras-Torres"
     given-names: "Flavio F."
@@ -16,22 +16,24 @@ authors:
 repository-code: "https://github.com/NanoBiostructuresRG/melite"
 license: "LGPL-3.0-or-later"
 abstract: >-
-  MELITE is a pre-stable Python toolkit for tabular classification benchmarking,
-  model selection, repeated stratified cross-validation, final model export,
-  and artifact-based inference.
+  MELITE is a pre-stable multi-model classifier evaluator for tabular
+  classification, model selection with nested cross-validation, final model
+  export, and artifact-based inference.
+
   It operates at the tabular modeling level by consuming numeric feature
-  matrices and labels, benchmarks SVC, Random Forest and XGBoost classifiers,
-  evaluates model configurations with repeated stratified cross-validation,
-  exports tabular performance summaries, and supports final model retraining
-  and serialization as reusable model artifacts.
+  matrices and labels. MELITE evaluates SVC, Random Forest, XGBoost, and
+  opt-in Stacking model families under an outer repeated-stratified
+  cross-validation framework, with inner hyperparameter search for tunable
+  families. It selects the best active family by mean outer-CV F1-macro,
+  persists aggregate and per-fold evaluation evidence, and supports final
+  model retraining, export, and artifact-based inference.
 keywords:
   - machine learning
   - tabular classification
-  - model benchmarking
-  - cross-validation
-  - PCA
-  - UMAP
+  - model evaluation
+  - model selection
+  - nested cross-validation
   - SVC
   - random forest
   - XGBoost
-  - cheminformatics
+  - stacking

@@ -1,69 +1,136 @@
 # MELITE — Multi-Model Classifier Evaluator
 
-[![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.2.3-blue.svg)]()
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)]()
+[![Version](https://img.shields.io/badge/version-v0.2.4-blue.svg)]()
+[![PyPI](https://img.shields.io/pypi/v/melite.svg)](https://pypi.org/project/melite/)
+[![Python](https://img.shields.io/pypi/pyversions/melite.svg)](https://pypi.org/project/melite/)
+[![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-teal.svg)](https://nanobiostructuresrg.github.io/melite/)
 
-**MELITE** is a pre-stable multi-model classifier evaluator for tabular
-classification, model selection with nested cross-validation, final model
-export, and artifact-based inference.
 
-MELITE is tabular at the modeling level. The learning algorithms consume
-numeric `X` and `y` arrays, so the feature matrix may come from PCA, UMAP,
-fingerprints, descriptors, clinical variables, experimental measurements,
-industrial features, or manually selected numeric features.
+## Description
 
-## Project Identity
+**MELITE** is a Python package and command-line tool for evaluating and
+comparing classifiers on numeric tabular datasets. It separates hyperparameter
+tuning from model evaluation, preserves the evidence used for selection, and
+exports the selected model as a reusable artifact for downstream inference.
 
-```text
-Project: MELITE
-PyPI distribution: melite
-Import package: melite
-CLI: melite
-Version: 0.2.3
-License: LGPL-3.0-or-later
-Status: alpha / pre-stable
-```
+MELITE operates at the tabular modeling level. Its learning algorithms consume
+numeric feature matrices (`X`) and target labels (`y`), regardless of how those
+features were produced. Inputs may therefore originate from fingerprints,
+descriptors, dimensionality-reduction methods, clinical variables, experimental
+measurements, industrial features, or other numeric representations.
 
-## Documentation
+## Purpose
 
-The live documentation is published at:
+MELITE is designed to make the comparison and selection of classification
+models explicit, reproducible, and auditable. Its workflow separates stages
+that are often mixed together in small classification workflows:
 
-https://nanobiostructuresrg.github.io/melite/
+- hyperparameter tuning;
+- model evaluation;
+- comparison and selection;
+- final fitting on all available data;
+- model export and inference.
 
-Key pages:
+This separation ensures that, within each outer cross-validation split, the
+data used to evaluate a tuned classifier are held out from the hyperparameter
+search that produced it, while preserving the evidence needed to understand
+how the competing classifiers performed.
 
-- [Installation](https://nanobiostructuresrg.github.io/melite/installation/)
-- [Quick Start](https://nanobiostructuresrg.github.io/melite/quickstart/)
-- [CLI Reference](https://nanobiostructuresrg.github.io/melite/cli/)
-- [Configuration](https://nanobiostructuresrg.github.io/melite/configuration/)
-- [API Reference](https://nanobiostructuresrg.github.io/melite/api/)
+
+## Why Use MELITE?
+
+- **Controlled evaluation.** Hyperparameter tuning is kept separate from the
+  evidence used to compare classifiers.
+- **Evidence preservation.** Aggregate and fold-level evaluation results are
+  retained for every evaluated classifier, not only for the selected one.
+- **Explicit selection.** Model selection follows a predefined criterion based
+  on cross-validation evidence rather than an informal choice after training.
+- **Domain-agnostic inputs.** MELITE works with numeric tabular data without
+  assuming how the features were generated.
+- **Reusable artifacts.** After selection, the chosen model can be fitted on
+  all available data, serialized, and reused for prediction.
+- **CLI and Python interfaces.** MELITE can be used through its command-line
+  workflow and through a focused public Python API.
+
+
+
+## What MELITE Does
+
+| MELITE does | MELITE does not |
+|---|---|
+| Evaluate multiple classifiers on prepared numeric `X` and `y`. | Generate domain-specific features or descriptors. |
+| Tune supported classifiers within the evaluation design. | Act as a general AutoML framework. |
+| Preserve aggregate and fold-level evaluation evidence. | Generate PCA, UMAP, fingerprints, or other feature representations. |
+| Select the best active classifier by mean outer-CV F1-macro. | Process raw domain-specific inputs. |
+| Fit and export the selected model as a `.pkl` artifact. | Perform automatic feature engineering or feature selection. |
+| Run inference from exported model artifacts. | Guarantee a stable 1.0 API yet. |
+
+
+## Evaluation Contract
+
+For a registered dataset, MELITE follows the contract below:
+
+1. `X` is a two-dimensional numeric feature matrix and `y` provides the target
+   labels for the same samples.
+2. Each active classifier is evaluated under the configured outer
+   cross-validation design.
+3. For tunable classifiers, hyperparameter search occurs only within the
+   training portion of each outer split.
+4. Evaluation evidence is obtained from the held-out folds of repeated
+   stratified outer cross-validation.
+5. Mean outer-CV F1-macro is used to select the best active classifier for each
+   dataset.
+6. Aggregate and per-fold evidence are preserved for every evaluated
+   classifier.
+7. After selection, the chosen classifier is fitted using all available data.
+   If it is tunable, MELITE performs a final full-data hyperparameter search to
+   determine the exported configuration.
+8. `melite export` does not run a second post-selection evaluation. It fits the
+   selected model on all available data and serializes the final artifact.
+9. Smoke mode is intended for fast execution checks, not final model selection.
+
 
 ## Installation
 
-After PyPI publication:
+### Package Users
+
+
+Install **MELITE** in a supported Python environment:
 
 ```bash
 python -m pip install melite
 ```
 
-For local development:
+Verify the installation:
+
+```bash
+melite --version
+```
+
+### Contributors and Developers
+
+Clone the repository and install in editable mode with development dependencies:
 
 ```bash
 git clone https://github.com/NanoBiostructuresRG/melite.git
 cd melite
-python -m pip install -e .
+conda create -n melite_env python=3.11
+conda activate melite_env
+python -m pip install -e ".[dev]"
 ```
 
-For development and documentation tools:
+To build the documentation locally, install the `docs` extra as well:
 
 ```bash
-python -m pip install -e ".[dev]"
-python -m pip install -e ".[docs]"
+python -m pip install -e ".[dev,docs]"
+mkdocs serve
 ```
 
 ## Quick Start
+
+### Command-Line Interface
 
 Run a fast smoke evaluation with the bundled synthetic example dataset:
 
@@ -71,13 +138,21 @@ Run a fast smoke evaluation with the bundled synthetic example dataset:
 melite run --smoke --config examples/example_config.toml
 ```
 
-Export a selected model artifact:
+Run a configured evaluation:
+
+```bash
+melite run --config my_config.toml
+```
+
+Export a selected model artifact from an existing results table:
 
 ```bash
 melite export --config examples/example_config.toml --row 0 --csv examples/output/results.csv --outdir examples/output/
 ```
 
-Run artifact-based inference:
+### Python API
+
+Use an exported artifact for inference:
 
 ```python
 import numpy as np
@@ -85,98 +160,12 @@ from melite import predict
 
 X_new = np.load("examples/sample_PCA70.npz")["X"]
 result = predict("examples/output/Model_SVC_sample_pca70.pkl", X_new)
+
 print(result["predictions"])
 print(result["probabilities"])
 ```
 
-## Scope
-
-| MELITE does | MELITE does not |
-|-------------|-----------------|
-| Accept prepared `X` and `y` arrays. | Generate fingerprints. |
-| Evaluate SVC, Random Forest, XGBoost, and opt-in Stacking classifiers. | Process SMILES. |
-| Select the best active model family by mean outer-CV F1-macro for each dataset. | Generate PCA or UMAP reductions from raw data. |
-| Export a final retrained `.pkl` model. | Act as a general AutoML framework. |
-| Run artifact-based inference through `predict()`. | Promise a stable 1.0 API yet. |
-| Handle any numeric tabular matrix. | Generate or validate domain-specific descriptors. |
-
-Datasets are registered as concrete tabular matrix candidates under
-`[datasets.<dataset_id>]`. The `dataset_id` is user-defined and is used in
-evaluation outputs and exported model filenames.
-
-```toml
-[datasets.morgan_r2_2048]
-path = "data/morgan_r2_2048.npz"
-label_path = "raw/labels.npy"
-family = "fingerprints"
-method = "Morgan"
-variant = "r2_2048"
-
-[datasets.rdkit_descriptors]
-path = "data/rdkit_descriptors.npz"
-label_path = "raw/labels.npy"
-family = "descriptors"
-method = "RDKit"
-
-[datasets.pca85]
-path = "data/PCA85.npz"
-label_path = "raw/labels.npy"
-family = "dimensionality"
-method = "PCA"
-level = 85
-```
-
-Each registered dataset must define `path` and `label_path`. Optional metadata
-fields are `family`, `method`, `variant`, `level`, and `description`; they are
-reported for traceability and do not drive special-case model execution.
-Registered datasets are loaded strictly: missing files, missing `X`, non-2D or
-non-numeric `X`, length mismatches, and embedded `y` mismatches fail the run.
-Legacy `[benchmark].reduction_types` and `levels` configs are still accepted
-and are normalized into equivalent dataset entries such as `PCA70` and `UMAP90`.
-
-Model families are controlled by `[models].active`:
-
-```toml
-[models]
-active = ["svc", "rf", "xgb"]
-```
-
-Remove a key to skip that family during training. Valid keys are `svc`, `rf`,
-`xgb`, and `stack`. Stacking is opt-in; add `"stack"` to `active` to evaluate
-a scikit-learn `StackingClassifier` alongside the default families.
-
-Standalone SVC uses a `StandardScaler` -> `SVC` scikit-learn pipeline because
-SVM/kernel-based methods are sensitive to feature scale. Probability fitting
-is disabled during standalone SVC evaluation and enabled for exported SVC
-artifacts used for inference. Random Forest and XGBoost are tree-based models
-and remain unscaled by default. Opt-in stacking uses
-`stack_method="predict_proba"` with a scaled probabilistic SVC base estimator,
-unscaled RF/XGBoost base estimators, and a logistic regression final estimator.
-Its internal stacking CV uses the configured `inner_n_splits` and random state.
-Final exports remain `.pkl` artifacts serialized with `joblib`; Optuna and
-MLflow are not part of v0.2.4.
-
-## CLI
-
-```bash
-melite --help
-melite run --help
-melite export --help
-melite --version
-```
-
-Common commands:
-
-```bash
-melite run
-melite run --smoke
-melite run --config my_config.toml
-melite export --row 0
-melite export --config my_config.toml --row 0
-melite export --row 0 --force
-```
-
-## Public API
+The current public API also exposes:
 
 ```python
 from melite import Config
@@ -186,54 +175,263 @@ from melite import predict
 from melite import __version__
 ```
 
+## Workflow
+
+
+### CLI Workflow
+
+The command-line interface provides the canonical end-to-end MELITE workflow:
+
+1. Register one or more numeric datasets in a TOML configuration file.
+2. Choose the active classifiers.
+3. Run `melite run` to generate evaluation evidence and selected results.
+4. Inspect `results.csv`, `evaluations.csv`, `evaluation_folds.csv`, and the
+   dataset-level F1-macro evidence figures.
+5. Run `melite export` for the selected result you want to preserve as a model
+   artifact.
+6. Use the exported `.pkl` artifact through `melite.predict()` for inference.
+
+
+### Python Workflow
+
+The Python API is intentionally component-oriented. It exposes configuration,
+dataset loading, evaluation-evidence plotting, artifact-based prediction, and
+version metadata as public symbols.
+
+MELITE does not expose the full evaluation orchestration as a stable
+high-level Python workflow API. For reproducible end-to-end execution, use the
+CLI and a version-controlled TOML configuration.
+
+
+## Supported Classifiers
+
+**MELITE** currently supports four classifier keys:
+
+| Key | Classifier | Active by default |
+|---|---|---|
+| `svc` | Support Vector Classifier | Yes |
+| `rf` | Random Forest | Yes |
+| `xgb` | XGBoost | Yes |
+| `stack` | Stacking classifier | No |
+
+The default configuration is:
+
+```toml
+[models]
+active = ["svc", "rf", "xgb"]
+```
+
+Add `"stack"` to evaluate Stacking alongside the default classifiers.
+
+Standalone SVC is evaluated as a `StandardScaler` -> `SVC` pipeline, with
+probability fitting disabled during standalone evaluation. Exported SVC
+artifacts retain probability support for inference. Random Forest and XGBoost
+remain unscaled. The opt-in Stacking classifier combines a scaled probabilistic SVC
+with Random Forest and XGBoost base estimators and uses logistic regression as
+the final estimator.
 
 ## Input Format
 
-```text
-raw/labels.npy          <- target vector y, shape (n_samples,)
-data/morgan_r2_2048.npz <- required key: X, optional key: y
-data/rdkit_descriptors.npz
-data/PCA85.npz
-data/UMAP90.npz
+### Dataset Registry
+
+Datasets are registered under user-defined `[datasets.<dataset_id>]` entries.
+For example:
+
+```toml
+[datasets.morgan_r2_2048]
+path = "data/morgan_r2_2048.npz"
+label_path = "raw/labels.npy"
+family = "fingerprints"
+method = "Morgan"
+variant = "r2_2048"
+description = "Morgan fingerprints, radius 2, 2048 bits"
 ```
 
-Each `.npz` file must contain an `X` array. If an embedded `y` array is present,
-MELITE validates it against the configured `label_path`.
+Here, `family` is optional **dataset metadata** used to describe the feature
+representation. It is unrelated to the classifier selected or evaluated by
+MELITE.
 
-## Outputs
+Each dataset must define `path` and `label_path`. Optional metadata fields such
+as `family`, `method`, `variant`, `level`, and `description` are preserved for
+traceability and do not trigger dataset-specific execution logic.
+
+The legacy `[benchmark]` configuration section remains supported for backward
+compatibility. New configurations should use the dataset registry.
+
+### Array Requirements
+
+A registered `.npz` dataset must contain an `X` array. MELITE validates that:
+
+- `X` is two-dimensional;
+- `X` is numeric;
+- the number of rows in `X` matches the number of labels in `y`;
+- an embedded `y` array, when present, matches the configured label vector.
+
+A typical input layout is:
+
+```text
+raw/
+└── labels.npy
+
+data/
+├── morgan_r2_2048.npz
+├── rdkit_descriptors.npz
+├── PCA85.npz
+└── UMAP90.npz
+```
+
+The filenames and feature families are examples only. MELITE does not require
+PCA, UMAP, fingerprints, descriptors, or any other specific feature-generation
+method.
+
+## Main Outputs
+
+A standard **MELITE** workflow produces evaluation artifacts and, when requested,
+a final exported model:
 
 ```text
 output/
-|-- results.txt
-|-- results.csv
-|-- evaluations.csv
-|-- evaluation_folds.csv
-`-- Model_<model>_<dataset>.pkl
+├── results.txt
+├── results.csv
+├── evaluations.csv
+├── evaluation_folds.csv
+├── figures/
+│   └── evaluation_f1_macro_<dataset>.png
+└── Model_<model>_<dataset>.pkl
 ```
 
-Local inputs and generated artifacts such as `raw/`, `data/`, `output/`,
-`.pkl`, and `.joblib` files are intentionally ignored by Git.
+The artifacts have distinct roles:
 
-## Validation
+- `results.txt` — human-readable summary of the selected results.
+- `results.csv` — selected classifier result for each dataset.
+- `evaluations.csv` — aggregate evaluation evidence for every active classifier.
+- `evaluation_folds.csv` — outer-CV evidence for every dataset, classifier, and
+  outer split.
+- `figures/evaluation_f1_macro_<dataset>.png` — visualization of the outer-CV
+  F1-macro evidence used for classifier selection.
+- `Model_<model>_<dataset>.pkl` — final full-data fitted model created by
+  `melite export`.
 
-The current `dev/v0.2.4` branch targets:
+
+The evaluation figure is generated from already-computed outer-CV evidence. It
+does not trigger additional fitting, tuning, cross-validation, or selection.
+
+
+## Configuration
+
+MELITE uses TOML configuration files to keep execution choices explicit and
+reproducible. Configuration controls, among other settings:
+
+- registered datasets and their metadata;
+- active classifiers;
+- random state;
+- inner and outer cross-validation settings;
+- input and output paths.
+
+Use `--config` to supply a project-specific configuration:
 
 ```bash
-python -m pytest tests/ -v --basetemp=.review_pytest_tmp -o cache_dir=.review_pytest_cache
+melite run --config my_config.toml
+melite export --config my_config.toml --row 0
+```
+
+Smoke mode can be requested independently from the configuration:
+
+```bash
+melite run --smoke --config my_config.toml
+```
+
+See the full configuration reference in the project documentation.
+
+## Development
+
+### Project Structure
+
+```text
+MELITE/
+|-- melite/
+|   |-- __init__.py             # Public API
+|   |-- cli.py                  # Command-line interface
+|   |-- config.py               # Configuration loading and normalization
+|   |-- config_default.toml     # Default configuration
+|   |-- export_best_model.py    # Final model fitting and export
+|   |-- load_dataset.py         # Dataset loading and validation
+|   |-- main.py                 # Evaluation workflow orchestration
+|   |-- model_training.py       # Model tuning, evaluation, and selection
+|   |-- plot_metrics.py         # Evaluation evidence figures
+|   |-- predict.py              # Artifact-based inference
+|   |-- result_manager.py       # Results and artifact management
+|   `-- version.py              # Package version metadata
+|-- tests/                      # Test suite (pytest)
+|-- examples/                   # Example dataset, configuration, and generator
+|-- docs/                       # MkDocs documentation sources
+|-- scripts/
+|   `-- smoke_install_wheel.py  # Installed-wheel smoke validation
+|-- .github/
+|   `-- workflows/              # CI, documentation, and PyPI publishing
+|-- pyproject.toml              # Build, package, and dependency metadata
+|-- environment.yml             # Conda development environment
+|-- mkdocs.yml                  # Documentation site configuration
+|-- CHANGELOG.md
+|-- CITATION.cff
+|-- CODE_OF_CONDUCT.md
+|-- CONTRIBUTING.md
+|-- COPYING
+|-- COPYING.LESSER
+|-- LICENSE
+`-- README.md
+```
+
+### Running Tests
+
+Run the test suite:
+
+```bash
+python -m pytest tests -q
+```
+
+Build the documentation in strict mode:
+
+```bash
 mkdocs build --strict
+```
+
+Build and check the distributions:
+
+```bash
 python -m build --no-isolation
 python -m twine check dist/*
-python scripts/smoke_install_wheel.py
-melite --help
-melite run --help
-melite export --help
-melite --version
 ```
+
+Run the installed-wheel smoke test:
+
+```bash
+python scripts/smoke_install_wheel.py
+```
+
+## Contributing
+
+Contributions are welcome. Please open an issue before submitting a pull
+request. Follow the existing code style: NumPy-style docstrings, type hints,
+and SPDX license headers in all source files.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines, including the
+development setup and the pull request target branch.
+Please also read our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+
+## Documentation
+
+The full documentation is published at:
+
+https://nanobiostructuresrg.github.io/melite/
+
 
 ## Citation
 
 If you use MELITE in your research, please cite it using the metadata in
-[CITATION.cff](CITATION.cff).
+[CITATION.cff](CITATION.cff) or the format below:
+
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments. Zenodo. https://doi.org/10.5281/zenodo.20382752
@@ -241,13 +439,12 @@ Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model Evaluatio
 
 ## Authors
 
-Developed by **Flavio F. Contreras-Torres**. Tecnologico de Monterrey
+- **Flavio F. Contreras-Torres** — Tecnológico de Monterrey
+- **Ana C. Murrieta** — Tecnológico de Monterrey
 
-Co-author: **Ana C. Murrieta**. Tecnologico de Monterrey
 
 ## License
 
 This project is licensed under the terms of the
 [GNU Lesser General Public License v3.0 or later](LICENSE).
-
-SPDX identifier: `LGPL-3.0-or-later`
+SPDX identifier: `LGPL-3.0-or-later`.
