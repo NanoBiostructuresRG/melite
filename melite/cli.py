@@ -2,10 +2,11 @@
 """Unified CLI entry point for MELITE.
 
 This module provides the ``melite`` command registered in ``pyproject.toml``
-under ``[project.scripts]``. It exposes two subcommands:
+under ``[project.scripts]``. It exposes three subcommands:
 
 - ``melite run`` — execute the full evaluation pipeline.
 - ``melite export`` — retrain a selected model and export a ``.pkl`` artifact.
+- ``melite example`` — copy the bundled example project.
 
 Global flags (``--verbose``, ``--config``, ``--version``) are available to
 all subcommands via argparse parent parsers.
@@ -13,7 +14,9 @@ all subcommands via argparse parent parsers.
 
 import argparse
 import logging
+import shutil
 import sys
+from importlib import resources
 from pathlib import Path
 
 from .version import __version__
@@ -21,6 +24,9 @@ from .version import __version__
 __all__ = ["main"]
 
 logger = logging.getLogger(__name__)
+
+_EXAMPLE_DIRECTORY = "melite_example"
+_EXAMPLE_RESOURCE_DIRECTORY = "_example_assets"
 
 
 def _global_parser() -> argparse.ArgumentParser:
@@ -113,6 +119,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Override smoke-mode export guard. Use with caution.",
     )
 
+    # ------------------------------------------------------------------ #
+    # melite example
+    # ------------------------------------------------------------------ #
+    subparsers.add_parser(
+        "example",
+        help="Copy the bundled synthetic example project.",
+        description=(
+            "Copy a ready-to-run synthetic numeric-tabular example into "
+            "./melite_example/."
+        ),
+        parents=[global_parent],
+    )
+
     return parser
 
 
@@ -140,6 +159,41 @@ def _export(args: argparse.Namespace) -> None:
               force=getattr(args, "force", False)).run()
 
 
+def _copy_resource_tree(source, destination: Path) -> None:
+    """Copy an importlib resource directory without merging destinations."""
+    destination.mkdir()
+    for entry in source.iterdir():
+        target = destination / entry.name
+        if entry.is_dir():
+            _copy_resource_tree(entry, target)
+        else:
+            with entry.open("rb") as source_file, target.open("wb") as target_file:
+                shutil.copyfileobj(source_file, target_file)
+
+
+def _example(_args: argparse.Namespace) -> None:
+    destination = Path.cwd() / _EXAMPLE_DIRECTORY
+    source = resources.files("melite").joinpath(_EXAMPLE_RESOURCE_DIRECTORY)
+
+    if not source.is_dir():
+        raise RuntimeError("Bundled MELITE example resources are missing.")
+
+    try:
+        _copy_resource_tree(source, destination)
+    except FileExistsError:
+        print(
+            f"[ERROR] {destination} already exists; no files were overwritten.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    print(f"Example project created at: {destination}")
+    print(
+        "Run: melite run --smoke --config "
+        f"{_EXAMPLE_DIRECTORY}/config.toml"
+    )
+
+
 def main() -> None:
     """Entry point for the ``melite`` CLI command.
 
@@ -149,7 +203,7 @@ def main() -> None:
         melite = "melite.cli:main"
 
     Parses arguments, configures logging, and dispatches to the appropriate
-    subcommand handler (``_run`` or ``_export``).
+    subcommand handler (``_run``, ``_export``, or ``_example``).
 
     Notes
     -----
@@ -165,6 +219,8 @@ def main() -> None:
         _run(args)
     elif args.command == "export":
         _export(args)
+    elif args.command == "example":
+        _example(args)
     else:
         parser.print_help()
         sys.exit(1)
