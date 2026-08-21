@@ -1,13 +1,13 @@
 # API Reference
 
-MELITE exposes an intended public API through five symbols. The project is
-pre-stable, so this API may change before 1.0. Internal modules are importable
-directly but are not part of the public contract.
+MELITE exposes a focused public Python API through five symbols. The project is
+pre-stable, so this API may evolve before version 1.0. Internal modules remain
+implementation details and are not part of the public contract.
 
 ```python
 from melite import Config
 from melite import load_datasets
-from melite import plot_cv_distributions
+from melite import plot_f1_macro_evidence
 from melite import predict
 from melite import __version__
 ```
@@ -26,9 +26,9 @@ from melite import __version__
 
 ---
 
-## plot_cv_distributions
+## plot_f1_macro_evidence
 
-::: melite.plot_metrics.plot_cv_distributions
+::: melite.plot_metrics.plot_f1_macro_evidence
 
 ---
 
