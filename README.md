@@ -132,9 +132,9 @@ mkdocs serve
 
 ## Quick Start
 
-The bundled example creates a synthetic numeric tabular project and runs a
-short evaluation workflow so you can verify that MELITE is installed and
-working. Cloning the repository is **not** required.
+The bundled example creates a ready-to-run synthetic numeric CSV dataset and
+example configuration for a short evaluation workflow, so you can verify that
+MELITE is installed and working. Cloning the repository is **not** required.
 
 ```bash
 melite example

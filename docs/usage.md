@@ -16,8 +16,9 @@ melite --version
 
 ## Quick Start
 
-MELITE includes a bundled synthetic example for verifying the installed
-workflow without cloning the repository or preparing input files.
+MELITE includes a bundled synthetic numeric CSV dataset and example
+configuration for verifying the installed workflow without cloning the
+repository or preparing input files.
 
 Create the example project in the current directory:
 
@@ -30,10 +31,8 @@ This creates:
 ```text
 melite_example/
 ├── config.toml
-├── data/
-│   └── sample_tabular.npz
-└── raw/
-    └── labels.npy
+└── data/
+    └── sample_tabular.csv
 ```
 
 The bundled configuration uses paths rooted at `melite_example/`. Run the
@@ -54,36 +53,53 @@ intended for final classifier selection or model export.
 
 ## Data Preparation
 
-Each MELITE dataset consists of a prepared numeric feature matrix `X` and a
-target-label vector `y`.
+MELITE evaluates prepared numeric tabular feature representations. Users are
+responsible for supplying analysis-ready numeric features compatible with the
+classifiers they evaluate.
 
-The feature matrix is stored in a `.npz` file containing an explicit `X` array.
-Labels are loaded from the configured `label_path`.
+### CSV
 
-MELITE validates that:
+CSV is the recommended low-friction registered input path. A single table
+contains both feature columns and labels, and the configured `label_column`
+identifies the target column. All remaining columns become `X` in exactly the
+order in which they appear in the CSV. Feature columns must be numeric, while
+labels may be categorical.
 
-- `X` is two-dimensional;
-- `X` is numeric;
-- the number of rows in `X` matches the number of labels in `y`;
-- an embedded `y` array, when present, matches the configured label vector.
+Column names help define and validate the registered input, but MELITE v0.2.5
+does not persist feature names into exported model artifacts. Training and
+later inference must therefore use the same feature representation, number of
+features, and feature order.
 
-A typical project layout is:
+A column whose name starts with `Unnamed:` is rejected because it commonly
+represents an accidentally exported pandas index. When creating a CSV with
+pandas, omit that index explicitly:
 
-```text
-raw/
-└── labels.npy
-
-data/
-└── features.npz
+```python
+dataframe.to_csv("data/features.csv", index=False)
 ```
 
-Relative paths are resolved from the directory in which `melite` is executed.
-For the layout above, run MELITE from the project directory containing `raw/`
-and `data/`.
+MELITE does not:
 
-MELITE operates on the numeric representation supplied in `X`. Feature
-generation and preprocessing that produce that representation occur before the
-dataset is registered for evaluation.
+- impute missing values;
+- encode categorical feature columns;
+- infer identifier columns;
+- select feature columns automatically;
+- reorder feature columns;
+- perform feature engineering.
+
+Registered input validation does not reject non-finite numeric values merely
+at the loader boundary. This does not imply that every downstream classifier
+accepts `NaN` or positive or negative infinity.
+
+### NPZ
+
+NPZ remains a supported alternative. The archive contains an explicit `X`
+array, and the configured `label_path` supplies the authoritative `y` vector.
+When the NPZ also contains an embedded `y`, MELITE uses it only as a
+consistency check against `label_path`.
+
+Relative paths for both formats are resolved from the directory in which
+`melite` is executed.
 
 ## Supported Classifiers
 
@@ -128,6 +144,12 @@ Relative dataset, label, and output paths are resolved from the working
 directory in which `melite` is executed, not from the location of the TOML
 file.
 
+For modern registered datasets, the actual dataset file is determined by
+`[datasets.*].path`. `[paths].input` remains part of MELITE's historical path
+contract and is not used to locate a registered CSV dataset. The bundled CSV
+example deliberately points both `input` and `dataset` to
+`melite_example/data/` so it does not create an unused `raw/` directory.
+
 ### Minimal Configuration
 
 A minimal dataset configuration can be written as:
@@ -137,8 +159,8 @@ A minimal dataset configuration can be written as:
 output = "output/"
 
 [datasets.tabular_a]
-path = "data/features.npz"
-label_path = "raw/labels.npy"
+path = "data/features.csv"
+label_column = "label"
 description = "Prepared numeric feature matrix."
 
 [classifiers]
@@ -156,10 +178,43 @@ melite run --config my_config.toml
 Each numeric feature matrix is registered under a user-defined
 `[datasets.<dataset_id>]` entry.
 
-Required fields:
+CSV example:
 
-- `path` — path to the `.npz` file containing `X`;
-- `label_path` — path to the target-label array.
+```toml
+[datasets.my_dataset]
+path = "data/my_dataset.csv"
+label_column = "label"
+family = "tabular"
+```
+
+For CSV, `path` and `label_column` are required, and `label_path` is forbidden.
+All columns except `label_column` become `X` in their existing column order.
+
+NPZ example:
+
+```toml
+[datasets.my_dataset]
+path = "data/my_dataset.npz"
+label_path = "raw/labels.npy"
+family = "descriptors"
+```
+
+For NPZ, `path` and `label_path` are required, and `label_column` is forbidden.
+Specifying both label fields is invalid. The supported registered extensions
+are exactly `.csv` and `.npz`, matched case-insensitively.
+
+The accepted fields inside each `[datasets.*]` entry are exactly:
+
+- `path`;
+- `label_path`;
+- `label_column`;
+- `family`;
+- `method`;
+- `variant`;
+- `level`;
+- `description`.
+
+Unknown fields are rejected rather than silently ignored.
 
 Optional metadata fields:
 
@@ -169,14 +224,19 @@ Optional metadata fields:
 - `level`;
 - `description`.
 
-These metadata fields are preserved for reporting and traceability. They do not
-trigger dataset-specific execution logic.
+These metadata fields are preserved primarily for reporting and traceability. Legacy dimensionality metadata may also be interpreted to preserve historical `reduction_type` compatibility.
+Do not invent a semantic value merely
+to populate optional metadata.
 
 The `family` field describes the feature representation as dataset metadata. It
 is unrelated to the classifier selected or evaluated by MELITE.
 
 Each `dataset_id` identifies one concrete numeric feature matrix evaluated as an
 independent dataset.
+
+For CSV, MELITE v0.2.5 does not persist feature names into exported model
+artifacts. Training and later inference must use the same feature
+representation and feature order.
 
 ### Evaluation Settings
 
@@ -268,8 +328,15 @@ Create the bundled example project in the current directory:
 melite example
 ```
 
-The command creates `./melite_example/` with the example configuration, feature
-matrix, and labels.
+The command creates `./melite_example/` with a synthetic numeric CSV dataset
+and example configuration:
+
+```text
+melite_example/config.toml
+melite_example/data/sample_tabular.csv
+```
+
+The `output/` directory is created only when MELITE executes the workflow.
 
 The generated `config.toml` assumes that MELITE is executed from the directory
 containing `melite_example/`.

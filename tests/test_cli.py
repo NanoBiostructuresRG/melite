@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import melite.cli as cli
 import numpy as np
+import pandas as pd
 import pytest
 from melite.config import Config
 from melite.load_dataset import load_datasets
@@ -16,9 +17,7 @@ from melite.version import __version__
 EXPECTED_EXAMPLE_TREE = {
     "config.toml",
     "data",
-    "data/sample_tabular.npz",
-    "raw",
-    "raw/labels.npy",
+    "data/sample_tabular.csv",
 }
 
 
@@ -175,16 +174,19 @@ def test_example_creates_exact_expected_tree(monkeypatch, tmp_path):
 
 def test_example_resources_are_valid_balanced_numeric_data(monkeypatch, tmp_path):
     destination = _copy_example(monkeypatch, tmp_path)
-    labels = np.load(destination / "raw" / "labels.npy")
-    with np.load(destination / "data" / "sample_tabular.npz") as dataset:
-        X = dataset["X"]
-        embedded_labels = dataset["y"]
+    table = pd.read_csv(destination / "data" / "sample_tabular.csv")
+    feature_columns = [f"feature_{index:02d}" for index in range(1, 13)]
+    X = table[feature_columns].to_numpy()
+    labels = table["label"].to_numpy()
 
+    assert table.shape == (120, 13)
+    assert table.columns.tolist() == [*feature_columns, "label"]
     assert X.shape == (120, 12)
     assert labels.shape == (120,)
-    assert np.issubdtype(X.dtype, np.number)
+    assert all(
+        pd.api.types.is_numeric_dtype(table[column]) for column in feature_columns
+    )
     assert np.isfinite(X).all()
-    assert np.array_equal(embedded_labels, labels)
     assert set(labels.tolist()) == {0, 1}
     assert np.bincount(labels).tolist() == [60, 60]
 
@@ -202,13 +204,20 @@ def test_example_config_loads_from_parent_directory(monkeypatch, tmp_path):
 
     assert config.ACTIVE_CLASSIFIERS == ["svc"]
     assert set(config.DATASETS) == {"sample_tabular"}
+    assert config.PATHS["INPUT"] == "melite_example/data/"
+    assert config.PATHS["DATASET"] == "melite_example/data/"
     assert config.PATHS["OUTPUT"] == "melite_example/output/"
     assert config.DATASETS["sample_tabular"]["path"] == (
-        "melite_example/data/sample_tabular.npz"
+        "melite_example/data/sample_tabular.csv"
     )
-    assert config.DATASETS["sample_tabular"]["label_path"] == (
-        "melite_example/raw/labels.npy"
-    )
+    assert config.DATASETS["sample_tabular"]["label_column"] == "label"
+    assert config.DATASETS["sample_tabular"]["metadata"] == {
+        "family": "tabular",
+        "description": (
+            "Deterministic synthetic numeric tabular classification example "
+            "with overlapping classes."
+        ),
+    }
 
 
 def test_example_dataset_passes_strict_loading(monkeypatch, tmp_path):

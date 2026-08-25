@@ -21,9 +21,8 @@ keywords = [
     "tabular data",
     "classifier selection",
     "cross-validation",
+    "csv",
     "inference",
-    "PCA",
-    "UMAP",
     "scikit-learn",
     "xgboost",
 ]
@@ -95,6 +94,8 @@ exclude = [
     "/dist",
     "/docs",
     "/mkdocs.yml",
+    # Leading "/" is intentional: exclude repository-root runtime directories,
+    # not packaged resources such as melite/_example_assets/data/.
     "/data",
     "/raw",
     "/output",

@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added registered CSV dataset input using a configured `label_column`.
 
 ### Changed
+- Migrated the bundled example from separate NPZ and NPY resources to a single
+  synthetic numeric CSV dataset.
+- Updated the Quick Start and public input documentation to present CSV as the
+  recommended registered-dataset path.
+- Updated installed-wheel smoke validation to exercise the bundled CSV example
+  end to end.
+- Updated public discovery keywords to emphasize general tabular and CSV usage
+  instead of PCA/UMAP-specific representation terminology.
 - Registered dataset configuration now validates supported extensions
   explicitly (`.npz` and `.csv`).
 - Unknown fields in `[datasets.*]` are now rejected instead of silently
