@@ -300,7 +300,7 @@ class Finalizer:
             raise ValueError(
                 "The results CSV column 'model_name' was renamed to "
                 "'classifier_name' in MELITE v0.2.4. Regenerate results.csv "
-                "with MELITE v0.2.4 before exporting."
+                "with the current MELITE version before exporting."
             )
         self._loader = DatasetLoader(cfg)
 

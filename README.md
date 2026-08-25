@@ -1,7 +1,7 @@
 # MELITE — Multi-Model Classifier Evaluator
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.2.4-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.2.5-blue.svg)]()
 [![PyPI](https://img.shields.io/pypi/v/melite.svg)](https://pypi.org/project/melite/)
 [![Python](https://img.shields.io/pypi/pyversions/melite.svg)](https://pypi.org/project/melite/)
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
