@@ -14,8 +14,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from .plot_metrics import plot_f1_macro_evidence
-from .version import __version__
+from melite.plot_metrics import plot_f1_macro_evidence
+from melite.version import __version__
 
 __all__ = ["ResultManager"]
 

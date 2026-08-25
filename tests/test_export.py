@@ -5,10 +5,11 @@ import csv
 
 import joblib
 import numpy as np
+import pandas as pd
 import pytest
 
 from melite.config import Config
-from melite.export_best_model import Finalizer
+from melite.export_best_model import DatasetLoader, Finalizer
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -248,6 +249,34 @@ def test_export_dataset_row_uses_strict_load_datasets(monkeypatch, tmp_path):
 
     assert calls == [cfg]
     assert (tmp_path / "output" / "Model_SVC_maccs.pkl").exists()
+
+
+def test_export_dataset_loader_resolves_registered_csv_through_canonical_loader(
+    tmp_path,
+):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    csv_path = data_dir / "sample_tabular.csv"
+    pd.DataFrame(
+        {
+            "feature_b": [2.5, 3.5, 4.5],
+            "Outcome": ["class_a", "class_b", "class_a"],
+            "feature_a": [10, 20, 30],
+        }
+    ).to_csv(csv_path, index=False)
+    cfg = _make_config(tmp_path)
+    cfg.DATASETS = {
+        "sample_tabular": {
+            "path": str(csv_path),
+            "label_column": "Outcome",
+            "metadata": {"family": "tabular"},
+        }
+    }
+
+    X, y = DatasetLoader(cfg).load_row(pd.Series({"dataset": "sample_tabular"}))
+
+    assert np.array_equal(X, np.array([[2.5, 10.0], [3.5, 20.0], [4.5, 30.0]]))
+    assert np.array_equal(y, np.array(["class_a", "class_b", "class_a"]))
 
 
 def test_export_dataset_npz_without_X_fails_clearly(monkeypatch, tmp_path):

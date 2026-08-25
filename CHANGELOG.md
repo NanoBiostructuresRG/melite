@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.5] - 2026-08-25
+
+### Added
+- Added registered CSV dataset input using a configured `label_column`.
+- Added automated documentation/schema drift protection based on the actual
+  `ResultManager` CSV writers.
+- Added a deferred-product-decisions page with explicit observable revisit
+  criteria.
+
+### Changed
+- Formalized the column-level contracts for `results.csv`, `evaluations.csv`,
+  and `evaluation_folds.csv` in the public usage documentation.
+- Migrated the bundled example from separate NPZ and NPY resources to a single
+  synthetic numeric CSV dataset.
+- Updated the Quick Start and public input documentation to present CSV as the
+  recommended registered-dataset path.
+- Updated installed-wheel smoke validation to exercise the bundled CSV example
+  end to end.
+- Updated public discovery keywords to emphasize general tabular and CSV usage
+  instead of PCA/UMAP-specific representation terminology.
+- Registered dataset configuration now validates supported extensions
+  explicitly (`.npz` and `.csv`).
+- Unknown fields in `[datasets.*]` are now rejected instead of silently
+  ignored. These validation changes may reject configurations that were
+  previously accepted accidentally.
+
+---
+
 ## [0.2.4] - 2026-08-25
 
 ### Added
@@ -511,6 +539,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.2.5]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.1...v0.2.2

@@ -89,6 +89,22 @@ print(melite.__version__, module_path)
     _run([python, "-c", code], cwd=REPO_ROOT.parent)
 
 
+def _verify_example_tree(work_dir: Path) -> None:
+    example_dir = work_dir / "melite_example"
+    expected_tree = {
+        "config.toml",
+        "data",
+        "data/sample_tabular.csv",
+    }
+    actual_tree = {
+        path.relative_to(example_dir).as_posix() for path in example_dir.rglob("*")
+    }
+    if actual_tree != expected_tree:
+        raise AssertionError(
+            f"Expected example tree {sorted(expected_tree)}, got {sorted(actual_tree)}"
+        )
+
+
 def _verify_outputs(work_dir: Path) -> None:
     example_dir = work_dir / "melite_example"
     output_dir = example_dir / "output"
@@ -100,8 +116,7 @@ def _verify_outputs(work_dir: Path) -> None:
 
     expected_paths = (
         example_dir / "config.toml",
-        example_dir / "data" / "sample_tabular.npz",
-        example_dir / "raw" / "labels.npy",
+        example_dir / "data" / "sample_tabular.csv",
         output_dir / "results.txt",
         results_csv,
         evaluations_csv,
@@ -167,6 +182,7 @@ def main() -> None:
         _check_imports(python)
 
         _run([melite, "example"], cwd=work_dir)
+        _verify_example_tree(work_dir)
         _run(
             [
                 melite,

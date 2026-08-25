@@ -3,7 +3,8 @@
 #   melite run --smoke --config melite_example/config.toml
 
 [paths]
-input   = "melite_example/raw/"
+# Kept for legacy path compatibility; registered CSV datasets use their explicit path.
+input   = "melite_example/data/"
 dataset = "melite_example/data/"
 output  = "melite_example/output/"
 
@@ -11,10 +12,9 @@ output  = "melite_example/output/"
 random_state = 42
 
 [datasets.sample_tabular]
-path = "melite_example/data/sample_tabular.npz"
-label_path = "melite_example/raw/labels.npy"
-family = "synthetic"
-method = "numeric_tabular"
+path = "melite_example/data/sample_tabular.csv"
+label_column = "label"
+family = "tabular"
 description = "Deterministic synthetic numeric tabular classification example with overlapping classes."
 
 [cv]

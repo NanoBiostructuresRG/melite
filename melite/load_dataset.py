@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Dataset loading and label consistency validation for MELITE.
+"""Load registered NPZ and CSV datasets for MELITE.
 
-The normalized dataset specification's ``label_path`` supplies the
-authoritative labels. If a dataset archive contains an embedded ``y``, MELITE
-verifies it against that authoritative label vector and fails explicitly on a
-mismatch before classifier evaluation.
+For NPZ datasets, ``label_path`` supplies the authoritative labels and an
+embedded ``y`` is checked only for consistency. For CSV datasets, the
+configured ``label_column`` inside the table supplies the labels and is
+removed from the numeric feature matrix.
 """
 
 import logging
@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
-from .config import Config
+from melite.config import Config
 
 __all__ = ["load_datasets"]
 
@@ -22,6 +23,13 @@ logger = logging.getLogger(__name__)
 
 def _count_differences(left: np.ndarray, right: np.ndarray) -> int:
     return int(np.sum(left != right))
+
+
+def _is_numeric_dtype(dtype: Any) -> bool:
+    try:
+        return bool(np.issubdtype(dtype, np.number))
+    except TypeError:
+        return False
 
 
 def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
@@ -89,6 +97,70 @@ def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
     return {"X": X, "y": y, "metadata": metadata}
 
 
+def _load_csv_dataset(dataset_id: str, spec: dict) -> dict:
+    data_path = Path(spec["path"])
+    label_column = spec["label_column"]
+    metadata = dict(spec.get("metadata", {}))
+
+    if not data_path.exists():
+        raise FileNotFoundError(f"Dataset '{dataset_id}' file not found: {data_path}")
+
+    try:
+        table = pd.read_csv(data_path)
+    except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as exc:
+        raise ValueError(
+            f"Dataset '{dataset_id}' could not parse CSV file '{data_path}': {exc}"
+        ) from exc
+
+    unnamed_columns = [
+        str(column) for column in table.columns if str(column).startswith("Unnamed:")
+    ]
+    if unnamed_columns:
+        raise ValueError(
+            f"Dataset '{dataset_id}' contains unnamed CSV column(s) "
+            f"{unnamed_columns}. This commonly comes from exporting a pandas "
+            "index; write the CSV with index=False."
+        )
+
+    if label_column not in table.columns:
+        raise ValueError(
+            f"Dataset '{dataset_id}' label_column '{label_column}' was not found "
+            f"in CSV file '{data_path}'."
+        )
+
+    features = table.drop(columns=[label_column])
+    if features.shape[1] == 0:
+        raise ValueError(
+            f"Dataset '{dataset_id}' CSV must contain at least one feature column "
+            f"in addition to label_column '{label_column}'."
+        )
+
+    non_numeric_columns = [
+        str(column)
+        for column, dtype in features.dtypes.items()
+        if not _is_numeric_dtype(dtype)
+    ]
+    if non_numeric_columns:
+        raise ValueError(
+            f"Dataset '{dataset_id}' feature columns must be numeric; "
+            f"non-numeric column(s): {non_numeric_columns}."
+        )
+
+    X = features.to_numpy()
+    y = table[label_column].to_numpy()
+    if X.ndim != 2:
+        raise ValueError(f"Dataset '{dataset_id}' X must be 2D; got shape {X.shape}.")
+    if y.ndim != 1:
+        raise ValueError(f"Dataset '{dataset_id}' y must be 1D; got shape {y.shape}.")
+    if len(y) != X.shape[0]:
+        raise ValueError(
+            f"Dataset '{dataset_id}' X/y length mismatch: "
+            f"X has {X.shape[0]} rows, y has {len(y)} labels."
+        )
+
+    return {"X": X, "y": y, "metadata": metadata}
+
+
 def load_datasets(config: Config) -> dict[str, dict[str, Any]]:
     """Load every normalized dataset in a MELITE configuration.
 
@@ -106,17 +178,18 @@ def load_datasets(config: Config) -> dict[str, dict[str, Any]]:
         - ``"X"`` : numpy.ndarray
           Two-dimensional numeric feature matrix.
         - ``"y"`` : numpy.ndarray
-          One-dimensional authoritative label vector loaded from
-          ``label_path``.
+          One-dimensional label vector loaded from ``label_path`` for NPZ or
+          from ``label_column`` for CSV.
         - ``"metadata"`` : dict
           Shallow copy of the dataset metadata dictionary. Metadata keys are
           transported but not interpreted by ``load_datasets``; nested mutable
           values are not deep-copied.
 
         Dataset ids are not interpreted as method, representation, reduction,
-        or classifier names. The configured ``label_path`` is authoritative;
-        an embedded ``y`` in the dataset archive is used only as a consistency
-        check.
+        or classifier names. For NPZ, the configured ``label_path`` is
+        authoritative and an embedded ``y`` is used only as a consistency
+        check. For CSV, the configured ``label_column`` supplies ``y`` and all
+        remaining columns supply ``X`` in their original order.
 
     Raises
     ------
@@ -124,31 +197,33 @@ def load_datasets(config: Config) -> dict[str, dict[str, Any]]:
         If a configured dataset file or authoritative label file does not
         exist.
     ValueError
-        If the dataset archive lacks ``X``; if ``X`` is not two-dimensional or
-        numeric; if authoritative ``y`` is not one-dimensional; if the row
-        count of ``X`` differs from the authoritative label count; or if an
-        embedded ``y`` is not one-dimensional, has a different shape, or has
-        different values from authoritative ``y``.
+        If an NPZ dataset violates its feature or label consistency contract,
+        or if a CSV cannot be parsed, lacks its configured label or any feature
+        columns, contains an ``Unnamed:`` column or non-numeric feature column,
+        or produces invalid feature or label dimensions or row counts.
 
     Examples
     --------
-    >>> import numpy as np
+    >>> import pandas as pd
     >>> from pathlib import Path
     >>> from tempfile import TemporaryDirectory
     >>> from melite import Config, load_datasets
     >>> with TemporaryDirectory() as temporary_directory:
     ...     root = Path(temporary_directory).resolve()
-    ...     data_path = root / "sample_tabular.npz"
-    ...     label_path = root / "labels.npy"
+    ...     data_path = root / "sample_tabular.csv"
     ...     config_path = root / "config.toml"
-    ...     X = np.array([[0.0, 1.0], [1.0, 0.0]])
-    ...     y = np.array(["class_a", "class_b"])
-    ...     np.savez(data_path, X=X, y=y)
-    ...     np.save(label_path, y)
+    ...     table = pd.DataFrame(
+    ...         {
+    ...             "feature_a": [0.0, 1.0],
+    ...             "feature_b": [1.0, 0.0],
+    ...             "Outcome": ["class_a", "class_b"],
+    ...         }
+    ...     )
+    ...     table.to_csv(data_path, index=False)
     ...     config_text = (
     ...         "[datasets.sample_tabular]\\n"
     ...         f'path = "{data_path.as_posix()}"\\n'
-    ...         f'label_path = "{label_path.as_posix()}"\\n'
+    ...         'label_column = "Outcome"\\n'
     ...         'description = "Neutral numeric example"\\n'
     ...     )
     ...     _ = config_path.write_text(config_text, encoding="utf-8")
@@ -159,7 +234,17 @@ def load_datasets(config: Config) -> dict[str, dict[str, Any]]:
     """
     loaded = {}
     for dataset_id, spec in config.DATASETS.items():
-        loaded[dataset_id] = _load_one_dataset(dataset_id, spec)
+        suffix = Path(spec["path"]).suffix.lower()
+        if suffix == ".npz":
+            loaded[dataset_id] = _load_one_dataset(dataset_id, spec)
+        elif suffix == ".csv":
+            loaded[dataset_id] = _load_csv_dataset(dataset_id, spec)
+        else:
+            raise ValueError(
+                f"Dataset '{dataset_id}' has unsupported extension "
+                f"'{suffix or '<none>'}'. .npz and .csv are the supported "
+                "registered-dataset formats."
+            )
         logger.info(
             "Loaded %s: X shape=%s, y shape=%s",
             dataset_id,

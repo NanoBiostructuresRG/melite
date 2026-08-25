@@ -71,7 +71,8 @@ class Config:
         components. Default is ``42``.
     DATASETS : dict
         Normalized dataset registry keyed by user-defined dataset id. Each
-        entry contains ``path``, ``label_path``, and ``metadata`` keys.
+        entry contains ``path`` and ``metadata`` plus ``label_path`` for NPZ
+        datasets or ``label_column`` for CSV datasets.
     ACTIVE_CLASSIFIERS : list of str
         Classifier keys to include in the evaluation (e.g. ``["svc", "rf", "xgb"]``;
         add ``"stack"`` to opt in to stacking).
@@ -86,8 +87,9 @@ class Config:
     ValueError
         If a user configuration uses the obsolete ``[models]`` section,
         specifies ``random_state`` under ``[cv]`` or ``[cv_smoke]`` instead of
-        ``[benchmark]``, or defines a dataset without ``path`` or
-        ``label_path``.
+        ``[benchmark]``, or defines an invalid registered dataset. Registered
+        datasets support only ``.npz`` files with ``label_path`` and ``.csv``
+        files with a non-empty ``label_column``.
 
     Examples
     --------
@@ -170,21 +172,80 @@ class Config:
 
     @staticmethod
     def _normalize_user_datasets(datasets: dict) -> dict:
-        optional_metadata = {"family", "method", "variant", "level", "description"}
+        metadata_keys = ("family", "method", "variant", "level", "description")
+        allowed_keys = (
+            "path",
+            "label_path",
+            "label_column",
+            *metadata_keys,
+        )
         normalized = {}
         for dataset_id, entry in datasets.items():
-            missing = [key for key in ("path", "label_path") if key not in entry]
-            if missing:
-                missing_keys = ", ".join(missing)
+            unknown_keys = sorted(set(entry) - set(allowed_keys))
+            if unknown_keys:
                 raise ValueError(
-                    f"Dataset '{dataset_id}' is missing required field(s): {missing_keys}"
+                    f"Dataset '{dataset_id}' contains unknown field(s): "
+                    f"{', '.join(unknown_keys)}. Allowed fields: "
+                    f"{', '.join(allowed_keys)}."
                 )
+
+            if "path" not in entry:
+                raise ValueError(
+                    f"Dataset '{dataset_id}' is missing required field: path."
+                )
+
+            has_label_path = "label_path" in entry
+            has_label_column = "label_column" in entry
+            if has_label_path and has_label_column:
+                raise ValueError(
+                    f"Dataset '{dataset_id}' specifies both label_path and "
+                    "label_column; configure exactly one for its registered format."
+                )
+
+            suffix = Path(entry["path"]).suffix.lower()
+            if suffix not in {".npz", ".csv"}:
+                raise ValueError(
+                    f"Dataset '{dataset_id}' has unsupported extension "
+                    f"'{suffix or '<none>'}'. .npz and .csv are the supported "
+                    "registered-dataset formats."
+                )
+
+            if suffix == ".npz":
+                if has_label_column:
+                    raise ValueError(
+                        f"Dataset '{dataset_id}' is an NPZ dataset; label_column "
+                        "is forbidden. Configure label_path instead."
+                    )
+                if not has_label_path:
+                    raise ValueError(
+                        f"Dataset '{dataset_id}' is missing required field: label_path."
+                    )
+                label_spec = {"label_path": entry["label_path"]}
+            else:
+                if has_label_path:
+                    raise ValueError(
+                        f"Dataset '{dataset_id}' is a CSV dataset; label_path is "
+                        "forbidden. Configure label_column instead."
+                    )
+                if not has_label_column:
+                    raise ValueError(
+                        f"Dataset '{dataset_id}' is missing required field: "
+                        "label_column."
+                    )
+                label_column = entry["label_column"]
+                if not isinstance(label_column, str) or not label_column.strip():
+                    raise ValueError(
+                        f"Dataset '{dataset_id}' label_column must be a non-empty "
+                        "string."
+                    )
+                label_spec = {"label_column": label_column}
+
             metadata = {
-                key: value for key, value in entry.items() if key in optional_metadata
+                key: value for key, value in entry.items() if key in metadata_keys
             }
             normalized[dataset_id] = {
                 "path": entry["path"],
-                "label_path": entry["label_path"],
+                **label_spec,
                 "metadata": metadata,
             }
         return normalized

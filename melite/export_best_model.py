@@ -19,8 +19,8 @@ from typing import Any, Tuple
 import joblib
 import numpy as np
 import pandas as pd
-from .config import Config
-from .load_dataset import load_datasets, _load_one_dataset
+from melite.config import Config
+from melite.load_dataset import _load_one_dataset, load_datasets
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
@@ -300,7 +300,7 @@ class Finalizer:
             raise ValueError(
                 "The results CSV column 'model_name' was renamed to "
                 "'classifier_name' in MELITE v0.2.4. Regenerate results.csv "
-                "with MELITE v0.2.4 before exporting."
+                "with the current MELITE version before exporting."
             )
         self._loader = DatasetLoader(cfg)
 

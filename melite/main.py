@@ -14,10 +14,10 @@ import numpy as np
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.svm import SVC
 
-from .config import Config
-from .load_dataset import load_datasets
-from .model_training import MultiModelTrainer
-from .result_manager import ResultManager
+from melite.config import Config
+from melite.load_dataset import load_datasets
+from melite.model_training import MultiModelTrainer
+from melite.result_manager import ResultManager
 
 logger = logging.getLogger(__name__)
 

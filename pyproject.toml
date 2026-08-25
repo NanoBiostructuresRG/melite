@@ -21,9 +21,8 @@ keywords = [
     "tabular data",
     "classifier selection",
     "cross-validation",
+    "csv",
     "inference",
-    "PCA",
-    "UMAP",
     "scikit-learn",
     "xgboost",
 ]
@@ -95,6 +94,8 @@ exclude = [
     "/dist",
     "/docs",
     "/mkdocs.yml",
+    # Leading "/" is intentional: exclude repository-root runtime directories,
+    # not packaged resources such as melite/_example_assets/data/.
     "/data",
     "/raw",
     "/output",
@@ -120,8 +121,16 @@ tmp_path_retention_policy = "none"
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E9", "F", "BLE001"]
+select = ["E9", "F", "BLE001", "TID252"]
 ignore = ["RUF022"]  # Preserve deliberate public API order in melite.__all__.
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py is the package facade; explicit-relative imports make its local
+# public re-exports deliberate and avoid self-qualified facade imports.
+"melite/__init__.py" = ["TID252"]
 
 [tool.mypy]
 python_version = "3.11"

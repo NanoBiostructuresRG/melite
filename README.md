@@ -1,7 +1,7 @@
 # MELITE — Multi-Model Classifier Evaluator
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.2.4-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.2.5-blue.svg)]()
 [![PyPI](https://img.shields.io/pypi/v/melite.svg)](https://pypi.org/project/melite/)
 [![Python](https://img.shields.io/pypi/pyversions/melite.svg)](https://pypi.org/project/melite/)
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
@@ -132,9 +132,9 @@ mkdocs serve
 
 ## Quick Start
 
-The bundled example creates a synthetic numeric tabular project and runs a
-short evaluation workflow so you can verify that MELITE is installed and
-working. Cloning the repository is **not** required.
+The bundled example creates a ready-to-run synthetic numeric CSV dataset and
+example configuration for a short evaluation workflow, so you can verify that
+MELITE is installed and working. Cloning the repository is **not** required.
 
 ```bash
 melite example
@@ -288,6 +288,8 @@ The artifacts have distinct roles:
 - `Model_<classifier>_<dataset>.pkl` — final full-data fitted model created by
   `melite export`.
 
+See the [Output Data Contract](docs/usage.md#output-data-contract) for the
+column-level schemas and semantics.
 
 The evaluation figure is generated from already-computed outer-CV evidence. It
 does not trigger additional fitting, tuning, cross-validation, or selection.

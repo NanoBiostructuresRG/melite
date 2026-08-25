@@ -16,8 +16,9 @@ melite --version
 
 ## Quick Start
 
-MELITE includes a bundled synthetic example for verifying the installed
-workflow without cloning the repository or preparing input files.
+MELITE includes a bundled synthetic numeric CSV dataset and example
+configuration for verifying the installed workflow without cloning the
+repository or preparing input files.
 
 Create the example project in the current directory:
 
@@ -30,10 +31,8 @@ This creates:
 ```text
 melite_example/
 ├── config.toml
-├── data/
-│   └── sample_tabular.npz
-└── raw/
-    └── labels.npy
+└── data/
+    └── sample_tabular.csv
 ```
 
 The bundled configuration uses paths rooted at `melite_example/`. Run the
@@ -54,36 +53,53 @@ intended for final classifier selection or model export.
 
 ## Data Preparation
 
-Each MELITE dataset consists of a prepared numeric feature matrix `X` and a
-target-label vector `y`.
+MELITE evaluates prepared numeric tabular feature representations. Users are
+responsible for supplying analysis-ready numeric features compatible with the
+classifiers they evaluate.
 
-The feature matrix is stored in a `.npz` file containing an explicit `X` array.
-Labels are loaded from the configured `label_path`.
+### CSV
 
-MELITE validates that:
+CSV is the recommended low-friction registered input path. A single table
+contains both feature columns and labels, and the configured `label_column`
+identifies the target column. All remaining columns become `X` in exactly the
+order in which they appear in the CSV. Feature columns must be numeric, while
+labels may be categorical.
 
-- `X` is two-dimensional;
-- `X` is numeric;
-- the number of rows in `X` matches the number of labels in `y`;
-- an embedded `y` array, when present, matches the configured label vector.
+Column names help define and validate the registered input, but MELITE
+does not persist feature names into exported model artifacts. Training and
+later inference must therefore use the same feature representation, number of
+features, and feature order.
 
-A typical project layout is:
+A column whose name starts with `Unnamed:` is rejected because it commonly
+represents an accidentally exported pandas index. When creating a CSV with
+pandas, omit that index explicitly:
 
-```text
-raw/
-└── labels.npy
-
-data/
-└── features.npz
+```python
+dataframe.to_csv("data/features.csv", index=False)
 ```
 
-Relative paths are resolved from the directory in which `melite` is executed.
-For the layout above, run MELITE from the project directory containing `raw/`
-and `data/`.
+MELITE does not:
 
-MELITE operates on the numeric representation supplied in `X`. Feature
-generation and preprocessing that produce that representation occur before the
-dataset is registered for evaluation.
+- impute missing values;
+- encode categorical feature columns;
+- infer identifier columns;
+- select feature columns automatically;
+- reorder feature columns;
+- perform feature engineering.
+
+Registered input validation does not reject non-finite numeric values merely
+at the loader boundary. This does not imply that every downstream classifier
+accepts `NaN` or positive or negative infinity.
+
+### NPZ
+
+NPZ remains a supported alternative. The archive contains an explicit `X`
+array, and the configured `label_path` supplies the authoritative `y` vector.
+When the NPZ also contains an embedded `y`, MELITE uses it only as a
+consistency check against `label_path`.
+
+Relative paths for both formats are resolved from the directory in which
+`melite` is executed.
 
 ## Supported Classifiers
 
@@ -128,6 +144,12 @@ Relative dataset, label, and output paths are resolved from the working
 directory in which `melite` is executed, not from the location of the TOML
 file.
 
+For modern registered datasets, the actual dataset file is determined by
+`[datasets.*].path`. `[paths].input` remains part of MELITE's historical path
+contract and is not used to locate a registered CSV dataset. The bundled CSV
+example deliberately points both `input` and `dataset` to
+`melite_example/data/` so it does not create an unused `raw/` directory.
+
 ### Minimal Configuration
 
 A minimal dataset configuration can be written as:
@@ -137,8 +159,8 @@ A minimal dataset configuration can be written as:
 output = "output/"
 
 [datasets.tabular_a]
-path = "data/features.npz"
-label_path = "raw/labels.npy"
+path = "data/features.csv"
+label_column = "label"
 description = "Prepared numeric feature matrix."
 
 [classifiers]
@@ -156,10 +178,43 @@ melite run --config my_config.toml
 Each numeric feature matrix is registered under a user-defined
 `[datasets.<dataset_id>]` entry.
 
-Required fields:
+CSV example:
 
-- `path` — path to the `.npz` file containing `X`;
-- `label_path` — path to the target-label array.
+```toml
+[datasets.my_dataset]
+path = "data/my_dataset.csv"
+label_column = "label"
+family = "tabular"
+```
+
+For CSV, `path` and `label_column` are required, and `label_path` is forbidden.
+All columns except `label_column` become `X` in their existing column order.
+
+NPZ example:
+
+```toml
+[datasets.my_dataset]
+path = "data/my_dataset.npz"
+label_path = "raw/labels.npy"
+family = "descriptors"
+```
+
+For NPZ, `path` and `label_path` are required, and `label_column` is forbidden.
+Specifying both label fields is invalid. The supported registered extensions
+are exactly `.csv` and `.npz`, matched case-insensitively.
+
+The accepted fields inside each `[datasets.*]` entry are exactly:
+
+- `path`;
+- `label_path`;
+- `label_column`;
+- `family`;
+- `method`;
+- `variant`;
+- `level`;
+- `description`.
+
+Unknown fields are rejected rather than silently ignored.
 
 Optional metadata fields:
 
@@ -169,14 +224,19 @@ Optional metadata fields:
 - `level`;
 - `description`.
 
-These metadata fields are preserved for reporting and traceability. They do not
-trigger dataset-specific execution logic.
+These metadata fields are preserved primarily for reporting and traceability. Legacy dimensionality metadata may also be interpreted to preserve historical `reduction_type` compatibility.
+Do not invent a semantic value merely
+to populate optional metadata.
 
 The `family` field describes the feature representation as dataset metadata. It
 is unrelated to the classifier selected or evaluated by MELITE.
 
 Each `dataset_id` identifies one concrete numeric feature matrix evaluated as an
 independent dataset.
+
+For CSV, MELITE does not persist feature names into exported model
+artifacts. Training and later inference must use the same feature
+representation and feature order.
 
 ### Evaluation Settings
 
@@ -228,7 +288,7 @@ Use them with:
 melite run --smoke --config my_config.toml
 ```
 
-F1-macro is the fixed optimization and selection metric in MELITE v0.2.4.
+F1-macro is the fixed optimization and selection metric in MELITE.
 Hyperparameter search optimizes F1-macro, and the classifier with the highest
 mean outer-CV F1-macro is selected. Accuracy and AUC-ROC are reported as
 additional evaluation metrics.
@@ -268,8 +328,15 @@ Create the bundled example project in the current directory:
 melite example
 ```
 
-The command creates `./melite_example/` with the example configuration, feature
-matrix, and labels.
+The command creates `./melite_example/` with a synthetic numeric CSV dataset
+and example configuration:
+
+```text
+melite_example/config.toml
+melite_example/data/sample_tabular.csv
+```
+
+The `output/` directory is created only when MELITE executes the workflow.
 
 The generated `config.toml` assumes that MELITE is executed from the directory
 containing `melite_example/`.
@@ -367,6 +434,116 @@ The artifacts have distinct roles:
 
 `results.csv`, `evaluations.csv`, and `evaluation_folds.csv` include a `smoke`
 column identifying whether their evidence was produced in smoke mode.
+
+### Output Data Contract
+
+The three CSV files are persistent data artifacts whose schemas are part of
+the MELITE package-version contract. MELITE does not embed an
+independent machine-readable `schema_version`. A separate schema version
+should be reconsidered only if output schemas need to evolve independently of
+the MELITE package version.
+
+Optional metadata that is absent is serialized as an empty CSV field.
+`reduction_type` is retained for legacy compatibility and is normally empty
+for modern registered datasets. `smoke` identifies rows produced under reduced
+smoke-mode evaluation settings.
+
+#### `results.csv`
+
+`results.csv` contains one row per evaluated dataset, containing only the
+classifier selected for that dataset. It is both a public selected-result
+artifact and the persisted interface used by `melite export` to identify and
+reconstruct a selected result produced by `melite run`.
+
+<!-- melite-schema:results.csv -->
+
+| Column | Meaning |
+|---|---|
+| `dataset` | User-defined registered dataset identifier. |
+| `family` | Optional dataset-family metadata preserved for reporting and traceability. |
+| `method` | Optional dataset-method metadata preserved for reporting and traceability. |
+| `variant` | Optional dataset-variant metadata preserved for reporting and traceability. |
+| `level` | Optional dataset-level metadata preserved for reporting and traceability. |
+| `description` | Optional dataset description preserved for reporting and traceability. |
+| `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
+| `classifier_name` | Name of the classifier selected for the dataset. |
+| `parameters` | Parameters recorded for the selected result produced by `melite run`. |
+| `f1_macro` | Mean outer-CV F1-macro for the selected classifier. |
+| `f1_std` | Population standard deviation of outer-CV F1-macro. |
+| `accuracy` | Mean outer-CV accuracy for the selected classifier. |
+| `acc_std` | Population standard deviation of outer-CV accuracy. |
+| `auc_roc` | Mean outer-CV AUC-ROC when available. |
+| `auc_std` | Population standard deviation of outer-CV AUC-ROC when available. |
+| `smoke` | Whether the row was produced in smoke mode. |
+
+The metric values in this selected-result summary are written rounded to four
+decimal places by the current `melite run` workflow. The recorded `parameters`
+must not be assumed to be the final parameters stored in a subsequently
+exported model. For tunable classifiers, `melite export` performs a final
+full-data hyperparameter search, so the exported fitted artifact may use
+parameters determined during that final fitting stage.
+
+#### `evaluations.csv`
+
+`evaluations.csv` contains one row per dataset × evaluated classifier. It
+preserves aggregate evaluation evidence for every active classifier, not only
+the winner. `selected` identifies the classifier selected for that dataset.
+
+<!-- melite-schema:evaluations.csv -->
+
+| Column | Meaning |
+|---|---|
+| `dataset` | User-defined registered dataset identifier. |
+| `family` | Optional dataset-family metadata preserved for reporting and traceability. |
+| `method` | Optional dataset-method metadata preserved for reporting and traceability. |
+| `variant` | Optional dataset-variant metadata preserved for reporting and traceability. |
+| `level` | Optional dataset-level metadata preserved for reporting and traceability. |
+| `description` | Optional dataset description preserved for reporting and traceability. |
+| `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
+| `classifier_name` | Name of the evaluated classifier. |
+| `f1_macro` | Mean outer-CV F1-macro for the evaluated classifier. |
+| `f1_std` | Population standard deviation of outer-CV F1-macro. |
+| `accuracy` | Mean outer-CV accuracy for the evaluated classifier. |
+| `acc_std` | Population standard deviation of outer-CV accuracy. |
+| `auc_roc` | Mean outer-CV AUC-ROC when available. |
+| `auc_std` | Population standard deviation of outer-CV AUC-ROC when available. |
+| `selected` | Whether this classifier was selected for the dataset. |
+| `smoke` | Whether the row was produced in smoke mode. |
+
+Aggregate metric values are persisted from the evaluation evidence without
+the four-decimal summary rounding applied when `results.csv` rows are
+constructed. Metadata, `reduction_type`, and `smoke` have the same semantics
+described above.
+
+#### `evaluation_folds.csv`
+
+`evaluation_folds.csv` contains one row per dataset × evaluated classifier ×
+outer-CV split. It is the most granular persisted evaluation evidence used to
+reconstruct and inspect the aggregate comparison.
+
+<!-- melite-schema:evaluation_folds.csv -->
+
+| Column | Meaning |
+|---|---|
+| `dataset` | User-defined registered dataset identifier. |
+| `family` | Optional dataset-family metadata preserved for reporting and traceability. |
+| `method` | Optional dataset-method metadata preserved for reporting and traceability. |
+| `variant` | Optional dataset-variant metadata preserved for reporting and traceability. |
+| `level` | Optional dataset-level metadata preserved for reporting and traceability. |
+| `description` | Optional dataset description preserved for reporting and traceability. |
+| `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
+| `classifier_name` | Name of the evaluated classifier. |
+| `outer_split` | Sequential identifier of the preserved outer evaluation split. |
+| `outer_repeat` | Outer repeated-CV repeat identifier. |
+| `outer_fold` | Fold identifier within the repeat. |
+| `f1_macro` | Held-out F1-macro for this outer split. |
+| `accuracy` | Held-out accuracy for this outer split. |
+| `auc_roc` | Held-out AUC-ROC for this outer split when available. |
+| `selected` | Whether this classifier was selected globally for the dataset after aggregate evaluation. |
+| `smoke` | Whether the evidence was generated under smoke-mode settings. |
+
+The `selected` field does not mean that classifier selection occurred
+independently within that fold.
 
 ## Python API
 

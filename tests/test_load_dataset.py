@@ -5,6 +5,7 @@ import doctest
 
 import melite.load_dataset as load_dataset_module
 import numpy as np
+import pandas as pd
 import pytest
 from melite.load_dataset import load_datasets, _load_dataset_legacy
 
@@ -50,6 +51,14 @@ def _registry_config(tmp_path, datasets):
     cfg = _make_config(tmp_path)
     cfg.DATASETS = datasets
     return cfg
+
+
+def _write_csv(tmp_path, name, table):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    path = data_dir / f"{name}.csv"
+    table.to_csv(path, index=False)
+    return path
 
 
 def test_valid_npz_with_matching_y_loads(tmp_path, tmp_labels, tmp_npz_valid):
@@ -458,6 +467,243 @@ def test_load_datasets_metadata_is_shallow_copied_and_uninterpreted(tmp_path):
     assert loaded_metadata == metadata
     assert loaded_metadata is not metadata
     assert loaded_metadata["opaque_key"] is nested_value
+
+
+def test_load_datasets_csv_preserves_features_labels_and_column_order(tmp_path):
+    table = pd.DataFrame(
+        {
+            "feature_z": [3.5, 4.5, 5.5],
+            "Outcome": ["class_a", "class_b", "class_a"],
+            "feature_a": [10, 20, 30],
+        }
+    )
+    path = _write_csv(tmp_path, "sample_tabular", table)
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "sample_tabular": {
+                "path": str(path),
+                "label_column": "Outcome",
+                "metadata": {"family": "tabular"},
+            }
+        },
+    )
+
+    result = load_datasets(cfg)["sample_tabular"]
+
+    assert np.array_equal(
+        result["X"],
+        np.array([[3.5, 10.0], [4.5, 20.0], [5.5, 30.0]]),
+    )
+    assert np.array_equal(result["y"], np.array(["class_a", "class_b", "class_a"]))
+    assert result["metadata"] == {"family": "tabular"}
+
+
+def test_load_datasets_csv_missing_label_column_fails_clearly(tmp_path):
+    path = _write_csv(
+        tmp_path,
+        "sample_tabular",
+        pd.DataFrame({"feature_a": [1.0, 2.0], "target": [0, 1]}),
+    )
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "sample_tabular": {
+                "path": str(path),
+                "label_column": "Outcome",
+                "metadata": {},
+            }
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"sample_tabular.*label_column 'Outcome'.*not found",
+    ):
+        load_datasets(cfg)
+
+
+def test_load_datasets_csv_rejects_exported_index_column(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    path = data_dir / "sample_tabular.csv"
+    pd.DataFrame({"feature_a": [1.0, 2.0], "Outcome": [0, 1]}).to_csv(path)
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "sample_tabular": {
+                "path": str(path),
+                "label_column": "Outcome",
+                "metadata": {},
+            }
+        },
+    )
+
+    with pytest.raises(ValueError, match=r"Unnamed:.*index=False"):
+        load_datasets(cfg)
+
+
+def test_load_datasets_csv_names_non_numeric_feature_columns(tmp_path):
+    path = _write_csv(
+        tmp_path,
+        "sample_tabular",
+        pd.DataFrame(
+            {
+                "numeric_feature": [1.0, 2.0],
+                "text_feature": ["low", "high"],
+                "Outcome": [0, 1],
+            }
+        ),
+    )
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "sample_tabular": {
+                "path": str(path),
+                "label_column": "Outcome",
+                "metadata": {},
+            }
+        },
+    )
+
+    with pytest.raises(ValueError, match=r"non-numeric.*text_feature"):
+        load_datasets(cfg)
+
+
+def test_load_datasets_csv_requires_at_least_one_feature_column(tmp_path):
+    path = _write_csv(
+        tmp_path,
+        "sample_tabular",
+        pd.DataFrame({"Outcome": ["class_a", "class_b"]}),
+    )
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "sample_tabular": {
+                "path": str(path),
+                "label_column": "Outcome",
+                "metadata": {},
+            }
+        },
+    )
+
+    with pytest.raises(ValueError, match="at least one feature column"):
+        load_datasets(cfg)
+
+
+def test_load_datasets_missing_csv_raises_file_not_found_error(tmp_path):
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "sample_tabular": {
+                "path": str(tmp_path / "data" / "missing.csv"),
+                "label_column": "Outcome",
+                "metadata": {},
+            }
+        },
+    )
+
+    with pytest.raises(FileNotFoundError, match=r"sample_tabular.*file not found"):
+        load_datasets(cfg)
+
+
+def test_load_datasets_csv_parser_failure_has_dataset_and_path_context(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    path = data_dir / "malformed.csv"
+    path.write_text('feature,Outcome\n"unterminated,class_a\n', encoding="utf-8")
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "sample_tabular": {
+                "path": str(path),
+                "label_column": "Outcome",
+                "metadata": {},
+            }
+        },
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        load_datasets(cfg)
+
+    message = str(exc_info.value)
+    assert "sample_tabular" in message
+    assert str(path) in message
+    assert isinstance(exc_info.value.__cause__, pd.errors.ParserError)
+
+
+def test_registered_csv_and_npz_inputs_are_semantically_equivalent(tmp_path):
+    X = np.array([[0.25, 1.0], [1.5, 2.0], [2.75, 3.0]], dtype=np.float32)
+    y = np.array(["class_a", "class_b", "class_a"])
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    label_path = raw_dir / "labels.npy"
+    np.save(label_path, y)
+    npz_path = _write_dataset(tmp_path, "sample_npz", X, embedded_y=y)
+    csv_path = _write_csv(
+        tmp_path,
+        "sample_csv",
+        pd.DataFrame({"feature_a": X[:, 0], "feature_b": X[:, 1], "Outcome": y}),
+    )
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "sample_npz": {
+                "path": str(npz_path),
+                "label_path": str(label_path),
+                "metadata": {},
+            },
+            "sample_csv": {
+                "path": str(csv_path),
+                "label_column": "Outcome",
+                "metadata": {},
+            },
+        },
+    )
+
+    result = load_datasets(cfg)
+
+    assert np.allclose(result["sample_csv"]["X"], result["sample_npz"]["X"])
+    assert np.array_equal(result["sample_csv"]["y"], result["sample_npz"]["y"])
+
+
+def test_csv_and_npz_allow_equivalent_numeric_nan_and_infinity_values(tmp_path):
+    X = np.array([[np.nan, 1.0], [np.inf, -np.inf], [2.0, 3.0]])
+    y = np.array([0, 1, 0])
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    label_path = raw_dir / "labels.npy"
+    np.save(label_path, y)
+    npz_path = _write_dataset(tmp_path, "nonfinite_npz", X, embedded_y=y)
+    csv_path = _write_csv(
+        tmp_path,
+        "nonfinite_csv",
+        pd.DataFrame({"feature_a": X[:, 0], "feature_b": X[:, 1], "Outcome": y}),
+    )
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "nonfinite_npz": {
+                "path": str(npz_path),
+                "label_path": str(label_path),
+                "metadata": {},
+            },
+            "nonfinite_csv": {
+                "path": str(csv_path),
+                "label_column": "Outcome",
+                "metadata": {},
+            },
+        },
+    )
+
+    result = load_datasets(cfg)
+
+    assert np.allclose(
+        result["nonfinite_csv"]["X"],
+        result["nonfinite_npz"]["X"],
+        equal_nan=True,
+    )
+    assert np.array_equal(result["nonfinite_csv"]["y"], y)
 
 
 def test_load_dataset_module_doctest_executes_public_example():

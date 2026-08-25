@@ -67,6 +67,7 @@ nav:
   - Home: index.md
   - Usage: usage.md
   - API Reference: api.md
+  - Decisions: decisions.md
   - Changelog: changelog.md
 
 markdown_extensions:
