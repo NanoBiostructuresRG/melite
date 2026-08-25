@@ -17,6 +17,7 @@ import tomllib
 from pathlib import Path
 
 import numpy as np
+
 __all__ = ["Config"]
 
 # Path to the default configuration file bundled with the package
@@ -132,22 +133,22 @@ class Config:
 
         # Paths
         self.PATHS = {
-            "INPUT":   cfg["paths"]["input"],
+            "INPUT": cfg["paths"]["input"],
             "DATASET": cfg["paths"]["dataset"],
-            "OUTPUT":  cfg["paths"]["output"],
+            "OUTPUT": cfg["paths"]["output"],
         }
         self.RESULTS_FILE = os.path.join(self.PATHS["OUTPUT"], "results.txt")
 
         # Evaluation settings
-        self.RANDOM_STATE     = cfg["benchmark"]["random_state"]
+        self.RANDOM_STATE = cfg["benchmark"]["random_state"]
         self.ACTIVE_CLASSIFIERS = cfg["classifiers"]["active"]
-        self.DATASETS         = self._build_dataset_registry(cfg)
+        self.DATASETS = self._build_dataset_registry(cfg)
 
         # Cross-validation
         cv_section = cfg["cv_smoke"] if smoke else cfg["cv"]
         self.CV_CONFIG = {
-            "n_splits":       cv_section["n_splits"],
-            "n_repeats":      cv_section["n_repeats"],
+            "n_splits": cv_section["n_splits"],
+            "n_repeats": cv_section["n_repeats"],
             "inner_n_splits": cv_section["inner_n_splits"],
         }
 
@@ -179,9 +180,7 @@ class Config:
                     f"Dataset '{dataset_id}' is missing required field(s): {missing_keys}"
                 )
             metadata = {
-                key: value
-                for key, value in entry.items()
-                if key in optional_metadata
+                key: value for key, value in entry.items() if key in optional_metadata
             }
             normalized[dataset_id] = {
                 "path": entry["path"],
@@ -196,9 +195,7 @@ class Config:
             for level in levels:
                 dataset_id = f"{reduction_type}{level}"
                 datasets[dataset_id] = {
-                    "path": os.path.join(
-                        self.PATHS["DATASET"], f"{dataset_id}.npz"
-                    ),
+                    "path": os.path.join(self.PATHS["DATASET"], f"{dataset_id}.npz"),
                     "label_path": os.path.join(self.PATHS["INPUT"], "labels.npy"),
                     "metadata": {
                         "family": "dimensionality",
@@ -250,14 +247,36 @@ class Config:
                 "svc__kernel": ["poly"],
                 "svc__C": [0.01, 0.1, 1, 10],
                 "svc__coef0": [0.0, 0.1, 0.2, 0.6, 0.8, 1],
-                "svc__gamma": [0.001, 0.002, 0.004, 0.008, 0.01, 0.02, 0.04, 0.08, 0.1, 0.2],
+                "svc__gamma": [
+                    0.001,
+                    0.002,
+                    0.004,
+                    0.008,
+                    0.01,
+                    0.02,
+                    0.04,
+                    0.08,
+                    0.1,
+                    0.2,
+                ],
                 "svc__degree": [3, 4, 5],
             },
             {
                 "model": ["svc"],
                 "svc__kernel": ["rbf"],
                 "svc__C": [0.01, 0.02, 0.1, 0.2, 1, 2, 10, 20],
-                "svc__gamma": [0.001, 0.002, 0.004, 0.008, 0.01, 0.02, 0.04, 0.08, 0.1, 0.2],
+                "svc__gamma": [
+                    0.001,
+                    0.002,
+                    0.004,
+                    0.008,
+                    0.01,
+                    0.02,
+                    0.04,
+                    0.08,
+                    0.1,
+                    0.2,
+                ],
             },
             {
                 "model": ["rf"],

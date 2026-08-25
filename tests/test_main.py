@@ -21,12 +21,14 @@ class DummyPipeline:
         self.config = config
 
     def run(self, X_train, y_train, reduction_type, level):
-        self.calls.append({
-            "shape": X_train.shape,
-            "n_labels": len(y_train),
-            "reduction_type": reduction_type,
-            "level": level,
-        })
+        self.calls.append(
+            {
+                "shape": X_train.shape,
+                "n_labels": len(y_train),
+                "reduction_type": reduction_type,
+                "level": level,
+            }
+        )
         return (
             SVC(),
             {"C": 1.0, "kernel": "linear"},
@@ -77,14 +79,16 @@ class DummyPipeline:
                 "acc_std": 0.0567891234,
                 "auc_roc": None,
                 "auc_std": None,
-                "outer_scores": [{
-                    "outer_split": 0,
-                    "outer_repeat": 0,
-                    "outer_fold": 0,
-                    "f1_macro": 0.7123456789,
-                    "accuracy": 0.7234567891,
-                    "auc_roc": None,
-                }],
+                "outer_scores": [
+                    {
+                        "outer_split": 0,
+                        "outer_repeat": 0,
+                        "outer_fold": 0,
+                        "f1_macro": 0.7123456789,
+                        "accuracy": 0.7234567891,
+                        "auc_roc": None,
+                    }
+                ],
                 "selected": False,
             },
         ]
@@ -243,14 +247,40 @@ level = 85
     assert len(evaluation_rows) == 6
     assert len(fold_rows) == 9
     assert list(evaluation_rows[0]) == [
-        "dataset", "family", "method", "variant", "level", "description",
-        "reduction_type", "classifier_name", "f1_macro", "f1_std", "accuracy",
-        "acc_std", "auc_roc", "auc_std", "selected", "smoke",
+        "dataset",
+        "family",
+        "method",
+        "variant",
+        "level",
+        "description",
+        "reduction_type",
+        "classifier_name",
+        "f1_macro",
+        "f1_std",
+        "accuracy",
+        "acc_std",
+        "auc_roc",
+        "auc_std",
+        "selected",
+        "smoke",
     ]
     assert list(fold_rows[0]) == [
-        "dataset", "family", "method", "variant", "level", "description",
-        "reduction_type", "classifier_name", "outer_split", "outer_repeat",
-        "outer_fold", "f1_macro", "accuracy", "auc_roc", "selected", "smoke",
+        "dataset",
+        "family",
+        "method",
+        "variant",
+        "level",
+        "description",
+        "reduction_type",
+        "classifier_name",
+        "outer_split",
+        "outer_repeat",
+        "outer_fold",
+        "f1_macro",
+        "accuracy",
+        "auc_roc",
+        "selected",
+        "smoke",
     ]
     assert evaluation_rows[0]["dataset"] == "morgan_r2_2048"
     assert evaluation_rows[0]["family"] == "fingerprints"
@@ -301,12 +331,14 @@ levels = [70]
     assert rows[0]["method"] == "PCA"
     assert rows[0]["reduction_type"] == "PCA"
     assert rows[0]["level"] == "70"
-    assert DummyPipeline.calls == [{
-        "shape": (8, 2),
-        "n_labels": 8,
-        "reduction_type": "PCA",
-        "level": 70,
-    }]
+    assert DummyPipeline.calls == [
+        {
+            "shape": (8, 2),
+            "n_labels": 8,
+            "reduction_type": "PCA",
+            "level": 70,
+        }
+    ]
 
 
 def test_main_run_missing_registered_dataset_fails(monkeypatch, tmp_path):

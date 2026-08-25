@@ -254,7 +254,12 @@ def test_selection_uses_outer_f1_and_runs_one_final_search_for_winner(monkeypatc
     assert result == (
         "rf-final-estimator",
         {"n_estimators": 10},
-        0.85, 0.01, 0.81, 0.02, 0.82, 0.03,
+        0.85,
+        0.01,
+        0.81,
+        0.02,
+        0.82,
+        0.03,
     )
     assert len(result) == 8
 

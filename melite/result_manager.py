@@ -63,7 +63,7 @@ CLI: melite run | melite export
 Package: melite
 Version: {__version__}
 Licence: {_REPORT_LICENSE}
-Execution Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Execution Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 -----------------------------------------------------
 Repository: https://github.com/NanoBiostructuresRG/melite
 =====================================================
@@ -92,7 +92,9 @@ Repository: https://github.com/NanoBiostructuresRG/melite
             f.write(self._get_header())
             f.write(content)
 
-    def write_csv(self, rows: list[dict], path: Path | str, smoke: bool = False) -> None:
+    def write_csv(
+        self, rows: list[dict], path: Path | str, smoke: bool = False
+    ) -> None:
         """Write selected evaluation results to a CSV file.
 
         Parameters
@@ -121,9 +123,22 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         path.parent.mkdir(parents=True, exist_ok=True)
 
         fieldnames = [
-            "dataset", "family", "method", "variant", "level", "description",
-            "reduction_type", "classifier_name", "parameters", "f1_macro", "f1_std",
-            "accuracy", "acc_std", "auc_roc", "auc_std", "smoke",
+            "dataset",
+            "family",
+            "method",
+            "variant",
+            "level",
+            "description",
+            "reduction_type",
+            "classifier_name",
+            "parameters",
+            "f1_macro",
+            "f1_std",
+            "accuracy",
+            "acc_std",
+            "auc_roc",
+            "auc_std",
+            "smoke",
         ]
         with open(path, mode="w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -154,9 +169,22 @@ Repository: https://github.com/NanoBiostructuresRG/melite
     ) -> None:
         """Write one aggregate evaluation row per dataset and classifier."""
         fieldnames = [
-            "dataset", "family", "method", "variant", "level", "description",
-            "reduction_type", "classifier_name", "f1_macro", "f1_std", "accuracy",
-            "acc_std", "auc_roc", "auc_std", "selected", "smoke",
+            "dataset",
+            "family",
+            "method",
+            "variant",
+            "level",
+            "description",
+            "reduction_type",
+            "classifier_name",
+            "f1_macro",
+            "f1_std",
+            "accuracy",
+            "acc_std",
+            "auc_roc",
+            "auc_std",
+            "selected",
+            "smoke",
         ]
         self._write_evaluation_csv(rows, path, fieldnames, smoke)
 
@@ -165,15 +193,26 @@ Repository: https://github.com/NanoBiostructuresRG/melite
     ) -> None:
         """Write one evaluation row per dataset, classifier, and outer fold."""
         fieldnames = [
-            "dataset", "family", "method", "variant", "level", "description",
-            "reduction_type", "classifier_name", "outer_split", "outer_repeat",
-            "outer_fold", "f1_macro", "accuracy", "auc_roc", "selected", "smoke",
+            "dataset",
+            "family",
+            "method",
+            "variant",
+            "level",
+            "description",
+            "reduction_type",
+            "classifier_name",
+            "outer_split",
+            "outer_repeat",
+            "outer_fold",
+            "f1_macro",
+            "accuracy",
+            "auc_roc",
+            "selected",
+            "smoke",
         ]
         self._write_evaluation_csv(rows, path, fieldnames, smoke)
 
-    def write_evaluation_figures(
-        self, rows: list[dict], smoke: bool = False
-    ) -> None:
+    def write_evaluation_figures(self, rows: list[dict], smoke: bool = False) -> None:
         """Write one outer-CV F1-macro evidence figure per dataset."""
         if not rows:
             return

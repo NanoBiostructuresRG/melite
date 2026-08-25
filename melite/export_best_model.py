@@ -39,8 +39,17 @@ MODEL_MAP = {
 }
 
 METRIC_COLUMNS = [
-    "dataset", "family", "method", "variant", "level", "description",
-    "reduction_type", "classifier_name", "f1_macro", "accuracy", "auc_roc",
+    "dataset",
+    "family",
+    "method",
+    "variant",
+    "level",
+    "description",
+    "reduction_type",
+    "classifier_name",
+    "f1_macro",
+    "accuracy",
+    "auc_roc",
 ]
 
 
@@ -77,10 +86,15 @@ def _build_stacking_classifier(
 ) -> StackingClassifier:
     return StackingClassifier(
         estimators=[
-            ("svc", SklearnPipeline([
-                ("scaler", StandardScaler()),
-                ("svc", SVC(probability=True, random_state=random_state)),
-            ])),
+            (
+                "svc",
+                SklearnPipeline(
+                    [
+                        ("scaler", StandardScaler()),
+                        ("svc", SVC(probability=True, random_state=random_state)),
+                    ]
+                ),
+            ),
             ("rf", RandomForestClassifier(random_state=random_state, n_jobs=1)),
             (
                 "xgb",
@@ -349,7 +363,8 @@ class Finalizer:
 
         logger.info(
             "Training %s on %s using all available data...",
-            row.classifier_name, self._row_dataset_label(row),
+            row.classifier_name,
+            self._row_dataset_label(row),
         )
         print(
             f"\nTraining {row.classifier_name} on {self._row_dataset_label(row)} "
@@ -390,10 +405,12 @@ class Finalizer:
     ) -> Any:
         params = ast.literal_eval(serialised_params)
         if name == "SVC":
-            model = SklearnPipeline([
-                ("scaler", StandardScaler()),
-                ("svc", SVC()),
-            ])
+            model = SklearnPipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    ("svc", SVC()),
+                ]
+            )
             svc_params = {
                 key if "__" in key else f"svc__{key}": value
                 for key, value in params.items()

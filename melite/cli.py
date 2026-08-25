@@ -145,6 +145,7 @@ def _configure_logging(verbose: bool) -> None:
 
 def _run(args: argparse.Namespace) -> None:
     from .main import Main
+
     Main(smoke=args.smoke, user_config=args.config).run()
 
 
@@ -155,8 +156,13 @@ def _export(args: argparse.Namespace) -> None:
     config = Config(user_config=args.config)
     csv_path = args.csv or Path(config.PATHS["OUTPUT"]) / "results.csv"
     outdir = args.outdir or Path(config.PATHS["OUTPUT"])
-    Finalizer(csv_path, outdir, config, row_index=args.row,
-              force=getattr(args, "force", False)).run()
+    Finalizer(
+        csv_path,
+        outdir,
+        config,
+        row_index=args.row,
+        force=getattr(args, "force", False),
+    ).run()
 
 
 def _copy_resource_tree(source, destination: Path) -> None:
@@ -188,10 +194,7 @@ def _example(_args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
     print(f"Example project created at: {destination}")
-    print(
-        "Run: melite run --smoke --config "
-        f"{_EXAMPLE_DIRECTORY}/config.toml"
-    )
+    print(f"Run: melite run --smoke --config {_EXAMPLE_DIRECTORY}/config.toml")
 
 
 def main() -> None:

@@ -28,7 +28,9 @@ EXPECTED_API = [
 ]
 
 
-def _run(cmd: list[str | Path], *, cwd: Path, env: dict[str, str] | None = None) -> None:
+def _run(
+    cmd: list[str | Path], *, cwd: Path, env: dict[str, str] | None = None
+) -> None:
     display = " ".join(str(part) for part in cmd)
     print(f"[smoke] {display}")
     subprocess.run([str(part) for part in cmd], cwd=cwd, env=env, check=True)
@@ -50,12 +52,22 @@ def _build_wheel(dist_dir: Path) -> Path:
     if dist_dir.exists():
         shutil.rmtree(dist_dir)
     _run(
-        [sys.executable, "-m", "build", "--wheel", "--no-isolation", "--outdir", dist_dir],
+        [
+            sys.executable,
+            "-m",
+            "build",
+            "--wheel",
+            "--no-isolation",
+            "--outdir",
+            dist_dir,
+        ],
         cwd=REPO_ROOT,
     )
     wheels = sorted(dist_dir.glob("melite-*.whl"))
     if len(wheels) != 1:
-        raise RuntimeError(f"Expected exactly one MELITE wheel in {dist_dir}, got {wheels}")
+        raise RuntimeError(
+            f"Expected exactly one MELITE wheel in {dist_dir}, got {wheels}"
+        )
     return wheels[0]
 
 
@@ -84,9 +96,7 @@ def _verify_outputs(work_dir: Path) -> None:
     evaluations_csv = output_dir / "evaluations.csv"
     folds_csv = output_dir / "evaluation_folds.csv"
     model_path = output_dir / "Model_SVC_sample_tabular.pkl"
-    figure_path = (
-        output_dir / "figures" / "evaluation_f1_macro_sample_tabular.png"
-    )
+    figure_path = output_dir / "figures" / "evaluation_f1_macro_sample_tabular.png"
 
     expected_paths = (
         example_dir / "config.toml",
@@ -146,7 +156,10 @@ def main() -> None:
         work_dir = temp_root / "work"
         work_dir.mkdir()
 
-        _run([sys.executable, "-m", "venv", "--system-site-packages", venv_dir], cwd=temp_root)
+        _run(
+            [sys.executable, "-m", "venv", "--system-site-packages", venv_dir],
+            cwd=temp_root,
+        )
         python = _venv_python(venv_dir)
         melite = _venv_melite(venv_dir)
 

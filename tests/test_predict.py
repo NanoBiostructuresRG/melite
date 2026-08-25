@@ -20,7 +20,12 @@ def test_predict_returns_dict(tmp_model):
 def test_predict_keys(tmp_model):
     X = np.random.rand(10, 5).astype(np.float32)
     result = predict(tmp_model, X)
-    assert set(result.keys()) == {"predictions", "probabilities", "model_path", "n_samples"}
+    assert set(result.keys()) == {
+        "predictions",
+        "probabilities",
+        "model_path",
+        "n_samples",
+    }
 
 
 def test_predictions_shape(tmp_model):
@@ -83,10 +88,12 @@ def test_3d_input_raises_value_error(tmp_model):
 def test_predict_loads_exported_svc_pipeline(tmp_path):
     X_train = np.random.rand(20, 5).astype(np.float32)
     y_train = np.array([0, 1] * 10, dtype=np.int64)
-    model = SklearnPipeline([
-        ("scaler", StandardScaler()),
-        ("svc", SVC(kernel="linear", C=1, probability=True, random_state=42)),
-    ])
+    model = SklearnPipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("svc", SVC(kernel="linear", C=1, probability=True, random_state=42)),
+        ]
+    )
     model.fit(X_train, y_train)
     model_path = tmp_path / "Model_SVC_toy.pkl"
     joblib.dump(model, model_path)
@@ -101,10 +108,12 @@ def test_predict_neutral_exported_model_usage(tmp_path):
     rng = np.random.default_rng(42)
     X_train = rng.normal(size=(20, 5)).astype(np.float32)
     y_train = np.array([0, 1] * 10, dtype=np.int64)
-    model = SklearnPipeline([
-        ("scaler", StandardScaler()),
-        ("svc", SVC(kernel="linear", C=1, random_state=42)),
-    ])
+    model = SklearnPipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("svc", SVC(kernel="linear", C=1, random_state=42)),
+        ]
+    )
     model.fit(X_train, y_train)
     output_dir = tmp_path / "output"
     output_dir.mkdir()

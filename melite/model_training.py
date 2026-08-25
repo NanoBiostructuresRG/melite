@@ -88,12 +88,16 @@ class MultiModelTrainer(ModelTrainer):
         rs = self.config.RANDOM_STATE
 
         self.model_builders = {
-            "svc": lambda: SklearnPipeline([
-                ("scaler", StandardScaler()),
-                ("svc", SVC(probability=False, random_state=rs)),
-            ]),
+            "svc": lambda: SklearnPipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    ("svc", SVC(probability=False, random_state=rs)),
+                ]
+            ),
             "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=1),
-            "xgb": lambda: XGBClassifier(eval_metric="logloss", random_state=rs, n_jobs=1),
+            "xgb": lambda: XGBClassifier(
+                eval_metric="logloss", random_state=rs, n_jobs=1
+            ),
             "stack": lambda: self._build_stacking_classifier(rs),
         }
         self.active_classifiers = self._validate_active_classifiers()
@@ -109,10 +113,15 @@ class MultiModelTrainer(ModelTrainer):
         )
         return StackingClassifier(
             estimators=[
-                ("svc", SklearnPipeline([
-                    ("scaler", StandardScaler()),
-                    ("svc", SVC(probability=True, random_state=random_state)),
-                ])),
+                (
+                    "svc",
+                    SklearnPipeline(
+                        [
+                            ("scaler", StandardScaler()),
+                            ("svc", SVC(probability=True, random_state=random_state)),
+                        ]
+                    ),
+                ),
                 ("rf", RandomForestClassifier(random_state=random_state, n_jobs=1)),
                 (
                     "xgb",
@@ -239,9 +248,7 @@ class MultiModelTrainer(ModelTrainer):
         auc_mean : float or None
         auc_std : float or None
         """
-        evaluation = self._cross_validate_model_with_scores(
-            model, X_train, y_train
-        )
+        evaluation = self._cross_validate_model_with_scores(model, X_train, y_train)
         return (
             evaluation["f1_macro"],
             evaluation["f1_std"],
@@ -256,8 +263,13 @@ class MultiModelTrainer(ModelTrainer):
         cv = self._build_outer_cv()
         scoring = {"f1": "f1_macro", "acc": "accuracy", "auc": "roc_auc"}
         scores = cross_validate(
-            model, X_train, y_train,
-            scoring=scoring, cv=cv, n_jobs=1, return_train_score=False,
+            model,
+            X_train,
+            y_train,
+            scoring=scoring,
+            cv=cv,
+            n_jobs=1,
+            return_train_score=False,
         )
 
         f1_vals = scores["test_f1"]
@@ -274,9 +286,7 @@ class MultiModelTrainer(ModelTrainer):
                 "outer_fold": outer_split % n_splits,
                 "f1_macro": f1_value,
                 "accuracy": acc_vals[outer_split],
-                "auc_roc": (
-                    auc_vals[outer_split] if auc_vals is not None else None
-                ),
+                "auc_roc": (auc_vals[outer_split] if auc_vals is not None else None),
             }
             for outer_split, f1_value in enumerate(f1_vals)
         ]
@@ -353,10 +363,14 @@ class MultiModelTrainer(ModelTrainer):
             )
 
         selected_result = (
-            winning_model, params,
-            best["f1_macro"], best["f1_std"],
-            best["accuracy"], best["acc_std"],
-            best["auc_roc"], best["auc_std"],
+            winning_model,
+            params,
+            best["f1_macro"],
+            best["f1_std"],
+            best["accuracy"],
+            best["acc_std"],
+            best["auc_roc"],
+            best["auc_std"],
         )
         return selected_result, evaluations
 

@@ -12,24 +12,55 @@ from melite.version import __version__
 
 SAMPLE_ROWS = [
     {
-        "reduction_type": "PCA", "level": 70, "classifier_name": "SVC",
+        "reduction_type": "PCA",
+        "level": 70,
+        "classifier_name": "SVC",
         "parameters": "{'kernel': 'linear', 'C': 1}",
-        "f1_macro": 0.85, "f1_std": 0.02,
-        "accuracy": 0.86, "acc_std": 0.02,
-        "auc_roc": 0.90, "auc_std": 0.01,
+        "f1_macro": 0.85,
+        "f1_std": 0.02,
+        "accuracy": 0.86,
+        "acc_std": 0.02,
+        "auc_roc": 0.90,
+        "auc_std": 0.01,
     }
 ]
 
 EVALUATION_FIELDS = [
-    "dataset", "family", "method", "variant", "level", "description",
-    "reduction_type", "classifier_name", "f1_macro", "f1_std", "accuracy",
-    "acc_std", "auc_roc", "auc_std", "selected", "smoke",
+    "dataset",
+    "family",
+    "method",
+    "variant",
+    "level",
+    "description",
+    "reduction_type",
+    "classifier_name",
+    "f1_macro",
+    "f1_std",
+    "accuracy",
+    "acc_std",
+    "auc_roc",
+    "auc_std",
+    "selected",
+    "smoke",
 ]
 
 FOLD_FIELDS = [
-    "dataset", "family", "method", "variant", "level", "description",
-    "reduction_type", "classifier_name", "outer_split", "outer_repeat",
-    "outer_fold", "f1_macro", "accuracy", "auc_roc", "selected", "smoke",
+    "dataset",
+    "family",
+    "method",
+    "variant",
+    "level",
+    "description",
+    "reduction_type",
+    "classifier_name",
+    "outer_split",
+    "outer_repeat",
+    "outer_fold",
+    "f1_macro",
+    "accuracy",
+    "auc_roc",
+    "selected",
+    "smoke",
 ]
 
 EVALUATION_ROW = {
@@ -91,7 +122,9 @@ def test_write_results_header_is_exactly_preserved(monkeypatch, tmp_path):
     rm = ResultManager(str(output_file))
     rm.write_results("report body")
     content = output_file.read_text(encoding="utf-8")
-    assert content == f"""
+    assert (
+        content
+        == f"""
 =====================================================
                        MELITE
             Multi-Model Classifier Evaluator
@@ -107,6 +140,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
 =====================================================
 
 report body"""
+    )
 
 
 def test_write_results_propagates_write_failure(monkeypatch, tmp_path):
@@ -141,9 +175,22 @@ def test_write_csv_correct_fieldnames(tmp_path):
     with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         assert reader.fieldnames == [
-            "dataset", "family", "method", "variant", "level", "description",
-            "reduction_type", "classifier_name", "parameters", "f1_macro", "f1_std",
-            "accuracy", "acc_std", "auc_roc", "auc_std", "smoke",
+            "dataset",
+            "family",
+            "method",
+            "variant",
+            "level",
+            "description",
+            "reduction_type",
+            "classifier_name",
+            "parameters",
+            "f1_macro",
+            "f1_std",
+            "accuracy",
+            "acc_std",
+            "auc_roc",
+            "auc_std",
+            "smoke",
         ]
 
 
@@ -297,14 +344,16 @@ def test_write_evaluation_figures_groups_existing_outer_scores(monkeypatch, tmp_
 
     rm.write_evaluation_figures(rows, smoke=True)
 
-    assert calls == [{
-        "classifier_scores": {
-            "SVC": [0.80, 0.82],
-            "RandomForestClassifier": [0.71],
-        },
-        "selected_classifier": "SVC",
-        "dataset_id": "morgan",
-        "save_to": tmp_path / "figures" / "evaluation_f1_macro_morgan.png",
-        "smoke": True,
-    }]
+    assert calls == [
+        {
+            "classifier_scores": {
+                "SVC": [0.80, 0.82],
+                "RandomForestClassifier": [0.71],
+            },
+            "selected_classifier": "SVC",
+            "dataset_id": "morgan",
+            "save_to": tmp_path / "figures" / "evaluation_f1_macro_morgan.png",
+            "smoke": True,
+        }
+    ]
     assert closed == [sentinel_figure]

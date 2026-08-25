@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
-LABELS_PATH  = EXAMPLES_DIR / "sample_labels.npy"
-NPZ_PATH     = EXAMPLES_DIR / "sample_PCA70.npz"
+LABELS_PATH = EXAMPLES_DIR / "sample_labels.npy"
+NPZ_PATH = EXAMPLES_DIR / "sample_PCA70.npz"
 
 
 def test_labels_file_exists():
@@ -67,8 +67,7 @@ def test_generate_script_is_deterministic():
     script = EXAMPLES_DIR / "generate_sample_data.py"
 
     first_result = subprocess.run(
-        [sys.executable, str(script)],
-        capture_output=True, text=True
+        [sys.executable, str(script)], capture_output=True, text=True
     )
     assert first_result.returncode == 0
 
@@ -78,8 +77,7 @@ def test_generate_script_is_deterministic():
         first_embedded_y = first_data["y"].copy()
 
     second_result = subprocess.run(
-        [sys.executable, str(script)],
-        capture_output=True, text=True
+        [sys.executable, str(script)], capture_output=True, text=True
     )
     assert second_result.returncode == 0
 

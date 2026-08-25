@@ -168,8 +168,7 @@ def test_example_creates_exact_expected_tree(monkeypatch, tmp_path):
     destination = _copy_example(monkeypatch, tmp_path)
 
     copied_tree = {
-        path.relative_to(destination).as_posix()
-        for path in destination.rglob("*")
+        path.relative_to(destination).as_posix() for path in destination.rglob("*")
     }
     assert copied_tree == EXPECTED_EXAMPLE_TREE
 

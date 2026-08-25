@@ -30,9 +30,7 @@ def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
     metadata = dict(spec.get("metadata", {}))
 
     if not data_path.exists():
-        raise FileNotFoundError(
-            f"Dataset '{dataset_id}' file not found: {data_path}"
-        )
+        raise FileNotFoundError(f"Dataset '{dataset_id}' file not found: {data_path}")
     if not label_path.exists():
         raise FileNotFoundError(
             f"Dataset '{dataset_id}' label_path not found: {label_path}"
@@ -41,8 +39,7 @@ def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
     y = np.load(label_path)
     if y.ndim != 1:
         raise ValueError(
-            f"Dataset '{dataset_id}' authoritative y must be 1D; "
-            f"got shape {y.shape}."
+            f"Dataset '{dataset_id}' authoritative y must be 1D; got shape {y.shape}."
         )
 
     data = np.load(data_path)
@@ -56,9 +53,7 @@ def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
 
     X = data["X"]
     if X.ndim != 2:
-        raise ValueError(
-            f"Dataset '{dataset_id}' X must be 2D; got shape {X.shape}."
-        )
+        raise ValueError(f"Dataset '{dataset_id}' X must be 2D; got shape {X.shape}.")
     if not np.issubdtype(X.dtype, np.number):
         raise ValueError(
             f"Dataset '{dataset_id}' X must be numeric; got dtype {X.dtype}."
@@ -255,8 +250,6 @@ def _load_dataset_legacy(config, reduction_type: str, levels: list) -> dict:
             "No datasets loaded for %s with levels %s", reduction_type, levels
         )
     else:
-        logger.info(
-            "Loaded %d/%d datasets for %s", loaded, len(levels), reduction_type
-        )
+        logger.info("Loaded %d/%d datasets for %s", loaded, len(levels), reduction_type)
 
     return reductions

@@ -180,37 +180,43 @@ class Main:
                     "level": level,
                     "description": description,
                     "reduction_type": reduction_type,
-                    "classifier_name": _CLASSIFIER_NAMES[
-                        evaluation["classifier_key"]
-                    ],
+                    "classifier_name": _CLASSIFIER_NAMES[evaluation["classifier_key"]],
                 }
-                self.evaluation_rows.append({
-                    **evaluation_metadata,
-                    "f1_macro": evaluation["f1_macro"],
-                    "f1_std": evaluation["f1_std"],
-                    "accuracy": evaluation["accuracy"],
-                    "acc_std": evaluation["acc_std"],
-                    "auc_roc": evaluation["auc_roc"],
-                    "auc_std": evaluation["auc_std"],
-                    "selected": evaluation["selected"],
-                })
-                for outer_score in evaluation["outer_scores"]:
-                    self.evaluation_fold_rows.append({
+                self.evaluation_rows.append(
+                    {
                         **evaluation_metadata,
-                        "outer_split": outer_score["outer_split"],
-                        "outer_repeat": outer_score["outer_repeat"],
-                        "outer_fold": outer_score["outer_fold"],
-                        "f1_macro": outer_score["f1_macro"],
-                        "accuracy": outer_score["accuracy"],
-                        "auc_roc": outer_score["auc_roc"],
+                        "f1_macro": evaluation["f1_macro"],
+                        "f1_std": evaluation["f1_std"],
+                        "accuracy": evaluation["accuracy"],
+                        "acc_std": evaluation["acc_std"],
+                        "auc_roc": evaluation["auc_roc"],
+                        "auc_std": evaluation["auc_std"],
                         "selected": evaluation["selected"],
-                    })
+                    }
+                )
+                for outer_score in evaluation["outer_scores"]:
+                    self.evaluation_fold_rows.append(
+                        {
+                            **evaluation_metadata,
+                            "outer_split": outer_score["outer_split"],
+                            "outer_repeat": outer_score["outer_repeat"],
+                            "outer_fold": outer_score["outer_fold"],
+                            "f1_macro": outer_score["f1_macro"],
+                            "accuracy": outer_score["accuracy"],
+                            "auc_roc": outer_score["auc_roc"],
+                            "selected": evaluation["selected"],
+                        }
+                    )
 
             (
-                best_model, best_params,
-                best_f1, f1_std,
-                best_acc, acc_std,
-                best_auc, auc_std,
+                best_model,
+                best_params,
+                best_f1,
+                f1_std,
+                best_acc,
+                acc_std,
+                best_auc,
+                auc_std,
             ) = selected_result
 
             params = self._clean_params(best_params)
@@ -225,39 +231,43 @@ class Main:
             ]
 
             self.final_results.append(
-                "\n".join([
-                    f"Results for dataset {dataset_id}:",
-                    *[line for line in metadata_lines if line is not None],
-                    f"Classifier selected: {classifier_name}",
-                    f"Best classifier parameters: {params}",
-                    f"F1-macro (CV mean): {round(best_f1, 4)} +/- {round(f1_std, 4)}",
-                    f"Accuracy (CV mean): {round(best_acc, 4)} +/- {round(acc_std, 4)}",
-                    (
-                        f"AUC-ROC (CV mean): {round(best_auc, 4)} +/- {round(auc_std, 4)}"
-                        if best_auc is not None
-                        else "AUC-ROC (CV mean): N/A"
-                    ),
-                    "------------------------------",
-                ])
+                "\n".join(
+                    [
+                        f"Results for dataset {dataset_id}:",
+                        *[line for line in metadata_lines if line is not None],
+                        f"Classifier selected: {classifier_name}",
+                        f"Best classifier parameters: {params}",
+                        f"F1-macro (CV mean): {round(best_f1, 4)} +/- {round(f1_std, 4)}",
+                        f"Accuracy (CV mean): {round(best_acc, 4)} +/- {round(acc_std, 4)}",
+                        (
+                            f"AUC-ROC (CV mean): {round(best_auc, 4)} +/- {round(auc_std, 4)}"
+                            if best_auc is not None
+                            else "AUC-ROC (CV mean): N/A"
+                        ),
+                        "------------------------------",
+                    ]
+                )
             )
 
-            self.csv_rows.append({
-                "dataset": dataset_id,
-                "family": family,
-                "method": method,
-                "variant": variant,
-                "level": level,
-                "description": description,
-                "reduction_type": reduction_type,
-                "classifier_name": classifier_name,
-                "parameters": str(params),
-                "f1_macro": round(best_f1, 4),
-                "f1_std": round(f1_std, 4),
-                "accuracy": round(best_acc, 4),
-                "acc_std": round(acc_std, 4),
-                "auc_roc": round(best_auc, 4) if best_auc is not None else "N/A",
-                "auc_std": round(auc_std, 4) if auc_std is not None else "N/A",
-            })
+            self.csv_rows.append(
+                {
+                    "dataset": dataset_id,
+                    "family": family,
+                    "method": method,
+                    "variant": variant,
+                    "level": level,
+                    "description": description,
+                    "reduction_type": reduction_type,
+                    "classifier_name": classifier_name,
+                    "parameters": str(params),
+                    "f1_macro": round(best_f1, 4),
+                    "f1_std": round(f1_std, 4),
+                    "accuracy": round(best_acc, 4),
+                    "acc_std": round(acc_std, 4),
+                    "auc_roc": round(best_auc, 4) if best_auc is not None else "N/A",
+                    "auc_std": round(auc_std, 4) if auc_std is not None else "N/A",
+                }
+            )
 
         final_report = "\n".join(self.final_results)
         self.result_manager.write_results(final_report)

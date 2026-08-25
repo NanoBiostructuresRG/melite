@@ -32,6 +32,9 @@ jobs:
       - name: Run Ruff
         run: python -m ruff check melite tests scripts
 
+      - name: Check Ruff formatting
+        run: python -m ruff format --check melite tests scripts
+
       - name: Run Mypy
         run: python -m mypy melite
 

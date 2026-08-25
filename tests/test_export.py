@@ -26,9 +26,9 @@ class DummyModel:
 def _make_config(tmp_path):
     cfg = Config()
     cfg.PATHS = {
-        "INPUT":   str(tmp_path / "raw") + "/",
+        "INPUT": str(tmp_path / "raw") + "/",
         "DATASET": str(tmp_path / "data") + "/",
-        "OUTPUT":  str(tmp_path / "output") + "/",
+        "OUTPUT": str(tmp_path / "output") + "/",
     }
     cfg.DATASETS = {}
     return cfg
@@ -97,9 +97,7 @@ def test_legacy_model_name_column_fails_with_migration_message(tmp_path):
 
     with pytest.raises(
         ValueError,
-        match=(
-            "'model_name' was renamed to 'classifier_name' in MELITE v0\\.2\\.4"
-        ),
+        match=("'model_name' was renamed to 'classifier_name' in MELITE v0\\.2\\.4"),
     ):
         Finalizer(csv_path, tmp_path / "output", cfg)
 
@@ -163,9 +161,19 @@ def test_export_dataset_row_uses_dataset_id_for_artifact(monkeypatch, tmp_path):
     _write_results_csv(
         csv_path,
         [
-            "dataset", "family", "method", "variant", "level", "description",
-            "reduction_type", "classifier_name", "parameters", "f1_macro", "accuracy",
-            "auc_roc", "smoke",
+            "dataset",
+            "family",
+            "method",
+            "variant",
+            "level",
+            "description",
+            "reduction_type",
+            "classifier_name",
+            "parameters",
+            "f1_macro",
+            "accuracy",
+            "auc_roc",
+            "smoke",
         ],
         {
             "dataset": "morgan_r2_2048",
@@ -279,8 +287,14 @@ def test_export_legacy_row_with_valid_X_and_labels_succeeds(monkeypatch, tmp_pat
     _write_results_csv(
         csv_path,
         [
-            "reduction_type", "level", "classifier_name", "parameters",
-            "f1_macro", "accuracy", "auc_roc", "smoke",
+            "reduction_type",
+            "level",
+            "classifier_name",
+            "parameters",
+            "f1_macro",
+            "accuracy",
+            "auc_roc",
+            "smoke",
         ],
         {
             "reduction_type": "PCA",
@@ -390,6 +404,7 @@ def test_export_builds_stacking_classifier_with_expected_contract():
     assert not isinstance(rf, SklearnPipeline)
     assert not isinstance(xgb, SklearnPipeline)
 
+
 def test_export_can_rebuild_and_save_stacking_model(monkeypatch, tmp_path):
     label_path, y = _write_labels(tmp_path)
     dataset_path = _write_npz(tmp_path, "toy", np.ones((20, 5)), y)
@@ -434,8 +449,14 @@ def test_export_legacy_npz_without_X_does_not_fallback_to_first_key(
     _write_results_csv(
         csv_path,
         [
-            "reduction_type", "level", "classifier_name", "parameters",
-            "f1_macro", "accuracy", "auc_roc", "smoke",
+            "reduction_type",
+            "level",
+            "classifier_name",
+            "parameters",
+            "f1_macro",
+            "accuracy",
+            "auc_roc",
+            "smoke",
         ],
         {
             "reduction_type": "PCA",

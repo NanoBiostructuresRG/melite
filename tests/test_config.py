@@ -53,9 +53,7 @@ def test_config_construction_does_not_mutate_global_rng_state():
 def test_config_exposes_only_the_intended_public_runtime_values():
     cfg = Config()
 
-    public_instance_values = {
-        name for name in vars(cfg) if not name.startswith("_")
-    }
+    public_instance_values = {name for name in vars(cfg) if not name.startswith("_")}
 
     assert public_instance_values == {
         "SMOKE",
@@ -122,10 +120,7 @@ def test_config_smoke_false_uses_full_grids():
 
 def test_config_svc_grid_uses_pipeline_parameter_names():
     cfg = Config()
-    svc_entries = [
-        entry for entry in cfg._param_grid
-        if entry["model"] == ["svc"]
-    ]
+    svc_entries = [entry for entry in cfg._param_grid if entry["model"] == ["svc"]]
 
     assert svc_entries
     for entry in svc_entries:
@@ -140,15 +135,18 @@ def test_config_full_svc_grid_includes_linear_kernel_without_unused_params():
     cfg = Config()
 
     linear_entries = [
-        entry for entry in cfg._param_grid
+        entry
+        for entry in cfg._param_grid
         if entry["model"] == ["svc"] and entry["svc__kernel"] == ["linear"]
     ]
 
-    assert linear_entries == [{
-        "model": ["svc"],
-        "svc__kernel": ["linear"],
-        "svc__C": [0.01, 0.1, 1, 10],
-    }]
+    assert linear_entries == [
+        {
+            "model": ["svc"],
+            "svc__kernel": ["linear"],
+            "svc__C": [0.01, 0.1, 1, 10],
+        }
+    ]
     assert "svc__gamma" not in linear_entries[0]
     assert "svc__degree" not in linear_entries[0]
     assert "svc__coef0" not in linear_entries[0]
@@ -156,10 +154,7 @@ def test_config_full_svc_grid_includes_linear_kernel_without_unused_params():
 
 def test_config_smoke_svc_grid_uses_pipeline_parameter_names():
     cfg = Config(smoke=True)
-    svc_entry = next(
-        entry for entry in cfg._param_grid
-        if entry["model"] == ["svc"]
-    )
+    svc_entry = next(entry for entry in cfg._param_grid if entry["model"] == ["svc"])
 
     assert svc_entry["svc__kernel"] == ["linear"]
     assert svc_entry["svc__C"] == [1]
@@ -169,9 +164,9 @@ def test_config_private_setup_creates_directories_and_seeds_rngs(tmp_path):
     cfg = Config()
     cfg.RANDOM_STATE = 17
     cfg.PATHS = {
-        "INPUT":   str(tmp_path / "raw") + "/",
+        "INPUT": str(tmp_path / "raw") + "/",
         "DATASET": str(tmp_path / "data") + "/",
-        "OUTPUT":  str(tmp_path / "output") + "/",
+        "OUTPUT": str(tmp_path / "output") + "/",
     }
     cfg._setup()
     assert (tmp_path / "raw").exists()
@@ -182,7 +177,7 @@ def test_config_private_setup_creates_directories_and_seeds_rngs(tmp_path):
 
 
 def test_config_user_toml_overrides_defaults(tmp_path):
-    toml_content = '[benchmark]\nlevels = [70, 85]\n'
+    toml_content = "[benchmark]\nlevels = [70, 85]\n"
     user_toml = tmp_path / "custom.toml"
     user_toml.write_text(toml_content)
 
@@ -191,7 +186,7 @@ def test_config_user_toml_overrides_defaults(tmp_path):
 
 
 def test_config_user_toml_falls_back_to_defaults_for_missing_keys(tmp_path):
-    toml_content = '[benchmark]\nlevels = [70]\n'
+    toml_content = "[benchmark]\nlevels = [70]\n"
     user_toml = tmp_path / "custom.toml"
     user_toml.write_text(toml_content)
 
@@ -215,13 +210,9 @@ def test_benchmark_random_state_is_the_canonical_public_seed(tmp_path):
 
 
 @pytest.mark.parametrize("section", ["cv", "cv_smoke"])
-def test_random_state_in_cv_section_fails_with_canonical_location(
-    tmp_path, section
-):
+def test_random_state_in_cv_section_fails_with_canonical_location(tmp_path, section):
     user_toml = tmp_path / f"{section}.toml"
-    user_toml.write_text(
-        f"[{section}]\nrandom_state = 17\n", encoding="utf-8"
-    )
+    user_toml.write_text(f"[{section}]\nrandom_state = 17\n", encoding="utf-8")
 
     with pytest.raises(
         ValueError,
@@ -298,7 +289,7 @@ def test_actual_config_doctests_execute_successfully():
 
 
 def test_config_uses_user_defined_dataset_registry(tmp_path):
-    toml_content = '''
+    toml_content = """
 [datasets.morgan_r2_2048]
 path = "data/morgan_r2_2048.npz"
 label_path = "raw/labels.npy"
@@ -311,7 +302,7 @@ description = "Morgan radius 2 fingerprint"
 path = "data/rdkit_descriptors.npz"
 label_path = "raw/labels.npy"
 family = "descriptors"
-'''
+"""
     user_toml = tmp_path / "custom.toml"
     user_toml.write_text(toml_content)
 
@@ -331,10 +322,10 @@ family = "descriptors"
 
 
 def test_config_user_dataset_requires_path(tmp_path):
-    toml_content = '''
+    toml_content = """
 [datasets.maccs]
 label_path = "raw/labels.npy"
-'''
+"""
     user_toml = tmp_path / "custom.toml"
     user_toml.write_text(toml_content)
 
@@ -343,10 +334,10 @@ label_path = "raw/labels.npy"
 
 
 def test_config_user_dataset_requires_label_path(tmp_path):
-    toml_content = '''
+    toml_content = """
 [datasets.maccs]
 path = "data/maccs.npz"
-'''
+"""
     user_toml = tmp_path / "custom.toml"
     user_toml.write_text(toml_content)
 

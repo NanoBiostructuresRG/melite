@@ -115,13 +115,10 @@ def plot_f1_macro_evidence(
                 f"got shape {scores.shape}."
             )
         if scores.size == 0:
-            raise ValueError(
-                f"Scores for classifier '{classifier}' must not be empty."
-            )
+            raise ValueError(f"Scores for classifier '{classifier}' must not be empty.")
         if not np.all(np.isfinite(scores)):
             raise ValueError(
-                f"Scores for classifier '{classifier}' must contain only "
-                "finite values."
+                f"Scores for classifier '{classifier}' must contain only finite values."
             )
         if np.any((scores < 0.0) | (scores > 1.0)):
             raise ValueError(

@@ -4,6 +4,7 @@
 import doctest
 
 import matplotlib
+
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
@@ -235,9 +236,7 @@ def test_does_not_recompute_selection():
     )
 
     ax = fig.axes[0]
-    selected_text = next(
-        text for text in ax.texts if text.get_text() == "Selected"
-    )
+    selected_text = next(text for text in ax.texts if text.get_text() == "Selected")
     markers = [container.lines[0].get_marker() for container in ax.containers]
 
     assert selected_text.get_position()[0] == 1
