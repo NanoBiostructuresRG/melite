@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import melite.main as main_module
-from melite.main import Main
+from melite.main import Main, Pipeline
 
 
 class SVC:
@@ -21,12 +21,14 @@ class DummyPipeline:
         self.config = config
 
     def run(self, X_train, y_train, reduction_type, level):
-        self.calls.append({
-            "shape": X_train.shape,
-            "n_labels": len(y_train),
-            "reduction_type": reduction_type,
-            "level": level,
-        })
+        self.calls.append(
+            {
+                "shape": X_train.shape,
+                "n_labels": len(y_train),
+                "reduction_type": reduction_type,
+                "level": level,
+            }
+        )
         return (
             SVC(),
             {"C": 1.0, "kernel": "linear"},
@@ -37,6 +39,75 @@ class DummyPipeline:
             0.9,
             0.03,
         )
+
+    def run_with_evaluations(self, X_train, y_train, reduction_type, level):
+        selected_result = self.run(X_train, y_train, reduction_type, level)
+        evaluations = [
+            {
+                "classifier_key": "svc",
+                "f1_macro": 0.8123456789,
+                "f1_std": 0.0123456789,
+                "accuracy": 0.8234567891,
+                "acc_std": 0.0234567891,
+                "auc_roc": 0.9345678912,
+                "auc_std": 0.0345678912,
+                "outer_scores": [
+                    {
+                        "outer_split": 0,
+                        "outer_repeat": 0,
+                        "outer_fold": 0,
+                        "f1_macro": 0.8012345678,
+                        "accuracy": 0.8123456789,
+                        "auc_roc": 0.9234567891,
+                    },
+                    {
+                        "outer_split": 1,
+                        "outer_repeat": 0,
+                        "outer_fold": 1,
+                        "f1_macro": 0.8234567891,
+                        "accuracy": 0.8345678912,
+                        "auc_roc": 0.9456789123,
+                    },
+                ],
+                "selected": True,
+            },
+            {
+                "classifier_key": "rf",
+                "f1_macro": 0.7123456789,
+                "f1_std": 0.0456789123,
+                "accuracy": 0.7234567891,
+                "acc_std": 0.0567891234,
+                "auc_roc": None,
+                "auc_std": None,
+                "outer_scores": [
+                    {
+                        "outer_split": 0,
+                        "outer_repeat": 0,
+                        "outer_fold": 0,
+                        "f1_macro": 0.7123456789,
+                        "accuracy": 0.7234567891,
+                        "auc_roc": None,
+                    }
+                ],
+                "selected": False,
+            },
+        ]
+        return selected_result, evaluations
+
+
+class DummyTrainer:
+    def __init__(self):
+        self.legacy_result = object()
+        self.rich_result = (object(), [{"classifier_key": "svc", "selected": True}])
+        self.calls = []
+
+    def train_and_select_best_model(self, *args):
+        self.calls.append(("legacy", args))
+        return self.legacy_result
+
+    def evaluate_and_select_models(self, *args):
+        self.calls.append(("rich", args))
+        return self.rich_result
 
 
 def _write_labels(path, n_samples=8):
@@ -59,9 +130,41 @@ def _rows(csv_path):
         return list(csv.DictReader(f))
 
 
+def test_pipeline_run_preserves_legacy_trainer_result():
+    trainer = DummyTrainer()
+    pipeline = Pipeline.__new__(Pipeline)
+    pipeline.model_trainer = trainer
+
+    result = pipeline.run("X", "y", "PCA", 70)
+
+    assert result is trainer.legacy_result
+    assert trainer.calls == [("legacy", ("X", "y", "PCA", 70))]
+
+
+def test_pipeline_run_with_evaluations_returns_rich_result_unchanged():
+    trainer = DummyTrainer()
+    pipeline = Pipeline.__new__(Pipeline)
+    pipeline.model_trainer = trainer
+
+    result = pipeline.run_with_evaluations("X", "y", "PCA", 70)
+
+    assert result is trainer.rich_result
+    assert trainer.calls == [("rich", ("X", "y", "PCA", 70))]
+
+
 def test_main_run_uses_arbitrary_dataset_ids(monkeypatch, tmp_path):
     DummyPipeline.calls = []
     monkeypatch.setattr(main_module, "Pipeline", DummyPipeline)
+    figure_calls = []
+
+    def fake_write_evaluation_figures(self, rows, smoke=False):
+        figure_calls.append({"rows": rows, "smoke": smoke})
+
+    monkeypatch.setattr(
+        main_module.ResultManager,
+        "write_evaluation_figures",
+        fake_write_evaluation_figures,
+    )
 
     raw_dir = tmp_path / "raw"
     data_dir = tmp_path / "data"
@@ -99,9 +202,16 @@ method = "PCA"
 level = 85
 ''')
 
-    Main(user_config=config_path).run()
+    main = Main(user_config=config_path)
+    main.run()
 
     rows = _rows(output_dir / "results.csv")
+    report = (output_dir / "results.txt").read_text(encoding="utf-8")
+    assert "Classifiers: SVC, RandomForest, XGBoost, Stacking (opt-in)" in report
+    assert "Classifier selected: SVC" in report
+    assert "Best classifier parameters:" in report
+    assert "Model Selected:" not in report
+    assert "Best ML-model Parameters:" not in report
     assert [row["dataset"] for row in rows] == [
         "morgan_r2_2048",
         "rdkit_descriptors",
@@ -121,6 +231,75 @@ level = 85
     assert DummyPipeline.calls[1]["reduction_type"] == "rdkit_descriptors"
     assert DummyPipeline.calls[2]["reduction_type"] == "PCA"
     assert DummyPipeline.calls[2]["level"] == 85
+    assert list(main.evaluations_by_dataset) == [
+        "morgan_r2_2048",
+        "rdkit_descriptors",
+        "pca85",
+    ]
+    retained = main.evaluations_by_dataset["morgan_r2_2048"]
+    assert [evaluation["classifier_key"] for evaluation in retained] == ["svc", "rf"]
+    assert [evaluation["selected"] for evaluation in retained] == [True, False]
+    assert "outer_scores" not in rows[0]
+    assert "selected" not in rows[0]
+
+    evaluation_rows = _rows(output_dir / "evaluations.csv")
+    fold_rows = _rows(output_dir / "evaluation_folds.csv")
+    assert len(evaluation_rows) == 6
+    assert len(fold_rows) == 9
+    assert list(evaluation_rows[0]) == [
+        "dataset",
+        "family",
+        "method",
+        "variant",
+        "level",
+        "description",
+        "reduction_type",
+        "classifier_name",
+        "f1_macro",
+        "f1_std",
+        "accuracy",
+        "acc_std",
+        "auc_roc",
+        "auc_std",
+        "selected",
+        "smoke",
+    ]
+    assert list(fold_rows[0]) == [
+        "dataset",
+        "family",
+        "method",
+        "variant",
+        "level",
+        "description",
+        "reduction_type",
+        "classifier_name",
+        "outer_split",
+        "outer_repeat",
+        "outer_fold",
+        "f1_macro",
+        "accuracy",
+        "auc_roc",
+        "selected",
+        "smoke",
+    ]
+    assert evaluation_rows[0]["dataset"] == "morgan_r2_2048"
+    assert evaluation_rows[0]["family"] == "fingerprints"
+    assert evaluation_rows[0]["method"] == "Morgan"
+    assert evaluation_rows[0]["variant"] == "r2_2048"
+    assert evaluation_rows[0]["description"] == "Morgan radius 2 fingerprint"
+    assert evaluation_rows[0]["classifier_name"] == "SVC"
+    assert evaluation_rows[0]["f1_macro"] == "0.8123456789"
+    assert evaluation_rows[0]["selected"] == "True"
+    assert evaluation_rows[0]["smoke"] == "False"
+    assert evaluation_rows[1]["classifier_name"] == "RandomForestClassifier"
+    assert evaluation_rows[1]["auc_roc"] == ""
+    assert fold_rows[1]["outer_split"] == "1"
+    assert fold_rows[1]["outer_fold"] == "1"
+    assert fold_rows[1]["f1_macro"] == "0.8234567891"
+    assert fold_rows[1]["selected"] == "True"
+    assert len(figure_calls) == 1
+    assert figure_calls[0]["rows"] is main.evaluation_fold_rows
+    assert figure_calls[0]["smoke"] is False
 
 
 def test_main_run_uses_legacy_registry_metadata(monkeypatch, tmp_path):
@@ -152,12 +331,14 @@ levels = [70]
     assert rows[0]["method"] == "PCA"
     assert rows[0]["reduction_type"] == "PCA"
     assert rows[0]["level"] == "70"
-    assert DummyPipeline.calls == [{
-        "shape": (8, 2),
-        "n_labels": 8,
-        "reduction_type": "PCA",
-        "level": 70,
-    }]
+    assert DummyPipeline.calls == [
+        {
+            "shape": (8, 2),
+            "n_labels": 8,
+            "reduction_type": "PCA",
+            "level": 70,
+        }
+    ]
 
 
 def test_main_run_missing_registered_dataset_fails(monkeypatch, tmp_path):

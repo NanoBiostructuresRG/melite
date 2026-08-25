@@ -1,111 +1,195 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Cross-validation metric distribution plots for MELITE.
+"""Visualize preserved outer-CV evidence for MELITE.
 
-This module provides :func:`plot_cv_distributions`, which generates a
-three-panel figure showing the distribution of F1, Accuracy, and AUC-ROC
-scores across cross-validation folds. Each panel combines a box plot with
-jittered scatter points for individual fold scores.
+This module plots supplied F1-macro evidence and marks the classifier
+previously selected by the evaluation workflow.
 """
+
+from pathlib import Path
+from typing import Mapping, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pathlib import Path
-from typing import Iterable, Optional
+from matplotlib.figure import Figure
 
-__all__ = ["plot_cv_distributions"]
-
-
-def _scatter_with_jitter(ax, data, color="black", s=20, jitter_scale=0.04):
-    np.random.seed(42)
-    x_vals = 1 + np.random.normal(0, jitter_scale, len(data))
-    ax.scatter(x_vals, data, color=color, s=s, zorder=3)
+__all__ = ["plot_f1_macro_evidence"]
 
 
-def plot_cv_distributions(
-    f1: Iterable[float],
-    acc: Iterable[float],
-    auc: Optional[Iterable[float]],
-    model_name: str,
-    params: str,
-    save_to: Optional[Path] = None,
-) -> None:
-    """Generate and optionally save a three-panel CV metric distribution plot.
+def plot_f1_macro_evidence(
+    classifier_scores: Mapping[str, Sequence[float]],
+    selected_classifier: str,
+    dataset_id: str,
+    save_to: Path | str | None = None,
+    smoke: bool = False,
+) -> Figure:
+    """Visualize preserved outer-CV F1-macro evidence.
 
-    Creates a figure with one panel per metric (F1, Accuracy, AUC-ROC). Each
-    panel shows a box plot overlaid with jittered scatter points representing
-    individual cross-validation fold scores. If *auc* is ``None``, the
-    AUC-ROC panel is hidden.
+    The supplied scores are plotted directly, and the classifier previously
+    selected by the evaluation workflow is explicitly marked.
 
     Parameters
     ----------
-    f1 : iterable of float
-        F1-macro scores from each cross-validation fold.
-    acc : iterable of float
-        Accuracy scores from each cross-validation fold.
-    auc : iterable of float or None
-        AUC-ROC scores from each cross-validation fold. Pass ``None`` to hide
-        the AUC-ROC panel (e.g. for binary classifiers without probability
-        support).
-    model_name : str
-        Model name shown in the figure title (e.g. ``"SVC"``).
-    params : str
-        Serialised hyperparameter string shown in the figure subtitle.
-    save_to : pathlib.Path or None, optional
-        Destination path for the PNG file. Parent directories are created
-        automatically if they do not exist. If ``None``, the figure is
-        displayed interactively via :func:`matplotlib.pyplot.show`. Default
-        is ``None``.
+    classifier_scores : Mapping[str, Sequence[float]]
+        Mapping from classifier name to supplied outer-CV F1-macro scores.
+        Each score sequence must be numeric, one-dimensional, non-empty,
+        finite, and within ``[0, 1]``.
+    selected_classifier : str
+        Classifier previously selected by the evaluation workflow. This
+        function marks that classifier but does not recompute selection.
+    dataset_id : str
+        User-defined dataset identifier shown in the figure title.
+    save_to : pathlib.Path or str or None, optional
+        Optional destination path. Parent directories are created
+        automatically, and Matplotlib infers the output format from the path
+        or extension. If ``None``, the figure is not saved.
+    smoke : bool, optional
+        Whether to annotate the figure as smoke-mode evidence. This affects
+        presentation only.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Newly created figure. The function does not show or close it; the
+        caller owns the returned figure and is responsible for displaying or
+        closing it when appropriate.
+
+    Raises
+    ------
+    ValueError
+        If ``classifier_scores`` is empty; if ``selected_classifier`` is not
+        present; or if any classifier's scores cannot be converted to floats,
+        are not one-dimensional, are empty, contain non-finite values, or fall
+        outside ``[0, 1]``.
 
     Notes
     -----
-    When *save_to* is provided, the figure is saved at 300 DPI with
-    ``bbox_inches="tight"`` and the directory tree is created automatically.
-    The function does not close the figure after saving; callers are
-    responsible for calling :func:`matplotlib.pyplot.close` if needed.
+    This function performs no fitting, hyperparameter tuning, cross-validation,
+    or classifier selection. Supplied scores are visualized directly. The mean
+    and population standard deviation (``ddof=0``) are shown. Classifiers
+    follow the iteration order of the supplied mapping. Horizontal jitter uses
+    a deterministic local random-number generator and affects display position
+    only; supplied F1-macro values are not modified.
+
+    Saved raster output uses 300 dpi; vector formats follow Matplotlib's
+    behavior. Filesystem and Matplotlib saving errors propagate to the caller.
 
     Examples
     --------
-    Save a plot for an SVC model to a nested directory:
-
-    >>> from pathlib import Path
-    >>> from melite import plot_cv_distributions
-    >>> f1  = [0.76, 0.90, 0.82]
-    >>> acc = [0.77, 0.90, 0.82]
-    >>> auc = [0.83, 0.95, 0.89]
-    >>> plot_cv_distributions(
-    ...     f1, acc, auc,
-    ...     model_name="SVC",
-    ...     params="{'kernel': 'linear', 'C': 1}",
-    ...     save_to=Path("output/figures/SVC_PCA70.png"),
+    >>> import matplotlib.pyplot as plt
+    >>> from melite import plot_f1_macro_evidence
+    >>> scores = {
+    ...     "SVC": [0.78, 0.82, 0.80],
+    ...     "RandomForestClassifier": [0.81, 0.84, 0.83],
+    ... }
+    >>> fig = plot_f1_macro_evidence(
+    ...     scores,
+    ...     selected_classifier="RandomForestClassifier",
+    ...     dataset_id="sample_tabular",
     ... )
+    >>> fig.axes[0].get_ylabel()
+    'Outer-CV F1-macro'
+    >>> plt.close(fig)
     """
-    metrics = [("F1 Score", f1), ("Accuracy", acc), ("AUC-ROC", auc)]
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=False)
+    if not classifier_scores:
+        raise ValueError("classifier_scores must contain at least one classifier.")
 
-    for ax, (title, data) in zip(axes, metrics):
-        if data is None:
-            ax.set_visible(False)
-            continue
-
-        ax.boxplot(
-            data,
-            patch_artist=True,
-            boxprops={"facecolor": "#5DA5DA", "alpha": 0.6},
+    if selected_classifier not in classifier_scores:
+        raise ValueError(
+            f"selected_classifier '{selected_classifier}' is not present in "
+            "classifier_scores."
         )
-        _scatter_with_jitter(ax, data)
-        ax.set_title(title)
-        ax.set_xticks([])
-        ax.set_ylabel(title)
 
-    fig.suptitle(
-        f"CV Metrics Distribution - {model_name}\nHyperparameters: {params}",
-        fontsize=13,
-    )
-    fig.tight_layout()
+    classifiers = list(classifier_scores)
+    scores_by_classifier = []
+    for classifier in classifiers:
+        try:
+            scores = np.asarray(classifier_scores[classifier], dtype=float)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(
+                f"Scores for classifier '{classifier}' could not be converted "
+                "to a float array."
+            ) from exc
+        if scores.ndim != 1:
+            raise ValueError(
+                f"Scores for classifier '{classifier}' must be one-dimensional; "
+                f"got shape {scores.shape}."
+            )
+        if scores.size == 0:
+            raise ValueError(f"Scores for classifier '{classifier}' must not be empty.")
+        if not np.all(np.isfinite(scores)):
+            raise ValueError(
+                f"Scores for classifier '{classifier}' must contain only finite values."
+            )
+        if np.any((scores < 0.0) | (scores > 1.0)):
+            raise ValueError(
+                f"Scores for classifier '{classifier}' must be within [0, 1]."
+            )
+        scores_by_classifier.append(scores)
 
-    if save_to:
+    fig, ax = plt.subplots(figsize=(8, 5))
+    rng = np.random.default_rng(42)
+
+    for index, (classifier, scores) in enumerate(
+        zip(classifiers, scores_by_classifier)
+    ):
+        jitter = rng.normal(0.0, 0.04, size=len(scores))
+        ax.scatter(
+            index + jitter,
+            scores,
+            s=28,
+            alpha=0.75,
+            zorder=2,
+        )
+
+        mean = float(np.mean(scores))
+        std = float(np.std(scores))
+
+        marker = "*" if classifier == selected_classifier else "o"
+        markersize = 11 if classifier == selected_classifier else 7
+
+        ax.errorbar(
+            index,
+            mean,
+            yerr=std,
+            fmt=marker,
+            markersize=markersize,
+            capsize=5,
+            linewidth=1.5,
+            zorder=3,
+        )
+
+        if classifier == selected_classifier:
+            ax.text(
+                index,
+                0.03,
+                "Selected",
+                ha="center",
+                va="bottom",
+                fontweight="bold",
+            )
+
+    ax.set_xticks(range(len(classifiers)))
+    ax.set_xticklabels(classifiers)
+    ax.set_ylabel("Outer-CV F1-macro")
+    ax.set_ylim(0.0, 1.0)
+    ax.set_title(f"Classifier evaluation — {dataset_id}")
+    ax.grid(axis="y", alpha=0.2)
+
+    if smoke:
+        fig.text(
+            0.5,
+            0.01,
+            "SMOKE MODE — not for final classifier selection",
+            ha="center",
+            va="bottom",
+            fontweight="bold",
+        )
+
+    fig.tight_layout(rect=(0, 0.04 if smoke else 0, 1, 1))
+
+    if save_to is not None:
         save_to = Path(save_to)
         save_to.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_to, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
+
+    return fig

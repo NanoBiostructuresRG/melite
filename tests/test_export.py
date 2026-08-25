@@ -10,6 +10,7 @@ import pytest
 from melite.config import Config
 from melite.export_best_model import Finalizer
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -25,9 +26,9 @@ class DummyModel:
 def _make_config(tmp_path):
     cfg = Config()
     cfg.PATHS = {
-        "INPUT":   str(tmp_path / "raw") + "/",
+        "INPUT": str(tmp_path / "raw") + "/",
         "DATASET": str(tmp_path / "data") + "/",
-        "OUTPUT":  str(tmp_path / "output") + "/",
+        "OUTPUT": str(tmp_path / "output") + "/",
     }
     cfg.DATASETS = {}
     return cfg
@@ -80,12 +81,33 @@ def test_missing_csv_error_includes_hint(tmp_path):
         Finalizer(missing_csv, tmp_path / "output", cfg)
 
 
+def test_legacy_model_name_column_fails_with_migration_message(tmp_path):
+    cfg = _make_config(tmp_path)
+    csv_path = tmp_path / "output" / "results.csv"
+    _write_results_csv(
+        csv_path,
+        ["dataset", "model_name", "parameters", "smoke"],
+        {
+            "dataset": "sample_tabular",
+            "model_name": "SVC",
+            "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
+            "smoke": False,
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=("'model_name' was renamed to 'classifier_name' in MELITE v0\\.2\\.4"),
+    ):
+        Finalizer(csv_path, tmp_path / "output", cfg)
+
+
 def test_get_selected_row_valid_index(tmp_path, tmp_results_csv):
     cfg = _make_config(tmp_path)
     output_dir = tmp_results_csv.parent
     finalizer = Finalizer(tmp_results_csv, output_dir, cfg, row_index=0)
     row = finalizer._get_selected_row()
-    assert row["model_name"] == "SVC"
+    assert row["classifier_name"] == "SVC"
     assert int(row["level"]) == 70
 
 
@@ -127,6 +149,7 @@ def test_export_dataset_row_uses_dataset_id_for_artifact(monkeypatch, tmp_path):
     label_path, y = _write_labels(tmp_path)
     dataset_path = _write_npz(tmp_path, "morgan_r2_2048", np.ones((20, 5)), y)
     cfg = _make_config(tmp_path)
+    cfg.RANDOM_STATE = 17
     cfg.DATASETS = {
         "morgan_r2_2048": {
             "path": str(dataset_path),
@@ -138,9 +161,19 @@ def test_export_dataset_row_uses_dataset_id_for_artifact(monkeypatch, tmp_path):
     _write_results_csv(
         csv_path,
         [
-            "dataset", "family", "method", "variant", "level", "description",
-            "reduction_type", "model_name", "parameters", "f1_macro", "accuracy",
-            "auc_roc", "smoke",
+            "dataset",
+            "family",
+            "method",
+            "variant",
+            "level",
+            "description",
+            "reduction_type",
+            "classifier_name",
+            "parameters",
+            "f1_macro",
+            "accuracy",
+            "auc_roc",
+            "smoke",
         ],
         {
             "dataset": "morgan_r2_2048",
@@ -150,7 +183,7 @@ def test_export_dataset_row_uses_dataset_id_for_artifact(monkeypatch, tmp_path):
             "level": "",
             "description": "",
             "reduction_type": "",
-            "model_name": "SVC",
+            "classifier_name": "SVC",
             "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "f1_macro": 0.8,
             "accuracy": 0.8,
@@ -158,13 +191,17 @@ def test_export_dataset_row_uses_dataset_id_for_artifact(monkeypatch, tmp_path):
             "smoke": False,
         },
     )
-    monkeypatch.setattr(
-        Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
-    )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
+    build_calls = []
 
+    def fake_build_model(*args, **kwargs):
+        build_calls.append((args, kwargs))
+        return DummyModel()
+
+    monkeypatch.setattr(Finalizer, "_build_model", staticmethod(fake_build_model))
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
+    assert build_calls[0][1]["cv_config"] is cfg.CV_CONFIG
+    assert build_calls[0][1]["random_state"] == 17
     assert (tmp_path / "output" / "Model_SVC_morgan_r2_2048.pkl").exists()
 
 
@@ -183,10 +220,10 @@ def test_export_dataset_row_uses_strict_load_datasets(monkeypatch, tmp_path):
     csv_path = tmp_path / "output" / "results.csv"
     _write_results_csv(
         csv_path,
-        ["dataset", "model_name", "parameters", "smoke"],
+        ["dataset", "classifier_name", "parameters", "smoke"],
         {
             "dataset": "maccs",
-            "model_name": "SVC",
+            "classifier_name": "SVC",
             "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "smoke": False,
         },
@@ -207,8 +244,6 @@ def test_export_dataset_row_uses_strict_load_datasets(monkeypatch, tmp_path):
     monkeypatch.setattr(
         Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     assert calls == [cfg]
@@ -229,10 +264,10 @@ def test_export_dataset_npz_without_X_fails_clearly(monkeypatch, tmp_path):
     csv_path = tmp_path / "output" / "results.csv"
     _write_results_csv(
         csv_path,
-        ["dataset", "model_name", "parameters", "smoke"],
+        ["dataset", "classifier_name", "parameters", "smoke"],
         {
             "dataset": "maccs",
-            "model_name": "SVC",
+            "classifier_name": "SVC",
             "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "smoke": False,
         },
@@ -240,8 +275,6 @@ def test_export_dataset_npz_without_X_fails_clearly(monkeypatch, tmp_path):
     monkeypatch.setattr(
         Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     with pytest.raises(ValueError, match="Required key 'X' not found"):
         Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
@@ -254,13 +287,19 @@ def test_export_legacy_row_with_valid_X_and_labels_succeeds(monkeypatch, tmp_pat
     _write_results_csv(
         csv_path,
         [
-            "reduction_type", "level", "model_name", "parameters",
-            "f1_macro", "accuracy", "auc_roc", "smoke",
+            "reduction_type",
+            "level",
+            "classifier_name",
+            "parameters",
+            "f1_macro",
+            "accuracy",
+            "auc_roc",
+            "smoke",
         ],
         {
             "reduction_type": "PCA",
             "level": 70,
-            "model_name": "SVC",
+            "classifier_name": "SVC",
             "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "f1_macro": 0.8,
             "accuracy": 0.8,
@@ -271,8 +310,6 @@ def test_export_legacy_row_with_valid_X_and_labels_succeeds(monkeypatch, tmp_pat
     monkeypatch.setattr(
         Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     assert (tmp_path / "output" / "Model_SVC_PCA70.pkl").exists()
@@ -292,16 +329,14 @@ def test_export_svc_saves_scaler_pipeline(monkeypatch, tmp_path):
     csv_path = tmp_path / "output" / "results.csv"
     _write_results_csv(
         csv_path,
-        ["dataset", "model_name", "parameters", "smoke"],
+        ["dataset", "classifier_name", "parameters", "smoke"],
         {
             "dataset": "toy",
-            "model_name": "SVC",
+            "classifier_name": "SVC",
             "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "smoke": False,
         },
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     model = joblib.load(tmp_path / "output" / "Model_SVC_toy.pkl")
@@ -313,21 +348,32 @@ def test_export_svc_saves_scaler_pipeline(monkeypatch, tmp_path):
 
 
 def test_export_svc_accepts_legacy_unprefixed_parameters():
-    model = Finalizer._build_model("SVC", "{'kernel': 'linear', 'C': 1}")
+    model = Finalizer._build_model(
+        "SVC", "{'kernel': 'linear', 'C': 1}", random_state=42
+    )
 
     assert isinstance(model, SklearnPipeline)
     assert model.named_steps["svc"].kernel == "linear"
     assert model.named_steps["svc"].C == 1
 
 
+def test_export_rejects_unknown_classifier_with_classifier_vocabulary():
+    with pytest.raises(ValueError, match="Unsupported classifier type: KNN"):
+        Finalizer._build_model("KNN", "{}", random_state=42)
+
+
 def test_export_builds_stacking_classifier_with_expected_contract():
-    cv_config = {"n_splits": 2, "n_repeats": 1, "random_state": 42}
+    cv_config = {
+        "n_splits": 2,
+        "n_repeats": 1,
+        "inner_n_splits": 3,
+    }
 
     model = Finalizer._build_model(
         "StackingClassifier",
         "{}",
         cv_config=cv_config,
-        random_state=42,
+        random_state=17,
     )
     estimators = dict(model.estimators)
     svc = estimators["svc"]
@@ -337,16 +383,24 @@ def test_export_builds_stacking_classifier_with_expected_contract():
     assert isinstance(model, StackingClassifier)
     assert model.stack_method == "predict_proba"
     assert model.passthrough is False
-    assert model.cv.cvargs["n_splits"] == 2
-    assert model.cv.n_repeats == 1
-    assert model.cv.random_state == 42
+    assert model.n_jobs == -1
+
+    assert isinstance(model.cv, StratifiedKFold)
+    assert model.cv.n_splits == cv_config["inner_n_splits"]
+    assert model.cv.shuffle is True
+    assert model.cv.random_state == 17
     assert isinstance(svc, SklearnPipeline)
     assert list(svc.named_steps) == ["scaler", "svc"]
     assert isinstance(svc.named_steps["scaler"], StandardScaler)
     assert isinstance(svc.named_steps["svc"], SVC)
     assert svc.named_steps["svc"].probability is True
+
     assert isinstance(rf, RandomForestClassifier)
+    assert rf.n_jobs == 1
+
     assert isinstance(xgb, XGBClassifier)
+    assert xgb.n_jobs == 1
+
     assert not isinstance(rf, SklearnPipeline)
     assert not isinstance(xgb, SklearnPipeline)
 
@@ -355,7 +409,11 @@ def test_export_can_rebuild_and_save_stacking_model(monkeypatch, tmp_path):
     label_path, y = _write_labels(tmp_path)
     dataset_path = _write_npz(tmp_path, "toy", np.ones((20, 5)), y)
     cfg = _make_config(tmp_path)
-    cfg.CV_CONFIG = {"n_splits": 2, "n_repeats": 1, "random_state": 42}
+    cfg.CV_CONFIG = {
+        "n_splits": 2,
+        "n_repeats": 1,
+        "inner_n_splits": 2,
+    }
     cfg.DATASETS = {
         "toy": {
             "path": str(dataset_path),
@@ -366,16 +424,14 @@ def test_export_can_rebuild_and_save_stacking_model(monkeypatch, tmp_path):
     csv_path = tmp_path / "output" / "results.csv"
     _write_results_csv(
         csv_path,
-        ["dataset", "model_name", "parameters", "smoke"],
+        ["dataset", "classifier_name", "parameters", "smoke"],
         {
             "dataset": "toy",
-            "model_name": "StackingClassifier",
+            "classifier_name": "StackingClassifier",
             "parameters": "{'rf__n_estimators': 2, 'xgb__n_estimators': 2}",
             "smoke": False,
         },
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
 
     model = joblib.load(tmp_path / "output" / "Model_StackingClassifier_toy.pkl")
@@ -393,13 +449,19 @@ def test_export_legacy_npz_without_X_does_not_fallback_to_first_key(
     _write_results_csv(
         csv_path,
         [
-            "reduction_type", "level", "model_name", "parameters",
-            "f1_macro", "accuracy", "auc_roc", "smoke",
+            "reduction_type",
+            "level",
+            "classifier_name",
+            "parameters",
+            "f1_macro",
+            "accuracy",
+            "auc_roc",
+            "smoke",
         ],
         {
             "reduction_type": "PCA",
             "level": 70,
-            "model_name": "SVC",
+            "classifier_name": "SVC",
             "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
             "f1_macro": 0.8,
             "accuracy": 0.8,
@@ -410,47 +472,5 @@ def test_export_legacy_npz_without_X_does_not_fallback_to_first_key(
     monkeypatch.setattr(
         Finalizer, "_build_model", staticmethod(lambda *_, **__: DummyModel())
     )
-    monkeypatch.setattr(Finalizer, "_cv_and_plot", lambda *args, **kwargs: None)
-
     with pytest.raises(ValueError, match="Required key 'X' not found"):
         Finalizer(csv_path, tmp_path / "output", cfg, row_index=0).run()
-
-
-def test_cv_plot_uses_dataset_id_for_figure(monkeypatch, tmp_path):
-    import melite.export_best_model as export_module
-
-    cfg = _make_config(tmp_path)
-    csv_path = tmp_path / "output" / "results.csv"
-    _write_results_csv(
-        csv_path,
-        ["dataset", "model_name", "parameters", "smoke"],
-        {
-            "dataset": "rdkit_descriptors",
-            "model_name": "SVC",
-            "parameters": "{'svc__kernel': 'linear', 'svc__C': 1}",
-            "smoke": False,
-        },
-    )
-    saved = {}
-    monkeypatch.setattr(
-        export_module,
-        "cross_validate",
-        lambda *args, **kwargs: {
-            "test_f1": np.array([0.8]),
-            "test_acc": np.array([0.8]),
-            "test_auc": np.array([0.9]),
-        },
-    )
-    monkeypatch.setattr(
-        export_module,
-        "plot_cv_distributions",
-        lambda *args, **kwargs: saved.update({"save_to": kwargs["save_to"]}),
-    )
-    finalizer = Finalizer(csv_path, tmp_path / "output", cfg, row_index=0)
-    row = finalizer._get_selected_row()
-
-    finalizer._cv_and_plot(
-        DummyModel(), np.ones((20, 5)), np.array([0, 1] * 10), row, tmp_path
-    )
-
-    assert saved["save_to"] == tmp_path / "SVC_rdkit_descriptors.png"

@@ -13,13 +13,15 @@ levels          = [70, 75, 80, 85, 90, 95]
 random_state    = 42
 
 [cv]
-n_splits = 10
-n_repeats = 5
+n_splits = 5
+n_repeats = 3
+inner_n_splits = 3
 
 [cv_smoke]
 n_splits = 3
 n_repeats = 1
+inner_n_splits = 2
 
-[models]
-# Active models to benchmark. Add "stack" to opt in to experimental stacking.
+[classifiers]
+# Active classifiers to evaluate. Add "stack" to opt in to stacking.
 active = ["svc", "rf", "xgb"]

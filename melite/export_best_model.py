@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Final model export workflow for MELITE.
 
-This module provides :class:`Finalizer`, which reads a benchmark results CSV,
-lets the user select a configuration row, retrains the corresponding model on
-all available data, generates a CV metric distribution plot, and serialises
-the trained model as a ``.pkl`` artifact.
+This module provides :class:`Finalizer`, which reads an evaluation results file,
+lets the user select a configuration row, reconstructs the selected model,
+retrains it on all available data, and serialises the trained model as a
+``.pkl`` artifact.
 
-A smoke-mode guard prevents accidental export of non-benchmark-quality results.
+A smoke-mode guard prevents accidental export of smoke-mode results.
 """
 
 import ast
@@ -21,10 +21,9 @@ import numpy as np
 import pandas as pd
 from .config import Config
 from .load_dataset import load_datasets, _load_one_dataset
-from .plot_metrics import plot_cv_distributions
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_validate, RepeatedStratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -40,8 +39,17 @@ MODEL_MAP = {
 }
 
 METRIC_COLUMNS = [
-    "dataset", "family", "method", "variant", "level", "description",
-    "reduction_type", "model_name", "f1_macro", "accuracy", "auc_roc",
+    "dataset",
+    "family",
+    "method",
+    "variant",
+    "level",
+    "description",
+    "reduction_type",
+    "classifier_name",
+    "f1_macro",
+    "accuracy",
+    "auc_roc",
 ]
 
 
@@ -53,35 +61,47 @@ def _safe_filename_part(value: Any) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value).strip()).strip("_")
 
 
-def _build_cv_strategy(cv_config: dict | None):
+def _build_cv_strategy(
+    cv_config: dict | None,
+    random_state: int,
+):
     if cv_config is None:
-        cv_config = {"n_splits": 10, "n_repeats": 5, "random_state": 42}
+        cv_config = {
+            "n_splits": 5,
+            "n_repeats": 3,
+            "inner_n_splits": 3,
+        }
     # StackingClassifier uses cross_val_predict internally, which requires
     # one partition of the data rather than repeated test assignments.
-    return RepeatedStratifiedKFold(
-        n_splits=cv_config["n_splits"],
-        n_repeats=1,
-        random_state=cv_config["random_state"],
+    return StratifiedKFold(
+        n_splits=cv_config["inner_n_splits"],
+        shuffle=True,
+        random_state=random_state,
     )
 
 
 def _build_stacking_classifier(
-    random_state: int = 42,
+    random_state: int,
     cv_config: dict | None = None,
 ) -> StackingClassifier:
     return StackingClassifier(
         estimators=[
-            ("svc", SklearnPipeline([
-                ("scaler", StandardScaler()),
-                ("svc", SVC(probability=True, random_state=random_state)),
-            ])),
-            ("rf", RandomForestClassifier(random_state=random_state, n_jobs=-1)),
+            (
+                "svc",
+                SklearnPipeline(
+                    [
+                        ("scaler", StandardScaler()),
+                        ("svc", SVC(probability=True, random_state=random_state)),
+                    ]
+                ),
+            ),
+            ("rf", RandomForestClassifier(random_state=random_state, n_jobs=1)),
             (
                 "xgb",
                 XGBClassifier(
                     eval_metric="logloss",
                     random_state=random_state,
-                    n_jobs=-1,
+                    n_jobs=1,
                 ),
             ),
         ],
@@ -89,7 +109,7 @@ def _build_stacking_classifier(
             random_state=random_state,
             max_iter=1000,
         ),
-        cv=_build_cv_strategy(cv_config),
+        cv=_build_cv_strategy(cv_config, random_state),
         stack_method="predict_proba",
         passthrough=False,
         n_jobs=-1,
@@ -167,7 +187,8 @@ class DatasetLoader:
                 f"No data found for {reduction}{level}: neither an individual "
                 f"file nor an entry inside an aggregated archive is present."
             )
-        return X, self._labels
+        labels = self._ensure_labels()
+        return X, labels
 
     def _try_individual_file(self, reduction: str, level: int) -> np.ndarray | None:
         fp = self._data_root / f"{reduction}{level}.npz"
@@ -195,7 +216,7 @@ class DatasetLoader:
         for pattern in self._CANDIDATE_KEYS:
             key = pattern.format(rtype=reduction, lvl=level)
             if key in arr:
-                self._ensure_labels()
+                labels = self._ensure_labels()
                 X = arr[key]
                 if X.ndim != 2:
                     raise ValueError(
@@ -207,18 +228,21 @@ class DatasetLoader:
                         f"Legacy dataset '{reduction}{level}' X must be numeric; "
                         f"got dtype {X.dtype}."
                     )
-                if len(self._labels) != X.shape[0]:
+                if len(labels) != X.shape[0]:
                     raise ValueError(
                         f"Legacy dataset '{reduction}{level}' X/y length mismatch: "
-                        f"X has {X.shape[0]} rows, y has {len(self._labels)} labels."
+                        f"X has {X.shape[0]} rows, y has {len(labels)} labels."
                     )
                 return X
         raise KeyError(f"Level {level} not found inside {fp.name}.")
 
-    def _ensure_labels(self) -> None:
-        if self._labels is None:
+    def _ensure_labels(self) -> np.ndarray:
+        labels = self._labels
+        if labels is None:
             label_path = Path(self._cfg.PATHS["INPUT"]) / "labels.npy"
-            self._labels = np.load(label_path)
+            labels = np.load(label_path)
+            self._labels = labels
+        return labels
 
 
 class Finalizer:
@@ -227,7 +251,7 @@ class Finalizer:
     Parameters
     ----------
     csv_path : pathlib.Path
-        Path to the ``results.csv`` file produced by the benchmarking phase.
+        Path to the ``results.csv`` file produced by the evaluation workflow.
     output_dir : pathlib.Path
         Directory where the ``.pkl`` artifact will be saved.
     cfg : melite.config.Config
@@ -243,6 +267,9 @@ class Finalizer:
     ------
     FileNotFoundError
         If *csv_path* does not exist.
+    ValueError
+        If *csv_path* uses the legacy ``model_name`` column instead of
+        ``classifier_name``.
     """
 
     def __init__(
@@ -262,28 +289,20 @@ class Finalizer:
         if not Path(csv_path).exists():
             raise FileNotFoundError(
                 f"Results file not found: {csv_path}. "
-                "Run 'melite run' first to generate benchmark results."
+                "Run 'melite run' first to generate evaluation results."
             )
 
         self._metrics = pd.read_csv(csv_path)
+        if (
+            "classifier_name" not in self._metrics.columns
+            and "model_name" in self._metrics.columns
+        ):
+            raise ValueError(
+                "The results CSV column 'model_name' was renamed to "
+                "'classifier_name' in MELITE v0.2.4. Regenerate results.csv "
+                "with MELITE v0.2.4 before exporting."
+            )
         self._loader = DatasetLoader(cfg)
-
-    def _cv_and_plot(self, model, X, y, row, save_dir: Path) -> None:
-        cv_cfg = self._cfg.get_cv_config()
-        cv = RepeatedStratifiedKFold(
-            n_splits=cv_cfg["n_splits"],
-            n_repeats=cv_cfg["n_repeats"],
-            random_state=cv_cfg["random_state"],
-        )
-        scoring = {"f1": "f1_macro", "acc": "accuracy", "auc": "roc_auc"}
-        scores = cross_validate(
-            model, X, y, scoring=scoring, cv=cv, n_jobs=-1, return_train_score=False
-        )
-        plot_cv_distributions(
-            scores["test_f1"], scores["test_acc"], scores.get("test_auc"),
-            model_name=row.model_name, params=row.parameters,
-            save_to=save_dir / f"{row.model_name}_{self._row_dataset_label(row)}.png",
-        )
 
     def _check_smoke_guard(self, row: pd.Series) -> None:
         """Block export of smoke-mode results unless ``--force`` is active.
@@ -304,8 +323,9 @@ class Finalizer:
         if is_smoke and not self._force:
             print(
                 "\n[ERROR] This result was generated in smoke mode and is not "
-                "benchmark-quality.\n"
-                "        Run 'melite run' (without --smoke) to generate valid results,\n"
+                "suitable for final model export.\n"
+                "        Run 'melite run' (without --smoke) to generate full "
+                "evaluation results,\n"
                 "        or use 'melite export --force' to override this guard.\n"
             )
             logger.error("Export blocked: smoke-mode result. Use --force to override.")
@@ -313,7 +333,7 @@ class Finalizer:
         if is_smoke and self._force:
             print(
                 "\n[WARNING] Exporting a smoke-mode result. "
-                "This model is NOT benchmark-quality.\n"
+                "This model is not intended for final use.\n"
             )
             logger.warning("Exporting smoke-mode result (--force override active).")
 
@@ -321,9 +341,9 @@ class Finalizer:
         """Execute the full export workflow.
 
         Displays the metrics table, prompts or uses ``--row`` to select a
-        configuration, checks the smoke guard, loads the dataset, runs CV and
-        generates a metric plot, retrains the model on all data, and saves the
-        ``.pkl`` artifact.
+        configuration, checks the smoke guard, loads the dataset, reconstructs the
+        selected model, retrains it on all available data, and saves the ``.pkl``
+        artifact.
 
         Notes
         -----
@@ -335,21 +355,19 @@ class Finalizer:
         self._check_smoke_guard(row)
         X, y = self._loader.load_row(row)
         model = self._build_model(
-            row.model_name,
+            row.classifier_name,
             row.parameters,
-            cv_config=self._cfg.get_cv_config(),
-            random_state=getattr(self._cfg, "RANDOM_STATE", 42),
+            cv_config=self._cfg.CV_CONFIG,
+            random_state=self._cfg.RANDOM_STATE,
         )
-
-        figures_dir = Path(self._cfg.PATHS["OUTPUT"]) / "figures"
-        self._cv_and_plot(model, X, y, row, figures_dir)
 
         logger.info(
             "Training %s on %s using all available data...",
-            row.model_name, self._row_dataset_label(row),
+            row.classifier_name,
+            self._row_dataset_label(row),
         )
         print(
-            f"\nTraining {row.model_name} on {self._row_dataset_label(row)} "
+            f"\nTraining {row.classifier_name} on {self._row_dataset_label(row)} "
             "using all available data..."
         )
         model.fit(X, y)
@@ -382,15 +400,17 @@ class Finalizer:
     def _build_model(
         name: str,
         serialised_params: str,
+        random_state: int,
         cv_config: dict | None = None,
-        random_state: int = 42,
     ) -> Any:
         params = ast.literal_eval(serialised_params)
         if name == "SVC":
-            model = SklearnPipeline([
-                ("scaler", StandardScaler()),
-                ("svc", SVC()),
-            ])
+            model = SklearnPipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    ("svc", SVC()),
+                ]
+            )
             svc_params = {
                 key if "__" in key else f"svc__{key}": value
                 for key, value in params.items()
@@ -406,7 +426,7 @@ class Finalizer:
         try:
             return MODEL_MAP[name](**params)
         except KeyError as exc:
-            raise ValueError(f"Unsupported model type: {name}") from exc
+            raise ValueError(f"Unsupported classifier type: {name}") from exc
 
     @staticmethod
     def _row_dataset_label(row: pd.Series) -> str:
@@ -416,7 +436,7 @@ class Finalizer:
 
     def _save_model(self, model: Any, row: pd.Series) -> Path:
         self._output_dir.mkdir(exist_ok=True)
-        filename = f"Model_{row.model_name}_{self._row_dataset_label(row)}.pkl"
+        filename = f"Model_{row.classifier_name}_{self._row_dataset_label(row)}.pkl"
         path = self._output_dir / filename
         joblib.dump(model, path)
         return path

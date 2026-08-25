@@ -1,13 +1,79 @@
 # Changelog
 
-All notable changes to MELITE will be documented in this file.
+All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [v0.2.3] - 2026-06-01
+## [0.2.4] - 2026-08-20
+
+### Added
+- Added persistent classifier evaluation evidence through `evaluations.csv`,
+  with one aggregate row per dataset and active classifier.
+- Added `evaluation_folds.csv` with one row per dataset, classifier, and
+  outer-CV split, preserving the raw evidence used for classifier selection.
+- Added one dataset-level F1-macro evidence figure under `output/figures/`,
+  showing the existing outer-CV scores for every evaluated classifier and
+  marking the selected classifier without running additional cross-validation.
+
+### Changed
+- Adopted the public product identity
+  **MELITE — Multi-Model Classifier Evaluator**.
+- Classifier selection is now based on mean outer-CV F1-macro from the
+  evaluation evidence retained for every active classifier.
+- Stacking graduated from experimental status to a stable opt-in classifier;
+  it remains disabled by default.
+- Standalone SVC evaluation now avoids probability fitting, while exported SVC
+  artifacts and the SVC base estimator inside stacking retain probability
+  support where required.
+- Evaluation parallelism now avoids nested estimator parallelism: inner grid
+  search or stacking owns parallel execution while contained estimators run
+  single-threaded.
+- Evaluation and smoke-mode terminology was aligned throughout the package,
+  documentation, CLI, and generated reports.
+- Renamed `[models]` / `ACTIVE_MODELS` to `[classifiers]` /
+  `ACTIVE_CLASSIFIERS`; existing configuration users must rename the
+  `[models]` section to `[classifiers]`.
+- Renamed the evaluation CSV field `model_name` to `classifier_name` in
+  `results.csv`, `evaluations.csv`, and `evaluation_folds.csv`; external CSV
+  consumers must update that column name.
+- Narrowed the public `Config` surface: legacy-reduction state, hyperparameter-
+  grid internals, redundant accessors, and runtime setup are no longer public
+  API. `RANDOM_STATE` is now the single public random-seed value, and
+  `CV_CONFIG` contains only `n_splits`, `n_repeats`, and `inner_n_splits`.
+- Explicit `[cv].random_state` and `[cv_smoke].random_state` settings are now
+  rejected with a clear configuration error; the canonical location is
+  `[benchmark].random_state`.
+- Replaced the former three-metric CV distribution plot API with
+  `plot_f1_macro_evidence()`, focused on the outer-CV F1-macro evidence used
+  for classifier selection.
+
+### Fixed
+- Result and evaluation persistence failures now propagate to callers instead
+  of being silently printed and ignored.
+- Corrected tunable-classifier evaluation so hyperparameter search occurs
+  inside each outer cross-validation split, separating hyperparameter tuning
+  from classifier evaluation.
+- Aligned stacking export reconstruction with the configured internal
+  stratified CV strategy used during training.
+- Removed the post-selection cross-validation step from `melite export`.
+  Export now reconstructs the selected model, fits it on all available data,
+  and saves the final `.pkl` artifact without producing a second evaluation.
+- Preserved the role of `results.csv` as the selected-classifier summary while
+  separating full evaluation evidence into dedicated output files.
+
+### Notes
+- The legacy `[benchmark]` configuration section remains supported for backward
+  compatibility.
+- Stacking remains opt-in; the default active classifiers are SVC, Random Forest,
+  and XGBoost.
+- Optuna and MLflow remain outside the scope of v0.2.4.
+
+---
+
+## [0.2.3] - 2026-06-01
 
 ### Added
 - Added opt-in experimental stacking via the `stack` model key in
@@ -32,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [v0.2.2] - 2026-05-28
+## [0.2.2] - 2026-05-28
 
 ### Changed
 - SVC is now trained as a `StandardScaler` -> `SVC` sklearn `Pipeline`.
@@ -50,7 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [v0.2.1] - 2026-05-27
+## [0.2.1] - 2026-05-27
 
 ### Changed
 - `[models].active` / `ACTIVE_MODELS` now controls which model families are
@@ -70,7 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [v0.2.0] - 2026-05-26
+## [0.2.0] - 2026-05-26
 
 ### Added
 - Added canonical `[datasets.<dataset_id>]` TOML registry entries for
@@ -429,3 +495,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TXT/CSV result export.
 - Final model export as `.pkl`.
 - Three-panel metric plotting for F1, Accuracy and AUC-ROC.
+
+---
+
+[0.2.4]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.11...v0.2.0
+[0.1.11]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.10...v0.1.11
+[0.1.10]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.9...v0.1.10
+[0.1.9]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.8...v0.1.9
+[0.1.8]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.7...v0.1.8
+[0.1.7]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.6...v0.1.7
+[0.1.6]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.5...v0.1.6
+[0.1.5]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/NanoBiostructuresRG/melite/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/NanoBiostructuresRG/melite/releases/tag/v0.1.1
+[0.1.0]: https://github.com/NanoBiostructuresRG/melite/releases/tag/v0.1.0

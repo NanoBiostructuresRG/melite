@@ -1,0 +1,31 @@
+# MELITE synthetic numeric-tabular example
+# Run from the directory containing melite_example/:
+#   melite run --smoke --config melite_example/config.toml
+
+[paths]
+input   = "melite_example/raw/"
+dataset = "melite_example/data/"
+output  = "melite_example/output/"
+
+[benchmark]
+random_state = 42
+
+[datasets.sample_tabular]
+path = "melite_example/data/sample_tabular.npz"
+label_path = "melite_example/raw/labels.npy"
+family = "synthetic"
+method = "numeric_tabular"
+description = "Deterministic synthetic numeric tabular classification example with overlapping classes."
+
+[cv]
+n_splits = 3
+n_repeats = 1
+inner_n_splits = 3
+
+[cv_smoke]
+n_splits = 3
+n_repeats = 1
+inner_n_splits = 2
+
+[classifiers]
+active = ["svc"]

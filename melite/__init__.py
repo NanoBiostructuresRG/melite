@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""MELITE — multi-model selection, cross-validation and export toolkit.
+"""MELITE — Multi-Model Classifier Evaluator.
 
 Public API
 ----------
-The following symbols are part of the stable public API:
+The following symbols are exposed through the public API:
 
     from melite import Config
     from melite import load_datasets
-    from melite import plot_cv_distributions
+    from melite import plot_f1_macro_evidence
     from melite import predict
     from melite import __version__
 """
@@ -16,14 +16,14 @@ import logging
 
 from .config import Config
 from .load_dataset import load_datasets
-from .plot_metrics import plot_cv_distributions
+from .plot_metrics import plot_f1_macro_evidence
 from .predict import predict
 from .version import __version__
 
 __all__ = [
     "Config",
     "load_datasets",
-    "plot_cv_distributions",
+    "plot_f1_macro_evidence",
     "predict",
     "__version__",
 ]

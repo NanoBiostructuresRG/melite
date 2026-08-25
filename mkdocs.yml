@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 site_name: MELITE
-site_description: Tabular classification benchmarking toolkit for model selection, repeated stratified cross-validation, final model export, and artifact-based inference
+site_description: Multi-model classifier evaluator for tabular classification with nested cross-validation, classifier selection, final model export, and artifact-based inference
 site_url: https://nanobiostructuresrg.github.io/melite/
 repo_url: https://github.com/NanoBiostructuresRG/melite
 repo_name: NanoBiostructuresRG/melite
@@ -38,16 +38,19 @@ theme:
     - content.tabs.link
 
 extra_css:
-  - stylesheets/extra.css?v=0.2.1-docs
+  - stylesheets/extra.css?v=0.2.4-docs
 
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://nanobiostructuresrg.github.io/
-      name: NanoBiostructuresRG
+      link: https://github.com/NanoBiostructuresRG/melite
+      name: MELITE on GitHub
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/melite/
       name: PyPI package melite
+    - icon: fontawesome/solid/users
+      link: https://nanobiostructuresrg.github.io/
+      name: NanoBiostructuresRG
 
 plugins:
   - search
@@ -62,12 +65,9 @@ plugins:
 
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Quick Start: quickstart.md
-  - CLI Reference: cli.md
-  - Configuration: configuration.md
+  - Usage: usage.md
   - API Reference: api.md
-  - Release Notes: release.md
+  - Changelog: changelog.md
 
 markdown_extensions:
   - admonition

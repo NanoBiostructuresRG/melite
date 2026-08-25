@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 [project]
 name = "melite"
 dynamic = ["version"]
-description = "Tabular classification benchmarking toolkit for model selection, repeated stratified cross-validation, final model export, and artifact-based inference."
+description = "Tabular classification benchmarking toolkit for classifier selection, repeated stratified cross-validation, final model export, and artifact-based inference."
 readme = "README.md"
 license = "LGPL-3.0-or-later"
 license-files = ["LICENSE", "COPYING", "COPYING.LESSER"]
@@ -19,7 +19,7 @@ keywords = [
     "benchmarking",
     "classification",
     "tabular data",
-    "model selection",
+    "classifier selection",
     "cross-validation",
     "inference",
     "PCA",
@@ -52,6 +52,8 @@ dev = [
     "build>=1.0",
     "hatchling>=1.18",
     "twine>=4.0",
+    "ruff==0.16.4",
+    "mypy==2.3.1",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -113,3 +115,14 @@ exclude = [
 testpaths = ["tests"]
 tmp_path_retention_count = 0
 tmp_path_retention_policy = "none"
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E9", "F", "BLE001"]
+ignore = ["RUF022"]  # Preserve deliberate public API order in melite.__all__.
+
+[tool.mypy]
+python_version = "3.11"
+disable_error_code = ["import-untyped"]

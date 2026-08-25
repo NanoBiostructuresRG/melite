@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Installed-wheel smoke test for the MELITE toy dataset workflow.
+"""Installed-wheel smoke test for the public MELITE example workflow.
 
 The script builds a wheel from the current checkout, installs it into a
-temporary virtual environment, creates a tiny strict ``[datasets.toy]``
-configuration outside the repository, runs ``melite run --smoke``, exports row
-0 non-interactively, and verifies the expected artifacts.
+temporary virtual environment, runs ``melite example`` followed by the public
+smoke command, and verifies the copied resources and generated evidence.
 """
 
 from __future__ import annotations
@@ -18,20 +17,20 @@ import sys
 import tempfile
 from pathlib import Path
 
-import numpy as np
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_API = [
     "Config",
     "load_datasets",
-    "plot_cv_distributions",
+    "plot_f1_macro_evidence",
     "predict",
     "__version__",
 ]
 
 
-def _run(cmd: list[str | Path], *, cwd: Path, env: dict[str, str] | None = None) -> None:
+def _run(
+    cmd: list[str | Path], *, cwd: Path, env: dict[str, str] | None = None
+) -> None:
     display = " ".join(str(part) for part in cmd)
     print(f"[smoke] {display}")
     subprocess.run([str(part) for part in cmd], cwd=cwd, env=env, check=True)
@@ -53,76 +52,23 @@ def _build_wheel(dist_dir: Path) -> Path:
     if dist_dir.exists():
         shutil.rmtree(dist_dir)
     _run(
-        [sys.executable, "-m", "build", "--wheel", "--no-isolation", "--outdir", dist_dir],
+        [
+            sys.executable,
+            "-m",
+            "build",
+            "--wheel",
+            "--no-isolation",
+            "--outdir",
+            dist_dir,
+        ],
         cwd=REPO_ROOT,
     )
     wheels = sorted(dist_dir.glob("melite-*.whl"))
     if len(wheels) != 1:
-        raise RuntimeError(f"Expected exactly one MELITE wheel in {dist_dir}, got {wheels}")
+        raise RuntimeError(
+            f"Expected exactly one MELITE wheel in {dist_dir}, got {wheels}"
+        )
     return wheels[0]
-
-
-def _write_toy_project(work_dir: Path) -> Path:
-    raw_dir = work_dir / "raw"
-    data_dir = work_dir / "data"
-    output_dir = work_dir / "output"
-    raw_dir.mkdir()
-    data_dir.mkdir()
-    output_dir.mkdir()
-
-    X = np.array([
-        [0.0, 0.1, 1.0],
-        [0.1, 0.0, 0.9],
-        [0.2, 0.1, 1.1],
-        [0.1, 0.2, 1.0],
-        [0.2, 0.0, 0.8],
-        [0.0, 0.2, 1.2],
-        [1.0, 1.1, 0.0],
-        [1.1, 1.0, 0.1],
-        [0.9, 1.2, 0.0],
-        [1.2, 0.9, 0.2],
-        [1.0, 1.0, 0.0],
-        [1.1, 1.2, 0.1],
-    ], dtype=float)
-    y = np.array([0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1], dtype=np.int64)
-
-    label_path = raw_dir / "labels.npy"
-    dataset_path = data_dir / "toy.npz"
-    np.save(label_path, y)
-    np.savez(dataset_path, X=X, y=y)
-
-    config_path = work_dir / "toy_config.toml"
-    config_path.write_text(
-        f"""
-[paths]
-input = "{raw_dir.as_posix()}/"
-dataset = "{data_dir.as_posix()}/"
-output = "{output_dir.as_posix()}/"
-
-[benchmark]
-random_state = 42
-
-[cv]
-n_splits = 3
-n_repeats = 1
-
-[cv_smoke]
-n_splits = 3
-n_repeats = 1
-
-[models]
-active = ["svc"]
-
-[datasets.toy]
-path = "{dataset_path.as_posix()}"
-label_path = "{label_path.as_posix()}"
-family = "smoke"
-method = "toy"
-description = "Installed wheel smoke dataset"
-""".lstrip(),
-        encoding="utf-8",
-    )
-    return config_path
 
 
 def _check_imports(python: Path) -> None:
@@ -144,12 +90,26 @@ print(melite.__version__, module_path)
 
 
 def _verify_outputs(work_dir: Path) -> None:
-    output_dir = work_dir / "output"
+    example_dir = work_dir / "melite_example"
+    output_dir = example_dir / "output"
     results_csv = output_dir / "results.csv"
-    model_path = output_dir / "Model_SVC_toy.pkl"
-    figure_path = output_dir / "figures" / "SVC_toy.png"
+    evaluations_csv = output_dir / "evaluations.csv"
+    folds_csv = output_dir / "evaluation_folds.csv"
+    model_path = output_dir / "Model_SVC_sample_tabular.pkl"
+    figure_path = output_dir / "figures" / "evaluation_f1_macro_sample_tabular.png"
 
-    for path in (results_csv, model_path, figure_path):
+    expected_paths = (
+        example_dir / "config.toml",
+        example_dir / "data" / "sample_tabular.npz",
+        example_dir / "raw" / "labels.npy",
+        output_dir / "results.txt",
+        results_csv,
+        evaluations_csv,
+        folds_csv,
+        model_path,
+        figure_path,
+    )
+    for path in expected_paths:
         if not path.exists():
             raise AssertionError(f"Expected artifact was not created: {path}")
 
@@ -158,12 +118,25 @@ def _verify_outputs(work_dir: Path) -> None:
     if len(rows) != 1:
         raise AssertionError(f"Expected one result row, got {len(rows)}")
     row = rows[0]
-    if row["dataset"] != "toy":
-        raise AssertionError(f"Expected dataset 'toy', got {row['dataset']!r}")
-    if row["model_name"] != "SVC":
-        raise AssertionError(f"Expected model 'SVC', got {row['model_name']!r}")
-    if row["smoke"] != "True":
-        raise AssertionError(f"Expected smoke=True row, got {row['smoke']!r}")
+    if row["dataset"] != "sample_tabular":
+        raise AssertionError(
+            f"Expected dataset 'sample_tabular', got {row['dataset']!r}"
+        )
+    if row["classifier_name"] != "SVC":
+        raise AssertionError(
+            f"Expected classifier 'SVC', got {row['classifier_name']!r}"
+        )
+
+    for csv_path in (results_csv, evaluations_csv, folds_csv):
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            evidence_rows = list(csv.DictReader(f))
+        if not evidence_rows:
+            raise AssertionError(f"Expected evidence rows in {csv_path}")
+        smoke_values = {evidence_row["smoke"] for evidence_row in evidence_rows}
+        if smoke_values != {"True"}:
+            raise AssertionError(
+                f"Expected smoke=True rows in {csv_path}, got {smoke_values}"
+            )
 
 
 def main() -> None:
@@ -183,33 +156,45 @@ def main() -> None:
         work_dir = temp_root / "work"
         work_dir.mkdir()
 
-        _run([sys.executable, "-m", "venv", "--system-site-packages", venv_dir], cwd=temp_root)
+        _run(
+            [sys.executable, "-m", "venv", "--system-site-packages", venv_dir],
+            cwd=temp_root,
+        )
         python = _venv_python(venv_dir)
         melite = _venv_melite(venv_dir)
 
         _run([python, "-m", "pip", "install", "--no-deps", wheel], cwd=temp_root)
         _check_imports(python)
 
-        config_path = _write_toy_project(work_dir)
-        _run([melite, "run", "--config", config_path, "--smoke"], cwd=work_dir)
+        _run([melite, "example"], cwd=work_dir)
+        _run(
+            [
+                melite,
+                "run",
+                "--smoke",
+                "--config",
+                "melite_example/config.toml",
+            ],
+            cwd=work_dir,
+        )
         _run(
             [
                 melite,
                 "export",
                 "--config",
-                config_path,
+                "melite_example/config.toml",
                 "--row",
                 "0",
                 "--csv",
-                work_dir / "output" / "results.csv",
+                "melite_example/output/results.csv",
                 "--outdir",
-                work_dir / "output",
+                "melite_example/output",
                 "--force",
             ],
             cwd=work_dir,
         )
         _verify_outputs(work_dir)
-        print("[smoke] installed-wheel toy workflow passed")
+        print("[smoke] installed-wheel public example workflow passed")
     finally:
         if args.keep_temp:
             print(f"[smoke] kept temp root: {temp_root}")
