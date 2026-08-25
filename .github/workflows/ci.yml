@@ -43,7 +43,7 @@ jobs:
         run: |
           python -c "
           import melite
-          expected = ['Config', 'load_datasets', 'plot_cv_distributions', 'predict', '__version__']
+          expected = ['Config', 'load_datasets', 'plot_f1_macro_evidence', 'predict', '__version__']
           assert melite.__all__ == expected, melite.__all__
           for name in expected:
               assert hasattr(melite, name), f'{name} missing'
@@ -78,7 +78,7 @@ jobs:
           ../.smoke_sdist_venv/bin/melite --version
           ../.smoke_sdist_venv/bin/python -c "
           import melite
-          expected = ['Config', 'load_datasets', 'plot_cv_distributions', 'predict', '__version__']
+          expected = ['Config', 'load_datasets', 'plot_f1_macro_evidence', 'predict', '__version__']
           assert melite.__all__ == expected, melite.__all__
           for name in expected:
               assert hasattr(melite, name), f'{name} missing'
