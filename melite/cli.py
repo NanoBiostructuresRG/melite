@@ -19,7 +19,7 @@ import sys
 from importlib import resources
 from pathlib import Path
 
-from .version import __version__
+from melite.version import __version__
 
 __all__ = ["main"]
 
@@ -144,14 +144,14 @@ def _configure_logging(verbose: bool) -> None:
 
 
 def _run(args: argparse.Namespace) -> None:
-    from .main import Main
+    from melite.main import Main
 
     Main(smoke=args.smoke, user_config=args.config).run()
 
 
 def _export(args: argparse.Namespace) -> None:
-    from .config import Config
-    from .export_best_model import Finalizer
+    from melite.config import Config
+    from melite.export_best_model import Finalizer
 
     config = Config(user_config=args.config)
     csv_path = args.csv or Path(config.PATHS["OUTPUT"]) / "results.csv"
