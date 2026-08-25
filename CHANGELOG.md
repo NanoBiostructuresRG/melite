@@ -10,20 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.4] - 2026-08-20
 
 ### Added
-- Added persistent model-family evaluation evidence through `evaluations.csv`,
-  with one aggregate row per dataset and active model family.
-- Added `evaluation_folds.csv` with one row per dataset, model family, and
-  outer-CV split, preserving the raw evidence used for model-family selection.
+- Added persistent classifier evaluation evidence through `evaluations.csv`,
+  with one aggregate row per dataset and active classifier.
+- Added `evaluation_folds.csv` with one row per dataset, classifier, and
+  outer-CV split, preserving the raw evidence used for classifier selection.
 - Added one dataset-level F1-macro evidence figure under `output/figures/`,
-  showing the existing outer-CV scores for every evaluated family and marking
-  the selected family without running additional cross-validation.
+  showing the existing outer-CV scores for every evaluated classifier and
+  marking the selected classifier without running additional cross-validation.
 
 ### Changed
 - Adopted the public product identity
   **MELITE — Multi-Model Classifier Evaluator**.
-- Model-family selection is now based on mean outer-CV F1-macro from the
-  evaluation evidence retained for every active family.
-- Stacking graduated from experimental status to a stable opt-in model family;
+- Classifier selection is now based on mean outer-CV F1-macro from the
+  evaluation evidence retained for every active classifier.
+- Stacking graduated from experimental status to a stable opt-in classifier;
   it remains disabled by default.
 - Standalone SVC evaluation now avoids probability fitting, while exported SVC
   artifacts and the SVC base estimator inside stacking retain probability
@@ -33,26 +33,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   single-threaded.
 - Evaluation and smoke-mode terminology was aligned throughout the package,
   documentation, CLI, and generated reports.
-- Replaced the former single-model, three-metric CV distribution plot API with
+- Renamed `[models]` / `ACTIVE_MODELS` to `[classifiers]` /
+  `ACTIVE_CLASSIFIERS`; existing configuration users must rename the
+  `[models]` section to `[classifiers]`.
+- Renamed the evaluation CSV field `model_name` to `classifier_name` in
+  `results.csv`, `evaluations.csv`, and `evaluation_folds.csv`; external CSV
+  consumers must update that column name.
+- Narrowed the public `Config` surface: legacy-reduction state, hyperparameter-
+  grid internals, redundant accessors, and runtime setup are no longer public
+  API. `RANDOM_STATE` is now the single public random-seed value, and
+  `CV_CONFIG` contains only `n_splits`, `n_repeats`, and `inner_n_splits`.
+- Explicit `[cv].random_state` and `[cv_smoke].random_state` settings are now
+  rejected with a clear configuration error; the canonical location is
+  `[benchmark].random_state`.
+- Replaced the former three-metric CV distribution plot API with
   `plot_f1_macro_evidence()`, focused on the outer-CV F1-macro evidence used
-  for model-family selection.
+  for classifier selection.
 
 ### Fixed
-- Corrected tunable-family evaluation so hyperparameter search occurs inside
-  each outer cross-validation split, separating hyperparameter tuning from
-  model evaluation.
+- Corrected tunable-classifier evaluation so hyperparameter search occurs
+  inside each outer cross-validation split, separating hyperparameter tuning
+  from classifier evaluation.
 - Aligned stacking export reconstruction with the configured internal
   stratified CV strategy used during training.
 - Removed the post-selection cross-validation step from `melite export`.
   Export now reconstructs the selected model, fits it on all available data,
   and saves the final `.pkl` artifact without producing a second evaluation.
-- Preserved the existing `results.csv` contract as the selected-model summary
-  while separating full evaluation evidence into dedicated output files.
+- Preserved the role of `results.csv` as the selected-classifier summary while
+  separating full evaluation evidence into dedicated output files.
 
 ### Notes
 - The legacy `[benchmark]` configuration section remains supported for backward
   compatibility.
-- Stacking remains opt-in; the default active families are SVC, Random Forest,
+- Stacking remains opt-in; the default active classifiers are SVC, Random Forest,
   and XGBoost.
 - Optuna and MLflow remain outside the scope of v0.2.4.
 

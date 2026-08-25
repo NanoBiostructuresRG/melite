@@ -4,17 +4,13 @@
   <div class="ms-hero__content">
     <p class="ms-eyebrow">Multi-model classifier evaluation</p>
     <div class="ms-brand" aria-label="MELITE">
-      <span class="ms-dotmark" aria-hidden="true">
-        <span></span><span></span><span></span>
-        <span></span><span></span><span></span>
-        <span></span><span></span><span></span>
+      <span class="ms-brand__logo" aria-hidden="true">
+        <img src="assets/logo-azul.svg" alt="">
       </span>
       <span class="ms-wordmark">MELITE</span>
     </div>
     <p class="ms-subtitle">
-      Evaluate and compare classifiers on numeric tabular data with nested
-      cross-validation, explicit model selection, persistent evaluation
-      evidence, final model export, and artifact-based inference.
+      Comparative classifier evaluation for reproducible classifier selection on numeric tabular data.
     </p>
     <div class="ms-actions">
       <a class="md-button md-button--primary" href="usage/">Usage</a>
@@ -23,113 +19,71 @@
     </div>
     <div class="ms-badges" aria-label="Project badges">
       <a href="https://github.com/NanoBiostructuresRG/melite/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-LGPL_v3-blue.svg" alt="License: LGPL v3+"></a>
-      <a href="https://pypi.org/project/melite/"><img src="https://img.shields.io/pypi/pyversions/melite.svg" alt="Python versions"></a>
-      <a href="https://pypi.org/project/melite/"><img src="https://img.shields.io/pypi/v/melite.svg" alt="PyPI"></a>
+      <a href="https://pypi.org/project/melite/"><img src="https://img.shields.io/pypi/pyversions/melite" alt="Supported Python versions"></a>
+      <a href="https://pypi.org/project/melite/"><img src="https://img.shields.io/pypi/v/melite" alt="PyPI package version"></a>
       <a href="https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg"></a>
     </div>
   </div>
 </section>
 
 !!! note "Pre-stable"
-    MELITE is currently in alpha-stage development (`v0.2.x`). Public
-    interfaces may evolve before version 1.0.
+    MELITE is currently in alpha-stage development.
 
-## Overview
+## Why MELITE?
 
-MELITE is a Python package and command-line tool for evaluating and comparing
-classifiers on prepared numeric tabular datasets. It separates hyperparameter
-tuning from model evaluation, preserves the evidence used for selection, and
-exports the selected model as a reusable artifact.
+Comparing classifiers is easy. Keeping the comparison methodologically sound
+and reconstructable is harder.
 
-MELITE operates at the tabular modeling level. Feature matrices may originate
-from fingerprints, descriptors, dimensionality-reduction methods, clinical
-variables, experimental measurements, industrial features, or other numeric
-representations. MELITE evaluates the supplied matrices; it does not generate
-those representations itself.
+You tune several classifiers, compare their scores, and choose one. Later comes
+the question: why this classifier? Answering it depends on two things that are
+easy to lose — whether tuning stayed clear of the evidence used to report
+performance, and whether the fold-level results still exist.
+
+MELITE turns that decision into a recorded evaluation workflow. Hyperparameter
+search stays inside the training portion of each outer split, while performance
+is measured on held-out outer folds. Classifier selection is based on mean
+outer-CV F1-macro, and both aggregate and fold-level evidence are persisted.
+
+Selection and final fitting are deliberately separate. Outer-CV evidence
+identifies the winning classifier; the final artifact is then fitted on all
+available data, with a final full-data search when the classifier is tunable.
+The outer-CV score estimates performance; the exported artifact is the
+deliverable. MELITE reports them as distinct.
+
+You can assemble the same procedure manually with scikit-learn and the
+underlying estimator libraries. MELITE makes it explicit, repeatable, and
+inspectable — and keeps the evidence.
 
 ## Evaluation Workflow
 
-<section class="ms-workflow" aria-label="MELITE evaluation workflow">
-  <div class="ms-flow">
-    <div class="ms-flow__item">
-      <span class="ms-flow__kicker">Input</span>
-      <strong>X / y</strong>
-      <small>numeric tabular data</small>
-    </div>
-    <div class="ms-flow__item">
-      <span class="ms-flow__kicker">Evaluate</span>
-      <strong>melite run</strong>
-      <small>nested evaluation</small>
-    </div>
-    <div class="ms-flow__item ms-flow__item--artifact">
-      <span class="ms-flow__kicker">Evidence</span>
-      <strong>CSV + figure</strong>
-      <small>outer-CV results</small>
-    </div>
-    <div class="ms-flow__item">
-      <span class="ms-flow__kicker">Select</span>
-      <strong>F1-macro</strong>
-      <small>mean outer-CV score</small>
-    </div>
-    <div class="ms-flow__item">
-      <span class="ms-flow__kicker">Export</span>
-      <strong>melite export</strong>
-      <small>full-data fit</small>
-    </div>
-    <div class="ms-flow__item ms-flow__item--artifact">
-      <span class="ms-flow__kicker">Inference</span>
-      <strong>predict()</strong>
-      <small>saved model artifact</small>
-    </div>
-  </div>
-</section>
+<img class="ms-workflow-image" src="assets/Melite_pipeline.png" alt="MELITE evaluation workflow">
 
-## Evaluation Contract
+## What You Provide and Receive
 
-For each registered dataset, MELITE follows a reproducible evaluation contract:
+MELITE sits between prepared numeric datasets and the fitted model you
+ultimately export. A typical workflow has the following contract:
 
-1. `X` is validated as a two-dimensional numeric feature matrix and `y`
-   provides labels for the same samples.
-2. Each active classifier is evaluated under the configured outer
-   cross-validation design.
-3. For tunable classifiers, hyperparameter search occurs only within the
-   training portion of each outer split.
-4. Evaluation evidence comes from the held-out folds of repeated stratified
-   outer cross-validation.
-5. Mean outer-CV F1-macro is used to select the best active classifier for each
-   dataset.
-6. Aggregate and per-fold evidence are preserved for every evaluated
-   classifier.
-7. After selection, the chosen classifier is fitted using all available data.
-   If it is tunable, MELITE performs a final full-data hyperparameter search to
-   determine the exported configuration.
-8. `melite export` does not run a second post-selection evaluation.
+| Stage | You provide | MELITE does | You receive |
+|---|---|---|---|
+| **Input** | Numeric feature matrices (`X`) and target labels (`y`) for one or more datasets. | Validates each registered dataset and treats it as an independent evaluation unit. | Validated datasets, ready for evaluation. |
+| **Configuration** | Active classifiers, cross-validation settings, dataset metadata, and output paths. | Resolves the evaluation design before classifier fitting begins. | A validated evaluation setup. |
+| **Evaluation** | Nothing further — the evaluation design is already fixed. | Evaluates each active classifier under the same outer cross-validation design. Tunable classifiers perform hyperparameter search only within the training portion of each outer split. | `evaluations.csv`, aggregate evidence for every evaluated classifier, and `evaluation_folds.csv`, the corresponding outer-fold evidence. |
+| **Selection** | The evaluation evidence produced by the run. | Selects the classifier with the highest mean outer-CV F1-macro for each dataset. | `results.csv`, the selected classifier result for each dataset, and `evaluation_f1_macro_<dataset>.png`, the visual evidence behind the selection. |
+| **Export** | A request to export a selected result. | Fits the selected classifier on all available data, including a final full-data search when the classifier is tunable. | `Model_<classifier>_<dataset>.pkl`, a fitted model artifact distinct from the estimators used to obtain the outer-CV evidence. |
 
-Smoke mode is intended for fast execution checks, not final model selection.
 
-## Documentation
-
-| Page | Purpose |
-|---|---|
-| [Usage](usage.md) | Installation, quick start, CLI, configuration, inputs, supported classifiers, evaluation settings, and outputs. |
-| [API Reference](api.md) | Public Python API generated from package docstrings. |
-| [Changelog](changelog.md) | Complete project history from the repository changelog. |
 
 ## Citation
 
-For the current software metadata, see
-[CITATION.cff](https://github.com/NanoBiostructuresRG/melite/blob/main/CITATION.cff).
-
-The existing Zenodo record was published under MELITE's previous formal title
-and should be cited as:
 
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments. Zenodo. https://doi.org/10.5281/zenodo.20382752
 ```
 
+Use [CITATION.cff](https://github.com/NanoBiostructuresRG/melite/blob/main/CITATION.cff) as the authoritative machine-readable citation metadata for MELITE. Citation metadata is updated with each release.
+
+
 ## License
 
 MELITE is licensed under the
-[GNU Lesser General Public License v3.0 or later](https://github.com/NanoBiostructuresRG/melite/blob/main/LICENSE).
-
-SPDX identifier: `LGPL-3.0-or-later`.
+[GNU Lesser General Public License v3.0 or later](https://github.com/NanoBiostructuresRG/melite/blob/main/LICENSE). SPDX identifier: `LGPL-3.0-or-later`.

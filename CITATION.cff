@@ -17,21 +17,21 @@ repository-code: "https://github.com/NanoBiostructuresRG/melite"
 license: "LGPL-3.0-or-later"
 abstract: >-
   MELITE is a pre-stable multi-model classifier evaluator for tabular
-  classification, model selection with nested cross-validation, final model
+  classification, classifier selection with nested cross-validation, final model
   export, and artifact-based inference.
 
   It operates at the tabular modeling level by consuming numeric feature
   matrices and labels. MELITE evaluates SVC, Random Forest, XGBoost, and
-  opt-in Stacking model families under an outer repeated-stratified
+  opt-in Stacking classifiers under an outer repeated-stratified
   cross-validation framework, with inner hyperparameter search for tunable
-  families. It selects the best active family by mean outer-CV F1-macro,
+  classifiers. It selects the best active classifier by mean outer-CV F1-macro,
   persists aggregate and per-fold evaluation evidence, and supports final
   model retraining, export, and artifact-based inference.
 keywords:
   - machine learning
   - tabular classification
-  - model evaluation
-  - model selection
+  - classifier evaluation
+  - classifier selection
   - nested cross-validation
   - SVC
   - random forest

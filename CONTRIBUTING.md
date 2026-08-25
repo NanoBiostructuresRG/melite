@@ -96,8 +96,8 @@ Avoid unrelated refactoring or formatting changes in the same pull request.
 
 ## Scientific and Evaluation Changes
 
-Changes that affect model tuning, cross-validation, scoring, classifier
-construction, model selection, evaluation evidence, or final model fitting
+Changes that affect classifier tuning, cross-validation, scoring, classifier
+construction, classifier selection, evaluation evidence, or final model fitting
 require particular care.
 
 Such contributions should:
@@ -105,7 +105,7 @@ Such contributions should:
 - explain the scientific or methodological rationale;
 - preserve the separation between hyperparameter tuning and outer evaluation;
 - avoid information leakage between tuning and evaluation;
-- identify any change to the model-selection criterion or evaluation contract;
+- identify any change to the classifier-selection criterion or evaluation contract;
 - add or update tests that exercise the changed behavior;
 - preserve reproducibility through explicit configuration and random-state
   handling where applicable;

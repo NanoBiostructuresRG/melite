@@ -12,7 +12,7 @@
 
 **MELITE** is a Python package and command-line tool for evaluating and
 comparing classifiers on numeric tabular datasets. It separates hyperparameter
-tuning from model evaluation, preserves the evidence used for selection, and
+tuning from classifier evaluation, preserves the evidence used for selection, and
 exports the selected model as a reusable artifact for downstream inference.
 
 MELITE operates at the tabular modeling level. Its learning algorithms consume
@@ -23,12 +23,12 @@ measurements, industrial features, or other numeric representations.
 
 ## Purpose
 
-MELITE is designed to make the comparison and selection of classification
-models explicit, reproducible, and auditable. Its workflow separates stages
+MELITE is designed to make classifier comparison and selection explicit,
+reproducible, and auditable. Its workflow separates stages
 that are often mixed together in small classification workflows:
 
 - hyperparameter tuning;
-- model evaluation;
+- classifier evaluation;
 - comparison and selection;
 - final fitting on all available data;
 - model export and inference.
@@ -45,12 +45,13 @@ how the competing classifiers performed.
   evidence used to compare classifiers.
 - **Evidence preservation.** Aggregate and fold-level evaluation results are
   retained for every evaluated classifier, not only for the selected one.
-- **Explicit selection.** Model selection follows a predefined criterion based
-  on cross-validation evidence rather than an informal choice after training.
+- **Explicit selection.** Classifier selection follows a predefined criterion
+  based on cross-validation evidence rather than an informal choice after
+  training.
 - **Domain-agnostic inputs.** MELITE works with numeric tabular data without
   assuming how the features were generated.
-- **Reusable artifacts.** After selection, the chosen model can be fitted on
-  all available data, serialized, and reused for prediction.
+- **Reusable artifacts.** After selection, the chosen classifier can be fitted
+  on all available data and saved as a model artifact for prediction.
 - **CLI and Python interfaces.** MELITE can be used through its command-line
   workflow and through a focused public Python API.
 
@@ -88,8 +89,9 @@ For a registered dataset, MELITE follows the contract below:
    If it is tunable, MELITE performs a final full-data hyperparameter search to
    determine the exported configuration.
 8. `melite export` does not run a second post-selection evaluation. It fits the
-   selected model on all available data and serializes the final artifact.
-9. Smoke mode is intended for fast execution checks, not final model selection.
+   selected classifier on all available data and serializes the final model
+   artifact.
+9. Smoke mode is intended for fast execution checks, not final classifier selection.
 
 
 ## Installation
@@ -217,7 +219,7 @@ CLI and a version-controlled TOML configuration.
 The default configuration is:
 
 ```toml
-[models]
+[classifiers]
 active = ["svc", "rf", "xgb"]
 ```
 
@@ -297,7 +299,7 @@ output/
 ├── evaluation_folds.csv
 ├── figures/
 │   └── evaluation_f1_macro_<dataset>.png
-└── Model_<model>_<dataset>.pkl
+└── Model_<classifier>_<dataset>.pkl
 ```
 
 The artifacts have distinct roles:
@@ -309,7 +311,7 @@ The artifacts have distinct roles:
   outer split.
 - `figures/evaluation_f1_macro_<dataset>.png` — visualization of the outer-CV
   F1-macro evidence used for classifier selection.
-- `Model_<model>_<dataset>.pkl` — final full-data fitted model created by
+- `Model_<classifier>_<dataset>.pkl` — final full-data fitted model created by
   `melite export`.
 
 
@@ -357,7 +359,7 @@ MELITE/
 |   |-- export_best_model.py    # Final model fitting and export
 |   |-- load_dataset.py         # Dataset loading and validation
 |   |-- main.py                 # Evaluation workflow orchestration
-|   |-- model_training.py       # Model tuning, evaluation, and selection
+|   |-- model_training.py       # Classifier tuning, evaluation, and selection
 |   |-- plot_metrics.py         # Evaluation evidence figures
 |   |-- predict.py              # Artifact-based inference
 |   |-- result_manager.py       # Results and artifact management
