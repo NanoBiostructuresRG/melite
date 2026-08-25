@@ -343,3 +343,180 @@ path = "data/maccs.npz"
 
     with pytest.raises(ValueError, match="label_path"):
         Config(user_config=user_toml)
+
+
+def test_config_normalizes_csv_dataset_with_label_column(tmp_path):
+    user_toml = tmp_path / "csv.toml"
+    user_toml.write_text(
+        """
+[datasets.sample_tabular]
+path = "data/sample_tabular.CSV"
+label_column = "Outcome"
+family = "tabular"
+method = "prepared"
+variant = "balanced"
+level = 1
+description = "Neutral numeric table"
+""",
+        encoding="utf-8",
+    )
+
+    cfg = Config(user_config=user_toml)
+
+    assert cfg.DATASETS["sample_tabular"] == {
+        "path": "data/sample_tabular.CSV",
+        "label_column": "Outcome",
+        "metadata": {
+            "family": "tabular",
+            "method": "prepared",
+            "variant": "balanced",
+            "level": 1,
+            "description": "Neutral numeric table",
+        },
+    }
+
+
+def test_config_csv_dataset_requires_label_column(tmp_path):
+    user_toml = tmp_path / "csv.toml"
+    user_toml.write_text(
+        '[datasets.sample_tabular]\npath = "data/sample_tabular.csv"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"sample_tabular.*label_column"):
+        Config(user_config=user_toml)
+
+
+def test_config_csv_dataset_forbids_label_path(tmp_path):
+    user_toml = tmp_path / "csv.toml"
+    user_toml.write_text(
+        """
+[datasets.sample_tabular]
+path = "data/sample_tabular.csv"
+label_path = "raw/labels.npy"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"sample_tabular.*CSV dataset.*label_path.*forbidden",
+    ):
+        Config(user_config=user_toml)
+
+
+def test_config_npz_dataset_forbids_label_column(tmp_path):
+    user_toml = tmp_path / "npz.toml"
+    user_toml.write_text(
+        """
+[datasets.sample_tabular]
+path = "data/sample_tabular.npz"
+label_column = "Outcome"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"sample_tabular.*NPZ dataset.*label_column.*forbidden",
+    ):
+        Config(user_config=user_toml)
+
+
+def test_config_dataset_forbids_both_label_fields(tmp_path):
+    user_toml = tmp_path / "both.toml"
+    user_toml.write_text(
+        """
+[datasets.sample_tabular]
+path = "data/sample_tabular.csv"
+label_path = "raw/labels.npy"
+label_column = "Outcome"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"sample_tabular.*both label_path and label_column",
+    ):
+        Config(user_config=user_toml)
+
+
+def test_config_dataset_rejects_unsupported_extension(tmp_path):
+    user_toml = tmp_path / "unsupported.toml"
+    user_toml.write_text(
+        """
+[datasets.sample_tabular]
+path = "data/sample_tabular.tsv"
+label_column = "Outcome"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        Config(user_config=user_toml)
+
+    message = str(exc_info.value)
+    assert "sample_tabular" in message
+    assert ".npz" in message
+    assert ".csv" in message
+
+
+def test_config_dataset_rejects_unknown_keys_and_lists_allowed_keys(tmp_path):
+    user_toml = tmp_path / "unknown.toml"
+    user_toml.write_text(
+        """
+[datasets.sample_tabular]
+path = "data/sample_tabular.csv"
+label_column = "Outcome"
+unexpected = "value"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        Config(user_config=user_toml)
+
+    message = str(exc_info.value)
+    assert "sample_tabular" in message
+    assert "unexpected" in message
+    for allowed_key in (
+        "path",
+        "label_path",
+        "label_column",
+        "family",
+        "method",
+        "variant",
+        "level",
+        "description",
+    ):
+        assert allowed_key in message
+
+
+def test_config_dataset_surfaces_label_column_typo_as_unknown_key(tmp_path):
+    user_toml = tmp_path / "typo.toml"
+    user_toml.write_text(
+        """
+[datasets.sample_tabular]
+path = "data/sample_tabular.csv"
+lable_column = "Outcome"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"sample_tabular.*lable_column.*Allowed"):
+        Config(user_config=user_toml)
+
+
+@pytest.mark.parametrize("label_column", ['""', '"   "', "17"])
+def test_config_csv_label_column_must_be_non_empty_string(tmp_path, label_column):
+    user_toml = tmp_path / "label-column.toml"
+    user_toml.write_text(
+        "[datasets.sample_tabular]\n"
+        'path = "data/sample_tabular.csv"\n'
+        f"label_column = {label_column}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"label_column must be a non-empty string"):
+        Config(user_config=user_toml)
