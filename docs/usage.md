@@ -65,7 +65,7 @@ identifies the target column. All remaining columns become `X` in exactly the
 order in which they appear in the CSV. Feature columns must be numeric, while
 labels may be categorical.
 
-Column names help define and validate the registered input, but MELITE v0.2.5
+Column names help define and validate the registered input, but MELITE
 does not persist feature names into exported model artifacts. Training and
 later inference must therefore use the same feature representation, number of
 features, and feature order.
@@ -234,7 +234,7 @@ is unrelated to the classifier selected or evaluated by MELITE.
 Each `dataset_id` identifies one concrete numeric feature matrix evaluated as an
 independent dataset.
 
-For CSV, MELITE v0.2.5 does not persist feature names into exported model
+For CSV, MELITE does not persist feature names into exported model
 artifacts. Training and later inference must use the same feature
 representation and feature order.
 
@@ -288,7 +288,7 @@ Use them with:
 melite run --smoke --config my_config.toml
 ```
 
-F1-macro is the fixed optimization and selection metric in MELITE v0.2.4.
+F1-macro is the fixed optimization and selection metric in MELITE.
 Hyperparameter search optimizes F1-macro, and the classifier with the highest
 mean outer-CV F1-macro is selected. Accuracy and AUC-ROC are reported as
 additional evaluation metrics.
@@ -434,6 +434,116 @@ The artifacts have distinct roles:
 
 `results.csv`, `evaluations.csv`, and `evaluation_folds.csv` include a `smoke`
 column identifying whether their evidence was produced in smoke mode.
+
+### Output Data Contract
+
+The three CSV files are persistent data artifacts whose schemas are part of
+the MELITE package-version contract. MELITE does not embed an
+independent machine-readable `schema_version`. A separate schema version
+should be reconsidered only if output schemas need to evolve independently of
+the MELITE package version.
+
+Optional metadata that is absent is serialized as an empty CSV field.
+`reduction_type` is retained for legacy compatibility and is normally empty
+for modern registered datasets. `smoke` identifies rows produced under reduced
+smoke-mode evaluation settings.
+
+#### `results.csv`
+
+`results.csv` contains one row per evaluated dataset, containing only the
+classifier selected for that dataset. It is both a public selected-result
+artifact and the persisted interface used by `melite export` to identify and
+reconstruct a selected result produced by `melite run`.
+
+<!-- melite-schema:results.csv -->
+
+| Column | Meaning |
+|---|---|
+| `dataset` | User-defined registered dataset identifier. |
+| `family` | Optional dataset-family metadata preserved for reporting and traceability. |
+| `method` | Optional dataset-method metadata preserved for reporting and traceability. |
+| `variant` | Optional dataset-variant metadata preserved for reporting and traceability. |
+| `level` | Optional dataset-level metadata preserved for reporting and traceability. |
+| `description` | Optional dataset description preserved for reporting and traceability. |
+| `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
+| `classifier_name` | Name of the classifier selected for the dataset. |
+| `parameters` | Parameters recorded for the selected result produced by `melite run`. |
+| `f1_macro` | Mean outer-CV F1-macro for the selected classifier. |
+| `f1_std` | Population standard deviation of outer-CV F1-macro. |
+| `accuracy` | Mean outer-CV accuracy for the selected classifier. |
+| `acc_std` | Population standard deviation of outer-CV accuracy. |
+| `auc_roc` | Mean outer-CV AUC-ROC when available. |
+| `auc_std` | Population standard deviation of outer-CV AUC-ROC when available. |
+| `smoke` | Whether the row was produced in smoke mode. |
+
+The metric values in this selected-result summary are written rounded to four
+decimal places by the current `melite run` workflow. The recorded `parameters`
+must not be assumed to be the final parameters stored in a subsequently
+exported model. For tunable classifiers, `melite export` performs a final
+full-data hyperparameter search, so the exported fitted artifact may use
+parameters determined during that final fitting stage.
+
+#### `evaluations.csv`
+
+`evaluations.csv` contains one row per dataset × evaluated classifier. It
+preserves aggregate evaluation evidence for every active classifier, not only
+the winner. `selected` identifies the classifier selected for that dataset.
+
+<!-- melite-schema:evaluations.csv -->
+
+| Column | Meaning |
+|---|---|
+| `dataset` | User-defined registered dataset identifier. |
+| `family` | Optional dataset-family metadata preserved for reporting and traceability. |
+| `method` | Optional dataset-method metadata preserved for reporting and traceability. |
+| `variant` | Optional dataset-variant metadata preserved for reporting and traceability. |
+| `level` | Optional dataset-level metadata preserved for reporting and traceability. |
+| `description` | Optional dataset description preserved for reporting and traceability. |
+| `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
+| `classifier_name` | Name of the evaluated classifier. |
+| `f1_macro` | Mean outer-CV F1-macro for the evaluated classifier. |
+| `f1_std` | Population standard deviation of outer-CV F1-macro. |
+| `accuracy` | Mean outer-CV accuracy for the evaluated classifier. |
+| `acc_std` | Population standard deviation of outer-CV accuracy. |
+| `auc_roc` | Mean outer-CV AUC-ROC when available. |
+| `auc_std` | Population standard deviation of outer-CV AUC-ROC when available. |
+| `selected` | Whether this classifier was selected for the dataset. |
+| `smoke` | Whether the row was produced in smoke mode. |
+
+Aggregate metric values are persisted from the evaluation evidence without
+the four-decimal summary rounding applied when `results.csv` rows are
+constructed. Metadata, `reduction_type`, and `smoke` have the same semantics
+described above.
+
+#### `evaluation_folds.csv`
+
+`evaluation_folds.csv` contains one row per dataset × evaluated classifier ×
+outer-CV split. It is the most granular persisted evaluation evidence used to
+reconstruct and inspect the aggregate comparison.
+
+<!-- melite-schema:evaluation_folds.csv -->
+
+| Column | Meaning |
+|---|---|
+| `dataset` | User-defined registered dataset identifier. |
+| `family` | Optional dataset-family metadata preserved for reporting and traceability. |
+| `method` | Optional dataset-method metadata preserved for reporting and traceability. |
+| `variant` | Optional dataset-variant metadata preserved for reporting and traceability. |
+| `level` | Optional dataset-level metadata preserved for reporting and traceability. |
+| `description` | Optional dataset description preserved for reporting and traceability. |
+| `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
+| `classifier_name` | Name of the evaluated classifier. |
+| `outer_split` | Sequential identifier of the preserved outer evaluation split. |
+| `outer_repeat` | Outer repeated-CV repeat identifier. |
+| `outer_fold` | Fold identifier within the repeat. |
+| `f1_macro` | Held-out F1-macro for this outer split. |
+| `accuracy` | Held-out accuracy for this outer split. |
+| `auc_roc` | Held-out AUC-ROC for this outer split when available. |
+| `selected` | Whether this classifier was selected globally for the dataset after aggregate evaluation. |
+| `smoke` | Whether the evidence was generated under smoke-mode settings. |
+
+The `selected` field does not mean that classifier selection occurred
+independently within that fold.
 
 ## Python API
 

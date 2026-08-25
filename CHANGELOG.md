@@ -11,8 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added registered CSV dataset input using a configured `label_column`.
+- Added automated documentation/schema drift protection based on the actual
+  `ResultManager` CSV writers.
+- Added a deferred-product-decisions page with explicit observable revisit
+  criteria.
 
 ### Changed
+- Formalized the column-level contracts for `results.csv`, `evaluations.csv`,
+  and `evaluation_folds.csv` in the public usage documentation.
 - Migrated the bundled example from separate NPZ and NPY resources to a single
   synthetic numeric CSV dataset.
 - Updated the Quick Start and public input documentation to present CSV as the

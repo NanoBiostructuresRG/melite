@@ -288,6 +288,8 @@ The artifacts have distinct roles:
 - `Model_<classifier>_<dataset>.pkl` — final full-data fitted model created by
   `melite export`.
 
+See the [Output Data Contract](docs/usage.md#output-data-contract) for the
+column-level schemas and semantics.
 
 The evaluation figure is generated from already-computed outer-CV evidence. It
 does not trigger additional fitting, tuning, cross-validation, or selection.
