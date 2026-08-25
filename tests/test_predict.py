@@ -97,6 +97,27 @@ def test_predict_loads_exported_svc_pipeline(tmp_path):
     assert result["probabilities"].shape == (4, 2)
 
 
+def test_predict_neutral_exported_model_usage(tmp_path):
+    rng = np.random.default_rng(42)
+    X_train = rng.normal(size=(20, 5)).astype(np.float32)
+    y_train = np.array([0, 1] * 10, dtype=np.int64)
+    model = SklearnPipeline([
+        ("scaler", StandardScaler()),
+        ("svc", SVC(kernel="linear", C=1, random_state=42)),
+    ])
+    model.fit(X_train, y_train)
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    model_path = output_dir / "Model_SVC_sample_tabular.pkl"
+    joblib.dump(model, model_path)
+
+    X_new = rng.normal(size=(4, 5)).astype(np.float32)
+    result = predict(model_path, X_new)
+
+    assert result["predictions"].shape == (4,)
+    assert result["n_samples"] == 4
+
+
 def test_predict_loads_exported_stacking_classifier(tmp_path):
     X_train = np.random.rand(20, 5).astype(np.float32)
     y_train = np.array([0, 1] * 10, dtype=np.int64)
@@ -107,7 +128,6 @@ def test_predict_loads_exported_stacking_classifier(tmp_path):
             "n_splits": 2,
             "n_repeats": 1,
             "inner_n_splits": 2,
-            "random_state": 42
         },
         random_state=42,
     )

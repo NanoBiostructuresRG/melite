@@ -40,7 +40,7 @@ MODEL_MAP = {
 
 METRIC_COLUMNS = [
     "dataset", "family", "method", "variant", "level", "description",
-    "reduction_type", "model_name", "f1_macro", "accuracy", "auc_roc",
+    "reduction_type", "classifier_name", "f1_macro", "accuracy", "auc_roc",
 ]
 
 
@@ -52,25 +52,27 @@ def _safe_filename_part(value: Any) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value).strip()).strip("_")
 
 
-def _build_cv_strategy(cv_config: dict | None):
+def _build_cv_strategy(
+    cv_config: dict | None,
+    random_state: int,
+):
     if cv_config is None:
         cv_config = {
             "n_splits": 5,
             "n_repeats": 3,
             "inner_n_splits": 3,
-            "random_state": 42,
         }
     # StackingClassifier uses cross_val_predict internally, which requires
     # one partition of the data rather than repeated test assignments.
     return StratifiedKFold(
         n_splits=cv_config["inner_n_splits"],
         shuffle=True,
-        random_state=cv_config["random_state"],
+        random_state=random_state,
     )
 
 
 def _build_stacking_classifier(
-    random_state: int = 42,
+    random_state: int,
     cv_config: dict | None = None,
 ) -> StackingClassifier:
     return StackingClassifier(
@@ -93,7 +95,7 @@ def _build_stacking_classifier(
             random_state=random_state,
             max_iter=1000,
         ),
-        cv=_build_cv_strategy(cv_config),
+        cv=_build_cv_strategy(cv_config, random_state),
         stack_method="predict_proba",
         passthrough=False,
         n_jobs=-1,
@@ -247,6 +249,9 @@ class Finalizer:
     ------
     FileNotFoundError
         If *csv_path* does not exist.
+    ValueError
+        If *csv_path* uses the legacy ``model_name`` column instead of
+        ``classifier_name``.
     """
 
     def __init__(
@@ -270,6 +275,15 @@ class Finalizer:
             )
 
         self._metrics = pd.read_csv(csv_path)
+        if (
+            "classifier_name" not in self._metrics.columns
+            and "model_name" in self._metrics.columns
+        ):
+            raise ValueError(
+                "The results CSV column 'model_name' was renamed to "
+                "'classifier_name' in MELITE v0.2.4. Regenerate results.csv "
+                "with MELITE v0.2.4 before exporting."
+            )
         self._loader = DatasetLoader(cfg)
 
     def _check_smoke_guard(self, row: pd.Series) -> None:
@@ -323,18 +337,18 @@ class Finalizer:
         self._check_smoke_guard(row)
         X, y = self._loader.load_row(row)
         model = self._build_model(
-            row.model_name,
+            row.classifier_name,
             row.parameters,
-            cv_config=self._cfg.get_cv_config(),
-            random_state=getattr(self._cfg, "RANDOM_STATE", 42),
+            cv_config=self._cfg.CV_CONFIG,
+            random_state=self._cfg.RANDOM_STATE,
         )
 
         logger.info(
             "Training %s on %s using all available data...",
-            row.model_name, self._row_dataset_label(row),
+            row.classifier_name, self._row_dataset_label(row),
         )
         print(
-            f"\nTraining {row.model_name} on {self._row_dataset_label(row)} "
+            f"\nTraining {row.classifier_name} on {self._row_dataset_label(row)} "
             "using all available data..."
         )
         model.fit(X, y)
@@ -367,8 +381,8 @@ class Finalizer:
     def _build_model(
         name: str,
         serialised_params: str,
+        random_state: int,
         cv_config: dict | None = None,
-        random_state: int = 42,
     ) -> Any:
         params = ast.literal_eval(serialised_params)
         if name == "SVC":
@@ -391,7 +405,7 @@ class Finalizer:
         try:
             return MODEL_MAP[name](**params)
         except KeyError as exc:
-            raise ValueError(f"Unsupported model type: {name}") from exc
+            raise ValueError(f"Unsupported classifier type: {name}") from exc
 
     @staticmethod
     def _row_dataset_label(row: pd.Series) -> str:
@@ -401,7 +415,7 @@ class Finalizer:
 
     def _save_model(self, model: Any, row: pd.Series) -> Path:
         self._output_dir.mkdir(exist_ok=True)
-        filename = f"Model_{row.model_name}_{self._row_dataset_label(row)}.pkl"
+        filename = f"Model_{row.classifier_name}_{self._row_dataset_label(row)}.pkl"
         path = self._output_dir / filename
         joblib.dump(model, path)
         return path

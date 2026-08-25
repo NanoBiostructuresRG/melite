@@ -2,7 +2,7 @@
 """Main evaluation pipeline for MELITE.
 
 This module implements the end-to-end evaluation workflow: dataset loading,
-multi-model evaluation and selection with nested cross-validation, and result
+multi-classifier evaluation and selection with nested cross-validation, and result
 writing. It is invoked via ``melite run`` from the unified CLI.
 """
 
@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 
 _SMOKE_WARNING = (
     "\n[SMOKE TEST] Using reduced search and cross-validation settings. "
-    "Results are not suitable for final model selection.\n"
+    "Results are not suitable for final classifier selection.\n"
 )
 
-_MODEL_NAMES = {
+_CLASSIFIER_NAMES = {
     "svc": "SVC",
     "rf": "RandomForestClassifier",
     "xgb": "XGBClassifier",
@@ -47,7 +47,7 @@ class Pipeline:
         self.model_trainer = MultiModelTrainer(config)
 
     def run(self, X_train, y_train, reduction_type: str, level: int | None):
-        """Train all models and return the best result for one dataset.
+        """Train all classifiers and return the best result for one dataset.
 
         Parameters
         ----------
@@ -74,7 +74,7 @@ class Pipeline:
     def run_with_evaluations(
         self, X_train, y_train, reduction_type: str, level: int | None
     ):
-        """Return the selected result and all model-family evaluations."""
+        """Return the selected result and all classifier evaluations."""
         return self.model_trainer.evaluate_and_select_models(
             X_train, y_train, reduction_type, level
         )
@@ -95,7 +95,7 @@ class Main:
 
     def __init__(self, smoke: bool = False, user_config=None):
         self.config = Config(smoke=smoke, user_config=user_config)
-        self.config.setup()
+        self.config._setup()
         self.pipeline = Pipeline(self.config)
         self.result_manager = ResultManager(self.config.RESULTS_FILE)
         self.final_results = []
@@ -125,7 +125,7 @@ class Main:
         return None
 
     @staticmethod
-    def _model_name(model):
+    def _classifier_name(model):
         if isinstance(model, SklearnPipeline) and isinstance(model.steps[-1][1], SVC):
             return "SVC"
         return model.__class__.__name__
@@ -134,19 +134,19 @@ class Main:
         """Execute the evaluation pipeline for all configured datasets.
 
         Iterates over the normalized ``config.DATASETS`` registry, evaluates all
-        active model families for each dataset, selects the best family, and writes
+        active classifiers for each dataset, selects the best classifier, and writes
         the result and evaluation evidence outputs.
 
         Notes
         -----
         When smoke mode is active, a visible banner is printed to stdout
         regardless of the logging level, to ensure the user is aware that
-        results are not suitable for final model selection.
+        results are not suitable for final classifier selection.
         """
         if self.config.SMOKE:
             logger.info(
                 "SMOKE TEST - reduced search and cross-validation settings. "
-                "Results are not suitable for final model selection."
+                "Results are not suitable for final classifier selection."
             )
             print(_SMOKE_WARNING)
 
@@ -179,7 +179,9 @@ class Main:
                     "level": level,
                     "description": description,
                     "reduction_type": reduction_type,
-                    "model_name": _MODEL_NAMES[evaluation["model_key"]],
+                    "classifier_name": _CLASSIFIER_NAMES[
+                        evaluation["classifier_key"]
+                    ],
                 }
                 self.evaluation_rows.append({
                     **evaluation_metadata,
@@ -211,7 +213,7 @@ class Main:
             ) = selected_result
 
             params = self._clean_params(best_params)
-            model_name = self._model_name(best_model)
+            classifier_name = self._classifier_name(best_model)
 
             metadata_lines = [
                 f"Family: {family}" if family is not None else None,
@@ -225,8 +227,8 @@ class Main:
                 "\n".join([
                     f"Results for dataset {dataset_id}:",
                     *[line for line in metadata_lines if line is not None],
-                    f"Model Selected: {model_name}",
-                    f"Best ML-model Parameters: {params}",
+                    f"Classifier selected: {classifier_name}",
+                    f"Best classifier parameters: {params}",
                     f"F1-macro (CV mean): {round(best_f1, 4)} +/- {round(f1_std, 4)}",
                     f"Accuracy (CV mean): {round(best_acc, 4)} +/- {round(acc_std, 4)}",
                     (
@@ -246,7 +248,7 @@ class Main:
                 "level": level,
                 "description": description,
                 "reduction_type": reduction_type,
-                "model_name": model_name,
+                "classifier_name": classifier_name,
                 "parameters": str(params),
                 "f1_macro": round(best_f1, 4),
                 "f1_std": round(f1_std, 4),

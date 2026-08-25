@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Tests for MELITE nested model-training and selection behavior."""
+"""Tests for MELITE nested classifier-training and selection behavior."""
 
 from types import SimpleNamespace
 
@@ -26,21 +26,20 @@ X = np.ones((6, 2))
 Y = np.array([0, 1, 0, 1, 0, 1])
 
 
-def _config(active_models):
+def _config(active_classifiers, random_state=42):
     return SimpleNamespace(
-        ACTIVE_MODELS=active_models,
-        RANDOM_STATE=42,
-        PARAM_GRID=[
+        ACTIVE_CLASSIFIERS=active_classifiers,
+        RANDOM_STATE=random_state,
+        _param_grid=[
             {"model": ["svc"], "svc__C": [1], "svc__kernel": ["linear"]},
             {"model": ["rf"], "n_estimators": [10]},
             {"model": ["xgb"], "n_estimators": [10]},
             {"model": ["stack"]},
         ],
-        get_cv_config=lambda: {
+        CV_CONFIG={
             "n_splits": 2,
             "n_repeats": 3,
             "inner_n_splits": 2,
-            "random_state": 42,
         },
     )
 
@@ -57,9 +56,9 @@ def _rich_evaluation(f1_macro, accuracy=0.8, auc_roc=0.9):
     }
 
 
-def _family_evaluation(model_key, f1_macro, accuracy=0.8, auc_roc=0.9):
+def _classifier_evaluation(classifier_key, f1_macro, accuracy=0.8, auc_roc=0.9):
     return {
-        "model_key": model_key,
+        "classifier_key": classifier_key,
         **_rich_evaluation(f1_macro, accuracy, auc_roc),
         "selected": False,
     }
@@ -83,6 +82,31 @@ def test_inner_cv_uses_configured_shuffled_stratified_folds():
     assert cv.random_state == 42
 
 
+def test_canonical_seed_propagates_to_cv_search_and_stacking():
+    trainer = MultiModelTrainer(_config(["svc", "stack"], random_state=17))
+
+    outer_cv = trainer._build_outer_cv()
+    inner_cv = trainer._build_inner_cv()
+    grid = trainer._build_grid_search(
+        trainer.model_builders["svc"](),
+        trainer._filter_param_grid("svc"),
+    )
+    stack = trainer.model_builders["stack"]()
+    stack_estimators = dict(stack.estimators)
+
+    assert outer_cv.random_state == 17
+    assert inner_cv.random_state == 17
+    assert grid.cv.random_state == 17
+    assert trainer.model_builders["svc"]().named_steps["svc"].random_state == 17
+    assert trainer.model_builders["rf"]().random_state == 17
+    assert trainer.model_builders["xgb"]().random_state == 17
+    assert stack.cv.random_state == 17
+    assert stack_estimators["svc"].named_steps["svc"].random_state == 17
+    assert stack_estimators["rf"].random_state == 17
+    assert stack_estimators["xgb"].random_state == 17
+    assert stack.final_estimator.random_state == 17
+
+
 def test_grid_search_uses_f1_macro_and_inner_cv():
     trainer = MultiModelTrainer(_config(["svc"]))
 
@@ -98,11 +122,11 @@ def test_grid_search_uses_f1_macro_and_inner_cv():
     assert grid.cv.n_splits == 2
 
 
-@pytest.mark.parametrize("model_name", ["svc", "rf", "xgb"])
-def test_tunable_family_evaluation_wraps_fresh_model_in_grid_search(
-    monkeypatch, model_name
+@pytest.mark.parametrize("classifier_name", ["svc", "rf", "xgb"])
+def test_tunable_classifier_evaluation_wraps_fresh_model_in_grid_search(
+    monkeypatch, classifier_name
 ):
-    trainer = MultiModelTrainer(_config([model_name]))
+    trainer = MultiModelTrainer(_config([classifier_name]))
     captured = {}
     sentinel_grid = object()
 
@@ -120,11 +144,11 @@ def test_tunable_family_evaluation_wraps_fresh_model_in_grid_search(
         trainer, "_cross_validate_model_with_scores", fake_cross_validate
     )
 
-    evaluation = trainer._evaluate_model_family(model_name, X, Y)
+    evaluation = trainer._evaluate_classifier(classifier_name, X, Y)
 
     assert captured["evaluated"] is sentinel_grid
-    assert captured["param_grid"] == trainer._filter_param_grid(model_name)
-    assert evaluation == _family_evaluation(model_name, 0.7)
+    assert captured["param_grid"] == trainer._filter_param_grid(classifier_name)
+    assert evaluation == _classifier_evaluation(classifier_name, 0.7)
 
 
 def test_cross_validate_evaluates_search_with_outer_cv_and_single_job(monkeypatch):
@@ -199,29 +223,29 @@ def test_selection_uses_outer_f1_and_runs_one_final_search_for_winner(monkeypatc
         name: (lambda name=name: f"{name}-fresh")
         for name in ("svc", "rf", "xgb", "stack")
     }
-    family_evaluations = {
-        "svc": _family_evaluation("svc", 0.70, 0.71, 0.72),
-        "rf": _family_evaluation("rf", 0.85, 0.81, 0.82),
-        "xgb": _family_evaluation("xgb", 0.75, 0.91, 0.92),
+    classifier_evaluations = {
+        "svc": _classifier_evaluation("svc", 0.70, 0.71, 0.72),
+        "rf": _classifier_evaluation("rf", 0.85, 0.81, 0.82),
+        "xgb": _classifier_evaluation("xgb", 0.75, 0.91, 0.92),
     }
     evaluated = []
     final_searches = []
 
-    def fake_evaluate(model_name, X_train, y_train):
-        evaluated.append(model_name)
-        return family_evaluations[model_name]
+    def fake_evaluate(classifier_name, X_train, y_train):
+        evaluated.append(classifier_name)
+        return classifier_evaluations[classifier_name]
 
     def fake_final_search(model, X_train, y_train, param_grid):
         final_searches.append((model, param_grid, X_train, y_train))
         return "rf-final-estimator", {"n_estimators": 10}
 
-    monkeypatch.setattr(trainer, "_evaluate_model_family", fake_evaluate)
+    monkeypatch.setattr(trainer, "_evaluate_classifier", fake_evaluate)
     monkeypatch.setattr(trainer, "perform_grid_search", fake_final_search)
 
     result, evaluations = trainer.evaluate_and_select_models(X, Y, "PCA", 70)
 
     assert evaluated == ["svc", "rf", "xgb"]
-    assert [item["model_key"] for item in evaluations] == ["svc", "rf", "xgb"]
+    assert [item["classifier_key"] for item in evaluations] == ["svc", "rf", "xgb"]
     assert [item["selected"] for item in evaluations] == [False, True, False]
     assert len(final_searches) == 1
     assert final_searches[0][0] == "rf-fresh"
@@ -239,8 +263,8 @@ def test_exact_outer_f1_tie_selects_first_active_model(monkeypatch):
     trainer = MultiModelTrainer(_config(["svc", "rf"]))
     monkeypatch.setattr(
         trainer,
-        "_evaluate_model_family",
-        lambda name, X_train, y_train: _family_evaluation(name, 0.8),
+        "_evaluate_classifier",
+        lambda name, X_train, y_train: _classifier_evaluation(name, 0.8),
     )
     final_searches = []
 
@@ -276,7 +300,7 @@ def test_stack_is_evaluated_directly_without_grid_search(monkeypatch):
         trainer, "_cross_validate_model_with_scores", fake_cross_validate
     )
 
-    trainer._evaluate_model_family("stack", X, Y)
+    trainer._evaluate_classifier("stack", X, Y)
 
     assert captured["model"] is stack
 
@@ -325,14 +349,14 @@ def test_stack_winner_fits_fresh_estimator_on_all_data(monkeypatch):
     assert len(result) == 8
 
 
-def test_active_model_filtering_remains_intact(monkeypatch):
+def test_active_classifier_filtering_remains_intact(monkeypatch):
     trainer = MultiModelTrainer(_config(["rf"]))
     evaluated = []
     monkeypatch.setattr(
         trainer,
-        "_evaluate_model_family",
+        "_evaluate_classifier",
         lambda name, X_train, y_train: (
-            evaluated.append(name) or _family_evaluation(name, 0.8, 0.7, 0.9)
+            evaluated.append(name) or _classifier_evaluation(name, 0.8, 0.7, 0.9)
         ),
     )
     monkeypatch.setattr(
@@ -436,11 +460,14 @@ def test_filter_param_grid_supports_minimal_stack_grid():
     assert grid == [{}]
 
 
-def test_invalid_active_model_raises_clear_error():
-    with pytest.raises(ValueError, match="Unknown active model\\(s\\): knn"):
+def test_invalid_active_classifier_raises_clear_error():
+    with pytest.raises(ValueError, match="Unknown active classifier\\(s\\): knn"):
         MultiModelTrainer(_config(["svc", "knn"]))
 
 
-def test_empty_active_models_raises_clear_error():
-    with pytest.raises(ValueError, match="ACTIVE_MODELS must contain at least one"):
+def test_empty_active_classifiers_raises_clear_error():
+    with pytest.raises(
+        ValueError,
+        match="ACTIVE_CLASSIFIERS must contain at least one classifier key",
+    ):
         MultiModelTrainer(_config([]))

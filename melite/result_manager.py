@@ -15,9 +15,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 from .plot_metrics import plot_f1_macro_evidence
-from .version import PROJECT_LICENSE, PROJECT_NAME, __version__
+from .version import __version__
 
 __all__ = ["ResultManager"]
+
+_REPORT_PROJECT_NAME = "MELITE"
+_REPORT_LICENSE = "LGPL-3.0-or-later"
 
 
 def _safe_filename_part(value: str) -> str:
@@ -38,7 +41,7 @@ class ResultManager:
     --------
     >>> rm = ResultManager("output/results.txt")
     >>> rm.write_results("Model: SVC\\nF1: 0.85")
-    >>> rm.write_csv([{"model_name": "SVC", "f1_macro": 0.85}],
+    >>> rm.write_csv([{"classifier_name": "SVC", "f1_macro": 0.85}],
     ...              "output/results.csv")
     """
 
@@ -52,14 +55,14 @@ class ResultManager:
     def _get_header(self):
         return f"""
 =====================================================
-                       {PROJECT_NAME}
+                       {_REPORT_PROJECT_NAME}
             Multi-Model Classifier Evaluator
 -----------------------------------------------------
-Models: SVC, RandomForest, XGBoost, Stacking (opt-in)
+Classifiers: SVC, RandomForest, XGBoost, Stacking (opt-in)
 CLI: melite run | melite export
 Package: melite
 Version: {__version__}
-Licence: {PROJECT_LICENSE}
+Licence: {_REPORT_LICENSE}
 Execution Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 -----------------------------------------------------
 Repository: https://github.com/NanoBiostructuresRG/melite
@@ -100,7 +103,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         rows : list of dict
             List of result dictionaries, one per trained configuration. Each
             dict may include dataset identity and metadata fields in addition
-            to model performance metrics.
+            to classifier performance metrics.
         path : str or pathlib.Path
             Destination path for the CSV file. Parent directories are created
             automatically if they do not exist.
@@ -122,7 +125,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
 
         fieldnames = [
             "dataset", "family", "method", "variant", "level", "description",
-            "reduction_type", "model_name", "parameters", "f1_macro", "f1_std",
+            "reduction_type", "classifier_name", "parameters", "f1_macro", "f1_std",
             "accuracy", "acc_std", "auc_roc", "auc_std", "smoke",
         ]
         try:
@@ -159,10 +162,10 @@ Repository: https://github.com/NanoBiostructuresRG/melite
     def write_evaluations_csv(
         self, rows: list[dict], path: Path | str, smoke: bool = False
     ) -> None:
-        """Write one aggregate evaluation row per dataset and model family."""
+        """Write one aggregate evaluation row per dataset and classifier."""
         fieldnames = [
             "dataset", "family", "method", "variant", "level", "description",
-            "reduction_type", "model_name", "f1_macro", "f1_std", "accuracy",
+            "reduction_type", "classifier_name", "f1_macro", "f1_std", "accuracy",
             "acc_std", "auc_roc", "auc_std", "selected", "smoke",
         ]
         self._write_evaluation_csv(
@@ -172,10 +175,10 @@ Repository: https://github.com/NanoBiostructuresRG/melite
     def write_evaluation_folds_csv(
         self, rows: list[dict], path: Path | str, smoke: bool = False
     ) -> None:
-        """Write one evaluation row per dataset, model family, and outer fold."""
+        """Write one evaluation row per dataset, classifier, and outer fold."""
         fieldnames = [
             "dataset", "family", "method", "variant", "level", "description",
-            "reduction_type", "model_name", "outer_split", "outer_repeat",
+            "reduction_type", "classifier_name", "outer_split", "outer_repeat",
             "outer_fold", "f1_macro", "accuracy", "auc_roc", "selected", "smoke",
         ]
         self._write_evaluation_csv(
@@ -193,21 +196,21 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         selected_by_dataset = {}
         for row in rows:
             dataset_id = row["dataset"]
-            model_name = row["model_name"]
-            family_scores = scores_by_dataset.setdefault(dataset_id, {})
-            family_scores.setdefault(model_name, []).append(row["f1_macro"])
+            classifier_name = row["classifier_name"]
+            classifier_scores = scores_by_dataset.setdefault(dataset_id, {})
+            classifier_scores.setdefault(classifier_name, []).append(row["f1_macro"])
             if row["selected"] is True:
-                selected_by_dataset[dataset_id] = model_name
+                selected_by_dataset[dataset_id] = classifier_name
 
         figures_dir = Path(self.output_file).parent / "figures"
-        for dataset_id, family_scores in scores_by_dataset.items():
+        for dataset_id, classifier_scores in scores_by_dataset.items():
             save_to = (
                 figures_dir
                 / f"evaluation_f1_macro_{_safe_filename_part(dataset_id)}.png"
             )
             fig = plot_f1_macro_evidence(
-                family_scores=family_scores,
-                selected_family=selected_by_dataset[dataset_id],
+                classifier_scores=classifier_scores,
+                selected_classifier=selected_by_dataset[dataset_id],
                 dataset_id=dataset_id,
                 save_to=save_to,
                 smoke=smoke,

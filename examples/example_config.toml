@@ -29,5 +29,5 @@ n_repeats = 1
 n_splits  = 3
 n_repeats = 1
 
-[models]
+[classifiers]
 active = ["svc"]

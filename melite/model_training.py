@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Model training, grid search and cross-validation for MELITE.
 
-This module implements the multi-model evaluation core. It defines an
+This module implements the multi-classifier evaluation core. It defines an
 abstract base class :class:`ModelTrainer` and the concrete implementation
 :class:`MultiModelTrainer`, which evaluates SVC, Random Forest, and XGBoost
 classifiers with nested cross-validation and supports opt-in stacking.
@@ -27,7 +27,7 @@ __all__ = ["MultiModelTrainer"]
 
 
 class ModelTrainer(ABC):
-    """Abstract base class for MELITE model trainers.
+    """Abstract base class for MELITE classifier trainers.
 
     Parameters
     ----------
@@ -41,7 +41,7 @@ class ModelTrainer(ABC):
 
     @abstractmethod
     def train_and_select_best_model(self, X_train, y_train, reduction_type, level):
-        """Train all models and return the best configuration.
+        """Train all classifiers and return the best configuration.
 
         Parameters
         ----------
@@ -63,9 +63,9 @@ class ModelTrainer(ABC):
 
 
 class MultiModelTrainer(ModelTrainer):
-    """Train and select the best model across SVC, Random Forest and XGBoost.
+    """Train and select the best classifier across SVC, Random Forest and XGBoost.
 
-    Uses nested cross-validation for tunable model families: an inner
+    Uses nested cross-validation for tunable classifiers: an inner
     stratified grid search selects hyperparameters independently within each
     outer repeated-stratified fold, and the outer folds provide F1-macro,
     Accuracy, and AUC-ROC estimates. Stacking is evaluated directly.
@@ -73,8 +73,8 @@ class MultiModelTrainer(ModelTrainer):
     Parameters
     ----------
     config : melite.config.Config
-        MELITE configuration object. Must expose :meth:`~melite.config.Config.get_cv_config`
-        and :attr:`~melite.config.Config.PARAM_GRID`.
+        MELITE configuration object providing classifier, CV, and random-seed
+        settings together with the internal hyperparameter search grid.
 
     Notes
     -----
@@ -86,7 +86,7 @@ class MultiModelTrainer(ModelTrainer):
     def __init__(self, config):
         super().__init__(config)
 
-        rs = getattr(self.config, "RANDOM_STATE", 42)
+        rs = self.config.RANDOM_STATE
 
         self.model_builders = {
             "svc": lambda: SklearnPipeline([
@@ -97,16 +97,16 @@ class MultiModelTrainer(ModelTrainer):
             "xgb": lambda: XGBClassifier(eval_metric="logloss", random_state=rs, n_jobs=1),
             "stack": lambda: self._build_stacking_classifier(rs),
         }
-        self.active_models = self._validate_active_models()
+        self.active_classifiers = self._validate_active_classifiers()
 
     def _build_stacking_classifier(self, random_state):
-        cv_cfg = self.config.get_cv_config()
+        cv_cfg = self.config.CV_CONFIG
         # StackingClassifier uses cross_val_predict internally, which requires
         # one partition of the data rather than repeated test assignments.
         stacking_cv = StratifiedKFold(
             n_splits=cv_cfg["inner_n_splits"],
             shuffle=True,
-            random_state=cv_cfg["random_state"],
+            random_state=random_state,
         )
         return StackingClassifier(
             estimators=[
@@ -134,48 +134,53 @@ class MultiModelTrainer(ModelTrainer):
             n_jobs=-1,
         )
 
-    def _validate_active_models(self):
-        active_models = getattr(self.config, "ACTIVE_MODELS", list(self.model_builders))
-        if not active_models:
-            raise ValueError("ACTIVE_MODELS must contain at least one model key.")
-
-        unknown = [model for model in active_models if model not in self.model_builders]
-        if unknown:
-            unknown_models = ", ".join(unknown)
-            valid_models = ", ".join(self.model_builders)
+    def _validate_active_classifiers(self):
+        active_classifiers = self.config.ACTIVE_CLASSIFIERS
+        if not active_classifiers:
             raise ValueError(
-                f"Unknown active model(s): {unknown_models}. "
-                f"Valid model keys are: {valid_models}."
+                "ACTIVE_CLASSIFIERS must contain at least one classifier key."
             )
 
-        return list(active_models)
+        unknown = [
+            classifier
+            for classifier in active_classifiers
+            if classifier not in self.model_builders
+        ]
+        if unknown:
+            unknown_classifiers = ", ".join(unknown)
+            valid_classifiers = ", ".join(self.model_builders)
+            raise ValueError(
+                f"Unknown active classifier(s): {unknown_classifiers}. "
+                f"Valid classifier keys are: {valid_classifiers}."
+            )
 
-    def _build_outer_cv(self, cv_cfg=None):
-        if cv_cfg is None:
-            cv_cfg = self.config.get_cv_config()
+        return list(active_classifiers)
+
+    def _build_outer_cv(self):
+        cv_cfg = self.config.CV_CONFIG
         return RepeatedStratifiedKFold(
             n_splits=cv_cfg["n_splits"],
             n_repeats=cv_cfg["n_repeats"],
-            random_state=cv_cfg["random_state"],
+            random_state=self.config.RANDOM_STATE,
         )
 
     def _build_inner_cv(self):
-        cv_cfg = self.config.get_cv_config()
+        cv_cfg = self.config.CV_CONFIG
         return StratifiedKFold(
             n_splits=cv_cfg["inner_n_splits"],
             shuffle=True,
-            random_state=cv_cfg["random_state"],
+            random_state=self.config.RANDOM_STATE,
         )
 
     def _build_cv_strategy(self):
         """Return the outer CV strategy (backward-compatible internal alias)."""
         return self._build_outer_cv()
 
-    def _filter_param_grid(self, model_name):
+    def _filter_param_grid(self, classifier_name):
         return [
             {k: v for k, v in g.items() if k != "model"}
-            for g in self.config.PARAM_GRID
-            if g["model"][0] == model_name
+            for g in self.config._param_grid
+            if g["model"][0] == classifier_name
         ]
 
     def _build_grid_search(self, model, param_grid):
@@ -248,8 +253,8 @@ class MultiModelTrainer(ModelTrainer):
         )
 
     def _cross_validate_model_with_scores(self, model, X_train, y_train):
-        cv_cfg = self.config.get_cv_config()
-        cv = self._build_outer_cv(cv_cfg)
+        cv_cfg = self.config.CV_CONFIG
+        cv = self._build_outer_cv()
         scoring = {"f1": "f1_macro", "acc": "accuracy", "auc": "roc_auc"}
         scores = cross_validate(
             model, X_train, y_train,
@@ -287,27 +292,27 @@ class MultiModelTrainer(ModelTrainer):
             "outer_scores": outer_scores,
         }
 
-    def _evaluate_model_family(self, model_name, X_train, y_train):
-        model = self.model_builders[model_name]()
-        if model_name == "stack":
+    def _evaluate_classifier(self, classifier_name, X_train, y_train):
+        model = self.model_builders[classifier_name]()
+        if classifier_name == "stack":
             evaluation_estimator = model
         else:
-            param_grid = self._filter_param_grid(model_name)
+            param_grid = self._filter_param_grid(classifier_name)
             evaluation_estimator = self._build_grid_search(model, param_grid)
         evaluation = self._cross_validate_model_with_scores(
             evaluation_estimator, X_train, y_train
         )
         return {
-            "model_key": model_name,
+            "classifier_key": classifier_name,
             **evaluation,
             "selected": False,
         }
 
     def evaluate_and_select_models(self, X_train, y_train, reduction_type, level):
-        """Evaluate every active family and return the selected model and evidence.
+        """Evaluate every active classifier and return the selected model and evidence.
 
-        Each tunable family is evaluated with nested cross-validation; stacking
-        is evaluated directly. The family with the highest outer mean F1-macro
+        Each tunable classifier is evaluated with nested cross-validation; stacking
+        is evaluated directly. The classifier with the highest outer mean F1-macro
         is selected, then a fresh winning estimator is fitted on all data.
 
         Parameters
@@ -326,11 +331,11 @@ class MultiModelTrainer(ModelTrainer):
         selected_result : tuple
             Existing eight-element selected-model result.
         evaluations : list of dict
-            Outer-CV aggregate and per-split evidence for every active family.
+            Outer-CV aggregate and per-split evidence for every active classifier.
         """
         evaluations = [
-            self._evaluate_model_family(model_name, X_train, y_train)
-            for model_name in self.active_models
+            self._evaluate_classifier(classifier_name, X_train, y_train)
+            for classifier_name in self.active_classifiers
         ]
         best = evaluations[0]
         for evaluation in evaluations[1:]:
@@ -338,12 +343,12 @@ class MultiModelTrainer(ModelTrainer):
                 best = evaluation
         best["selected"] = True
 
-        winning_model = self.model_builders[best["model_key"]]()
-        if best["model_key"] == "stack":
+        winning_model = self.model_builders[best["classifier_key"]]()
+        if best["classifier_key"] == "stack":
             winning_model.fit(X_train, y_train)
             params = {}
         else:
-            param_grid = self._filter_param_grid(best["model_key"])
+            param_grid = self._filter_param_grid(best["classifier_key"])
             winning_model, params = self.perform_grid_search(
                 winning_model, X_train, y_train, param_grid
             )
@@ -357,7 +362,7 @@ class MultiModelTrainer(ModelTrainer):
         return selected_result, evaluations
 
     def train_and_select_best_model(self, X_train, y_train, reduction_type, level):
-        """Train all active models and return the best configuration."""
+        """Train all active classifiers and return the best configuration."""
         selected_result, _ = self.evaluate_and_select_models(
             X_train, y_train, reduction_type, level
         )

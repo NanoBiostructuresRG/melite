@@ -2,6 +2,7 @@
 """Tests for melite.result_manager."""
 
 import csv
+from datetime import datetime
 import pytest
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from melite.version import __version__
 
 SAMPLE_ROWS = [
     {
-        "reduction_type": "PCA", "level": 70, "model_name": "SVC",
+        "reduction_type": "PCA", "level": 70, "classifier_name": "SVC",
         "parameters": "{'kernel': 'linear', 'C': 1}",
         "f1_macro": 0.85, "f1_std": 0.02,
         "accuracy": 0.86, "acc_std": 0.02,
@@ -22,13 +23,13 @@ SAMPLE_ROWS = [
 
 EVALUATION_FIELDS = [
     "dataset", "family", "method", "variant", "level", "description",
-    "reduction_type", "model_name", "f1_macro", "f1_std", "accuracy",
+    "reduction_type", "classifier_name", "f1_macro", "f1_std", "accuracy",
     "acc_std", "auc_roc", "auc_std", "selected", "smoke",
 ]
 
 FOLD_FIELDS = [
     "dataset", "family", "method", "variant", "level", "description",
-    "reduction_type", "model_name", "outer_split", "outer_repeat",
+    "reduction_type", "classifier_name", "outer_split", "outer_repeat",
     "outer_fold", "f1_macro", "accuracy", "auc_roc", "selected", "smoke",
 ]
 
@@ -40,7 +41,7 @@ EVALUATION_ROW = {
     "level": None,
     "description": "Morgan fingerprint",
     "reduction_type": None,
-    "model_name": "SVC",
+    "classifier_name": "SVC",
     "f1_macro": 0.8123456789,
     "f1_std": 0.0123456789,
     "accuracy": 0.8234567891,
@@ -58,7 +59,7 @@ FOLD_ROW = {
     "level": None,
     "description": "Morgan fingerprint",
     "reduction_type": None,
-    "model_name": "SVC",
+    "classifier_name": "SVC",
     "outer_split": 3,
     "outer_repeat": 1,
     "outer_fold": 1,
@@ -76,12 +77,33 @@ def test_write_results_creates_file(tmp_path):
     assert output_file.exists()
 
 
-def test_write_results_header_contains_version(tmp_path):
+def test_write_results_header_is_exactly_preserved(monkeypatch, tmp_path):
+    class FixedDatetime:
+        @staticmethod
+        def now():
+            return datetime(2024, 1, 2, 3, 4, 5)
+
+    monkeypatch.setattr(result_manager_module, "datetime", FixedDatetime)
     output_file = tmp_path / "results.txt"
     rm = ResultManager(str(output_file))
-    rm.write_results("")
+    rm.write_results("report body")
     content = output_file.read_text(encoding="utf-8")
-    assert __version__ in content
+    assert content == f"""
+=====================================================
+                       MELITE
+            Multi-Model Classifier Evaluator
+-----------------------------------------------------
+Classifiers: SVC, RandomForest, XGBoost, Stacking (opt-in)
+CLI: melite run | melite export
+Package: melite
+Version: {__version__}
+Licence: LGPL-3.0-or-later
+Execution Date: 2024-01-02 03:04:05
+-----------------------------------------------------
+Repository: https://github.com/NanoBiostructuresRG/melite
+=====================================================
+
+report body"""
 
 
 def test_write_results_header_contains_content(tmp_path):
@@ -109,7 +131,7 @@ def test_write_csv_correct_fieldnames(tmp_path):
         reader = csv.DictReader(f)
         assert reader.fieldnames == [
             "dataset", "family", "method", "variant", "level", "description",
-            "reduction_type", "model_name", "parameters", "f1_macro", "f1_std",
+            "reduction_type", "classifier_name", "parameters", "f1_macro", "f1_std",
             "accuracy", "acc_std", "auc_roc", "auc_std", "smoke",
         ]
 
@@ -213,7 +235,7 @@ def test_write_evaluation_figures_groups_existing_outer_scores(monkeypatch, tmp_
         },
         {
             **FOLD_ROW,
-            "model_name": "RandomForestClassifier",
+            "classifier_name": "RandomForestClassifier",
             "outer_split": 0,
             "outer_repeat": 0,
             "outer_fold": 0,
@@ -236,11 +258,11 @@ def test_write_evaluation_figures_groups_existing_outer_scores(monkeypatch, tmp_
     rm.write_evaluation_figures(rows, smoke=True)
 
     assert calls == [{
-        "family_scores": {
+        "classifier_scores": {
             "SVC": [0.80, 0.82],
             "RandomForestClassifier": [0.71],
         },
-        "selected_family": "SVC",
+        "selected_classifier": "SVC",
         "dataset_id": "morgan",
         "save_to": tmp_path / "figures" / "evaluation_f1_macro_morgan.png",
         "smoke": True,

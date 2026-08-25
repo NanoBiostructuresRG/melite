@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Tests for melite.load_dataset."""
 
+import doctest
+
+import melite.load_dataset as load_dataset_module
 import numpy as np
 import pytest
 from melite.load_dataset import load_datasets, _load_dataset_legacy
@@ -249,6 +252,178 @@ def test_load_datasets_embedded_y_mismatch_raises_value_error(tmp_path):
 
     with pytest.raises(ValueError, match="Label mismatch"):
         load_datasets(cfg)
+
+
+def test_load_datasets_accepts_categorical_authoritative_labels(tmp_path):
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    y = np.array(["class_a", "class_b", "class_a", "class_b"])
+    label_path = raw_dir / "labels.npy"
+    np.save(label_path, y)
+    path = _write_dataset(
+        tmp_path,
+        "sample_tabular",
+        np.ones((4, 2)),
+        embedded_y=y,
+    )
+    cfg = _registry_config(tmp_path, {
+        "sample_tabular": {
+            "path": str(path),
+            "label_path": str(label_path),
+            "metadata": {},
+        }
+    })
+
+    result = load_datasets(cfg)
+
+    assert np.array_equal(result["sample_tabular"]["y"], y)
+
+
+def test_load_datasets_scalar_authoritative_y_raises_specific_error(tmp_path):
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    label_path = raw_dir / "labels.npy"
+    np.save(label_path, np.array(1))
+    path = _write_dataset(tmp_path, "sample_tabular", np.ones((1, 2)))
+    cfg = _registry_config(tmp_path, {
+        "sample_tabular": {
+            "path": str(path),
+            "label_path": str(label_path),
+            "metadata": {},
+        }
+    })
+
+    with pytest.raises(
+        ValueError,
+        match=r"sample_tabular.*authoritative y must be 1D.*shape \(\)",
+    ):
+        load_datasets(cfg)
+
+
+def test_load_datasets_2d_authoritative_y_raises_specific_error(tmp_path):
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    label_path = raw_dir / "labels.npy"
+    np.save(label_path, np.ones((20, 1), dtype=np.int64))
+    path = _write_dataset(tmp_path, "sample_tabular", np.ones((20, 2)))
+    cfg = _registry_config(tmp_path, {
+        "sample_tabular": {
+            "path": str(path),
+            "label_path": str(label_path),
+            "metadata": {},
+        }
+    })
+
+    with pytest.raises(
+        ValueError,
+        match=r"authoritative y must be 1D.*shape \(20, 1\)",
+    ):
+        load_datasets(cfg)
+
+
+def test_load_datasets_non_1d_embedded_y_raises_specific_error(tmp_path):
+    label_path, _ = _write_labels(tmp_path, n_samples=20)
+    path = _write_dataset(
+        tmp_path,
+        "sample_tabular",
+        np.ones((20, 2)),
+        embedded_y=np.ones((20, 1), dtype=np.int64),
+    )
+    cfg = _registry_config(tmp_path, {
+        "sample_tabular": {
+            "path": str(path),
+            "label_path": str(label_path),
+            "metadata": {},
+        }
+    })
+
+    with pytest.raises(
+        ValueError,
+        match=r"embedded y must be 1D.*shape \(20, 1\)",
+    ):
+        load_datasets(cfg)
+
+
+def test_load_datasets_embedded_y_shape_mismatch_is_structural_error(tmp_path):
+    label_path, _ = _write_labels(tmp_path, n_samples=20)
+    path = _write_dataset(
+        tmp_path,
+        "sample_tabular",
+        np.ones((20, 2)),
+        embedded_y=np.ones(19, dtype=np.int64),
+    )
+    cfg = _registry_config(tmp_path, {
+        "sample_tabular": {
+            "path": str(path),
+            "label_path": str(label_path),
+            "metadata": {},
+        }
+    })
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"embedded y shape \(19,\) does not match "
+            r"authoritative y shape \(20,\)"
+        ),
+    ):
+        load_datasets(cfg)
+
+
+def test_load_datasets_embedded_y_value_mismatch_keeps_diagnostics(tmp_path):
+    label_path, y = _write_labels(tmp_path, n_samples=20)
+    path = _write_dataset(
+        tmp_path,
+        "sample_tabular",
+        np.ones((20, 2)),
+        embedded_y=1 - y,
+    )
+    cfg = _registry_config(tmp_path, {
+        "sample_tabular": {
+            "path": str(path),
+            "label_path": str(label_path),
+            "metadata": {},
+        }
+    })
+
+    with pytest.raises(ValueError) as exc_info:
+        load_datasets(cfg)
+
+    assert "Label mismatch" in str(exc_info.value)
+    assert "Differing elements" in str(exc_info.value)
+
+
+def test_load_datasets_metadata_is_shallow_copied_and_uninterpreted(tmp_path):
+    label_path, y = _write_labels(tmp_path, n_samples=20)
+    path = _write_dataset(
+        tmp_path,
+        "opaque_dataset_17",
+        np.ones((20, 2)),
+        embedded_y=y,
+    )
+    nested_value = {"labels": ["alpha", "beta"]}
+    metadata = {"opaque_key": nested_value, "description": "Opaque metadata"}
+    cfg = _registry_config(tmp_path, {
+        "opaque_dataset_17": {
+            "path": str(path),
+            "label_path": str(label_path),
+            "metadata": metadata,
+        }
+    })
+
+    result = load_datasets(cfg)
+    loaded_metadata = result["opaque_dataset_17"]["metadata"]
+
+    assert loaded_metadata == metadata
+    assert loaded_metadata is not metadata
+    assert loaded_metadata["opaque_key"] is nested_value
+
+
+def test_load_dataset_module_doctest_executes_public_example():
+    result = doctest.testmod(load_dataset_module)
+
+    assert result.attempted > 0
+    assert result.failed == 0
 
 
 def test_load_dataset_legacy_private_wrapper_remains_tuple_mapping(tmp_path):

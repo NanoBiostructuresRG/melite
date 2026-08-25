@@ -71,7 +71,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser(
         "run",
         help="Run the full evaluation pipeline.",
-        description="Evaluate configured model families across all registered datasets.",
+        description="Evaluate configured classifiers across all registered datasets.",
         parents=[global_parent],
     )
     run_parser.add_argument(
@@ -79,7 +79,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Lightweight mode: reduced search and cross-validation settings. "
-            "Results are not suitable for final model selection."
+            "Results are not suitable for final classifier selection."
         ),
     )
 

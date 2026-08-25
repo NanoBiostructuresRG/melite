@@ -42,7 +42,7 @@ class DummyPipeline:
         selected_result = self.run(X_train, y_train, reduction_type, level)
         evaluations = [
             {
-                "model_key": "svc",
+                "classifier_key": "svc",
                 "f1_macro": 0.8123456789,
                 "f1_std": 0.0123456789,
                 "accuracy": 0.8234567891,
@@ -70,7 +70,7 @@ class DummyPipeline:
                 "selected": True,
             },
             {
-                "model_key": "rf",
+                "classifier_key": "rf",
                 "f1_macro": 0.7123456789,
                 "f1_std": 0.0456789123,
                 "accuracy": 0.7234567891,
@@ -94,7 +94,7 @@ class DummyPipeline:
 class DummyTrainer:
     def __init__(self):
         self.legacy_result = object()
-        self.rich_result = (object(), [{"model_key": "svc", "selected": True}])
+        self.rich_result = (object(), [{"classifier_key": "svc", "selected": True}])
         self.calls = []
 
     def train_and_select_best_model(self, *args):
@@ -202,6 +202,12 @@ level = 85
     main.run()
 
     rows = _rows(output_dir / "results.csv")
+    report = (output_dir / "results.txt").read_text(encoding="utf-8")
+    assert "Classifiers: SVC, RandomForest, XGBoost, Stacking (opt-in)" in report
+    assert "Classifier selected: SVC" in report
+    assert "Best classifier parameters:" in report
+    assert "Model Selected:" not in report
+    assert "Best ML-model Parameters:" not in report
     assert [row["dataset"] for row in rows] == [
         "morgan_r2_2048",
         "rdkit_descriptors",
@@ -227,7 +233,7 @@ level = 85
         "pca85",
     ]
     retained = main.evaluations_by_dataset["morgan_r2_2048"]
-    assert [evaluation["model_key"] for evaluation in retained] == ["svc", "rf"]
+    assert [evaluation["classifier_key"] for evaluation in retained] == ["svc", "rf"]
     assert [evaluation["selected"] for evaluation in retained] == [True, False]
     assert "outer_scores" not in rows[0]
     assert "selected" not in rows[0]
@@ -238,12 +244,12 @@ level = 85
     assert len(fold_rows) == 9
     assert list(evaluation_rows[0]) == [
         "dataset", "family", "method", "variant", "level", "description",
-        "reduction_type", "model_name", "f1_macro", "f1_std", "accuracy",
+        "reduction_type", "classifier_name", "f1_macro", "f1_std", "accuracy",
         "acc_std", "auc_roc", "auc_std", "selected", "smoke",
     ]
     assert list(fold_rows[0]) == [
         "dataset", "family", "method", "variant", "level", "description",
-        "reduction_type", "model_name", "outer_split", "outer_repeat",
+        "reduction_type", "classifier_name", "outer_split", "outer_repeat",
         "outer_fold", "f1_macro", "accuracy", "auc_roc", "selected", "smoke",
     ]
     assert evaluation_rows[0]["dataset"] == "morgan_r2_2048"
@@ -251,11 +257,11 @@ level = 85
     assert evaluation_rows[0]["method"] == "Morgan"
     assert evaluation_rows[0]["variant"] == "r2_2048"
     assert evaluation_rows[0]["description"] == "Morgan radius 2 fingerprint"
-    assert evaluation_rows[0]["model_name"] == "SVC"
+    assert evaluation_rows[0]["classifier_name"] == "SVC"
     assert evaluation_rows[0]["f1_macro"] == "0.8123456789"
     assert evaluation_rows[0]["selected"] == "True"
     assert evaluation_rows[0]["smoke"] == "False"
-    assert evaluation_rows[1]["model_name"] == "RandomForestClassifier"
+    assert evaluation_rows[1]["classifier_name"] == "RandomForestClassifier"
     assert evaluation_rows[1]["auc_roc"] == ""
     assert fold_rows[1]["outer_split"] == "1"
     assert fold_rows[1]["outer_fold"] == "1"

@@ -202,7 +202,7 @@ def test_example_config_loads_from_parent_directory(monkeypatch, tmp_path):
 
     config = Config(user_config=destination / "config.toml")
 
-    assert config.ACTIVE_MODELS == ["svc"]
+    assert config.ACTIVE_CLASSIFIERS == ["svc"]
     assert set(config.DATASETS) == {"sample_tabular"}
     assert config.PATHS["OUTPUT"] == "melite_example/output/"
     assert config.DATASETS["sample_tabular"]["path"] == (

@@ -92,12 +92,12 @@ def tmp_results_csv(tmp_path):
     csv_path = output_dir / "results.csv"
 
     fieldnames = [
-        "reduction_type", "level", "model_name", "parameters",
+        "reduction_type", "level", "classifier_name", "parameters",
         "f1_macro", "f1_std", "accuracy", "acc_std", "auc_roc", "auc_std", "smoke",
     ]
     rows = [
         {
-            "reduction_type": "PCA", "level": 70, "model_name": "SVC",
+            "reduction_type": "PCA", "level": 70, "classifier_name": "SVC",
             "parameters": "{'kernel': 'linear', 'C': 1}",
             "f1_macro": 0.85, "f1_std": 0.02,
             "accuracy": 0.86, "acc_std": 0.02,
@@ -105,7 +105,7 @@ def tmp_results_csv(tmp_path):
             "smoke": False,
         },
         {
-            "reduction_type": "PCA", "level": 75, "model_name": "SVC",
+            "reduction_type": "PCA", "level": 75, "classifier_name": "SVC",
             "parameters": "{'kernel': 'linear', 'C': 1}",
             "f1_macro": 0.72, "f1_std": 0.04,
             "accuracy": 0.73, "acc_std": 0.04,

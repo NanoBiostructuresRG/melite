@@ -25,62 +25,59 @@ def predict(
     model_path: Path | str,
     X: np.ndarray,
     return_proba: bool = True,
-) -> dict:
-    """Load a MELITE model artifact and run inference on new data.
+) -> dict[str, Any]:
+    """Run inference with a model artifact produced by ``melite export``.
 
     Parameters
     ----------
     model_path : str or pathlib.Path
         Path to a ``.pkl`` file produced by ``melite export``.
     X : numpy.ndarray
-        Feature matrix of shape ``(n_samples, n_features)``. Must be a 2-D
-        array and should use the same reduction method and level as the
-        training data (e.g. PCA70 → 37 features).
+        Numeric feature matrix of shape ``(n_samples, n_features)``. It must
+        use the same feature representation and number of features expected
+        by the exported model, and it must be two-dimensional.
     return_proba : bool, optional
-        If ``True`` (default) and the loaded model exposes a
-        ``predict_proba`` method, class probabilities are computed and
-        included in the output. If ``False``, or if the model does not
-        support probability estimates, ``probabilities`` is ``None``.
+        Whether to request class probabilities when the loaded model supports
+        ``predict_proba``. Default is ``True``. If disabled or unsupported,
+        the returned ``probabilities`` value is ``None``.
 
     Returns
     -------
-    dict
+    dict[str, Any]
         Dictionary with the following keys:
 
-        - ``"predictions"`` : :class:`numpy.ndarray`, shape ``(n_samples,)``
-          — predicted class labels.
-        - ``"probabilities"`` : :class:`numpy.ndarray` or ``None``,
-          shape ``(n_samples, n_classes)`` — class probability estimates,
-          or ``None`` if not available or not requested.
-        - ``"model_path"`` : str — resolved path to the loaded model file.
-        - ``"n_samples"`` : int — number of samples in ``X``.
+        - ``"predictions"`` : numpy.ndarray
+          Predicted class labels with shape ``(n_samples,)``.
+        - ``"probabilities"`` : numpy.ndarray or None
+          Class probabilities with shape ``(n_samples, n_classes)``, or ``None``
+          when unavailable or not requested.
+        - ``"model_path"`` : str
+          Resolved path to the loaded model artifact.
+        - ``"n_samples"`` : int
+          Number of samples in ``X``.
 
     Raises
     ------
     FileNotFoundError
-        If *model_path* does not exist. The error message includes the path
-        and a hint to run ``melite export`` first.
+        If ``model_path`` does not exist.
     ValueError
-        If *X* is not a 2-D numpy array.
+        If ``X`` is not a two-dimensional NumPy array.
 
     Notes
     -----
-    The ``.pkl`` artifacts produced by ``melite export`` are serialised with
-    :func:`joblib.dump`. All scikit-learn compatible estimators (SVC,
-    RandomForestClassifier, XGBClassifier) are supported.
+    This function is intended for fitted model artifacts created by
+    ``melite export``.
 
     Examples
     --------
-    Load a previously exported SVC model and predict on new data:
-
     >>> import numpy as np
     >>> from melite import predict
-    >>> X_new = np.random.rand(10, 37).astype(np.float32)
-    >>> result = predict("output/Model_SVC_PCA70.pkl", X_new)
-    >>> result["predictions"].shape
-    (10,)
-    >>> result["probabilities"].shape
-    (10, 2)
+    >>> X_new = np.random.default_rng(42).random((4, 5)).astype(np.float32)
+    >>> result = predict("output/Model_SVC_sample_tabular.pkl", X_new)
+    >>> result["predictions"].shape == (4,)
+    True
+    >>> result["n_samples"]
+    4
     """
     model_path = Path(model_path)
 

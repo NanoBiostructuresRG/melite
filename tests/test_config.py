@@ -1,18 +1,71 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Tests for melite.config."""
 
-import pytest
+import doctest
+import random
 from pathlib import Path
+
+import numpy as np
+import pytest
+
+import melite.config as config_module
 from melite.config import Config
 
 
-def test_config_instantiates_without_filesystem_side_effects(tmp_path):
-    """Config() must not create directories or touch the filesystem."""
-    cfg = Config()
-    # Directories should not be created by __init__
+def test_config_instantiates_without_filesystem_side_effects(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+
+    Config()
+
     assert not (tmp_path / "raw").exists()
     assert not (tmp_path / "data").exists()
     assert not (tmp_path / "output").exists()
+
+
+def test_config_default_construction_does_not_discover_cwd_config(
+    monkeypatch, tmp_path
+):
+    (tmp_path / "config.toml").write_text(
+        '[classifiers]\nactive = ["stack"]\n', encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+
+    cfg = Config(user_config=None)
+
+    assert cfg.ACTIVE_CLASSIFIERS == ["svc", "rf", "xgb"]
+
+
+def test_config_construction_does_not_mutate_global_rng_state():
+    random.seed(1729)
+    np.random.seed(1729)
+    python_state = random.getstate()
+    numpy_state = np.random.get_state()
+
+    Config()
+
+    assert random.getstate() == python_state
+    actual_numpy_state = np.random.get_state()
+    assert actual_numpy_state[0] == numpy_state[0]
+    assert np.array_equal(actual_numpy_state[1], numpy_state[1])
+    assert actual_numpy_state[2:] == numpy_state[2:]
+
+
+def test_config_exposes_only_the_intended_public_runtime_values():
+    cfg = Config()
+
+    public_instance_values = {
+        name for name in vars(cfg) if not name.startswith("_")
+    }
+
+    assert public_instance_values == {
+        "SMOKE",
+        "PATHS",
+        "RESULTS_FILE",
+        "RANDOM_STATE",
+        "DATASETS",
+        "ACTIVE_CLASSIFIERS",
+        "CV_CONFIG",
+    }
 
 
 def test_config_smoke_false_uses_full_cv():
@@ -21,8 +74,8 @@ def test_config_smoke_false_uses_full_cv():
         "n_splits": 5,
         "n_repeats": 3,
         "inner_n_splits": 3,
-        "random_state": 42,
     }
+    assert "random_state" not in cfg.CV_CONFIG
 
 
 def test_config_smoke_true_uses_reduced_cv():
@@ -31,8 +84,8 @@ def test_config_smoke_true_uses_reduced_cv():
         "n_splits": 3,
         "n_repeats": 1,
         "inner_n_splits": 2,
-        "random_state": 42,
     }
+    assert "random_state" not in cfg.CV_CONFIG
 
 
 def test_config_user_cv_override_inherits_default_inner_splits(tmp_path):
@@ -48,7 +101,7 @@ def test_config_user_cv_override_inherits_default_inner_splits(tmp_path):
 
 def test_config_smoke_true_uses_single_value_grids():
     cfg = Config(smoke=True)
-    for entry in cfg.PARAM_GRID:
+    for entry in cfg._param_grid:
         for key, val in entry.items():
             if key == "model":
                 continue
@@ -60,7 +113,7 @@ def test_config_smoke_false_uses_full_grids():
     # At least one grid entry should have multiple values
     has_multiple = any(
         len(val) > 1
-        for entry in cfg.PARAM_GRID
+        for entry in cfg._param_grid
         for key, val in entry.items()
         if key != "model"
     )
@@ -70,7 +123,7 @@ def test_config_smoke_false_uses_full_grids():
 def test_config_svc_grid_uses_pipeline_parameter_names():
     cfg = Config()
     svc_entries = [
-        entry for entry in cfg.PARAM_GRID
+        entry for entry in cfg._param_grid
         if entry["model"] == ["svc"]
     ]
 
@@ -87,7 +140,7 @@ def test_config_full_svc_grid_includes_linear_kernel_without_unused_params():
     cfg = Config()
 
     linear_entries = [
-        entry for entry in cfg.PARAM_GRID
+        entry for entry in cfg._param_grid
         if entry["model"] == ["svc"] and entry["svc__kernel"] == ["linear"]
     ]
 
@@ -104,7 +157,7 @@ def test_config_full_svc_grid_includes_linear_kernel_without_unused_params():
 def test_config_smoke_svc_grid_uses_pipeline_parameter_names():
     cfg = Config(smoke=True)
     svc_entry = next(
-        entry for entry in cfg.PARAM_GRID
+        entry for entry in cfg._param_grid
         if entry["model"] == ["svc"]
     )
 
@@ -112,17 +165,20 @@ def test_config_smoke_svc_grid_uses_pipeline_parameter_names():
     assert svc_entry["svc__C"] == [1]
 
 
-def test_config_setup_creates_directories(tmp_path):
+def test_config_private_setup_creates_directories_and_seeds_rngs(tmp_path):
     cfg = Config()
+    cfg.RANDOM_STATE = 17
     cfg.PATHS = {
         "INPUT":   str(tmp_path / "raw") + "/",
         "DATASET": str(tmp_path / "data") + "/",
         "OUTPUT":  str(tmp_path / "output") + "/",
     }
-    cfg.setup()
+    cfg._setup()
     assert (tmp_path / "raw").exists()
     assert (tmp_path / "data").exists()
     assert (tmp_path / "output").exists()
+    assert random.random() == random.Random(17).random()
+    assert np.random.random() == np.random.RandomState(17).random_sample()
 
 
 def test_config_user_toml_overrides_defaults(tmp_path):
@@ -131,7 +187,7 @@ def test_config_user_toml_overrides_defaults(tmp_path):
     user_toml.write_text(toml_content)
 
     cfg = Config(user_config=user_toml)
-    assert cfg.REDUCTION_LEVELS == [70, 85]
+    assert set(cfg.DATASETS) == {"PCA70", "PCA85", "UMAP70", "UMAP85"}
 
 
 def test_config_user_toml_falls_back_to_defaults_for_missing_keys(tmp_path):
@@ -142,6 +198,60 @@ def test_config_user_toml_falls_back_to_defaults_for_missing_keys(tmp_path):
     cfg = Config(user_config=user_toml)
     # random_state should still be the default (42)
     assert cfg.RANDOM_STATE == 42
+
+
+def test_benchmark_random_state_is_the_canonical_public_seed(tmp_path):
+    user_toml = tmp_path / "seed.toml"
+    user_toml.write_text("[benchmark]\nrandom_state = 17\n", encoding="utf-8")
+
+    cfg = Config(user_config=user_toml)
+
+    assert cfg.RANDOM_STATE == 17
+    assert set(cfg.CV_CONFIG) == {
+        "n_splits",
+        "n_repeats",
+        "inner_n_splits",
+    }
+
+
+@pytest.mark.parametrize("section", ["cv", "cv_smoke"])
+def test_random_state_in_cv_section_fails_with_canonical_location(
+    tmp_path, section
+):
+    user_toml = tmp_path / f"{section}.toml"
+    user_toml.write_text(
+        f"[{section}]\nrandom_state = 17\n", encoding="utf-8"
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=rf"\[{section}\]\.random_state.*\[benchmark\]\.random_state",
+    ):
+        Config(user_config=user_toml)
+
+
+def test_classifiers_is_the_active_public_configuration_section(tmp_path):
+    user_toml = tmp_path / "classifiers.toml"
+    user_toml.write_text('[classifiers]\nactive = ["svc"]\n')
+
+    cfg = Config(user_config=user_toml)
+
+    assert cfg.ACTIVE_CLASSIFIERS == ["svc"]
+    assert not hasattr(cfg, "ACTIVE_MODELS")
+
+
+def test_legacy_models_section_fails_with_migration_message(tmp_path):
+    user_toml = tmp_path / "models.toml"
+    user_toml.write_text('[models]\nactive = ["stack"]\n')
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"\[models\] configuration section was renamed to "
+            r"\[classifiers\] in MELITE v0\.2\.4"
+        ),
+    ):
+        Config(user_config=user_toml)
 
 
 def test_config_synthesizes_legacy_dataset_registry(tmp_path):
@@ -162,6 +272,29 @@ def test_config_synthesizes_legacy_dataset_registry(tmp_path):
         "method": "PCA",
         "level": 70,
     }
+    assert cfg.ACTIVE_CLASSIFIERS == ["svc", "rf", "xgb"]
+
+
+def test_removed_config_public_members_are_absent():
+    cfg = Config()
+
+    for name in (
+        "REDUCTION_TYPES",
+        "REDUCTION_LEVELS",
+        "PARAM_GRID",
+        "PARAM_GRID_BY_MODEL",
+        "get_param_grid",
+        "get_cv_config",
+        "setup",
+    ):
+        assert not hasattr(cfg, name)
+
+
+def test_actual_config_doctests_execute_successfully():
+    result = doctest.testmod(config_module, raise_on_error=True)
+
+    assert result.attempted > 0
+    assert result.failed == 0
 
 
 def test_config_uses_user_defined_dataset_registry(tmp_path):

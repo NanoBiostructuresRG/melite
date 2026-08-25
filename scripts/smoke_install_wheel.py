@@ -112,8 +112,10 @@ def _verify_outputs(work_dir: Path) -> None:
         raise AssertionError(
             f"Expected dataset 'sample_tabular', got {row['dataset']!r}"
         )
-    if row["model_name"] != "SVC":
-        raise AssertionError(f"Expected model 'SVC', got {row['model_name']!r}")
+    if row["classifier_name"] != "SVC":
+        raise AssertionError(
+            f"Expected classifier 'SVC', got {row['classifier_name']!r}"
+        )
 
     for csv_path in (results_csv, evaluations_csv, folds_csv):
         with open(csv_path, newline="", encoding="utf-8") as f:

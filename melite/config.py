@@ -3,12 +3,12 @@
 
 Reads ``melite/config_default.toml`` as the base configuration.
 An optional user-supplied TOML file can override any key via deep merge.
-Hyperparameter grids are defined here in Python — they are developer-facing
-and not expected to change between runs.
+Hyperparameter grids are internal implementation details and are not part of
+the public :class:`Config` API.
 
 The :class:`Config` object is the single entry point for all runtime
-settings. It is designed to be instantiated without filesystem side effects;
-call :meth:`Config.setup` explicitly from pipeline entry points.
+settings. It is designed to be instantiated without filesystem or global RNG
+side effects; workflow orchestration performs operational setup separately.
 """
 
 import os
@@ -17,8 +17,6 @@ import tomllib
 from pathlib import Path
 
 import numpy as np
-from sklearn.model_selection import ParameterGrid
-
 __all__ = ["Config"]
 
 # Path to the default configuration file bundled with the package
@@ -42,7 +40,8 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 class Config:
-    """Configuration container for MELITE.
+    """Configuration container for loading, merging, normalizing, and inspecting
+    MELITE runtime settings.
 
     Loads defaults from ``melite/config_default.toml``. If *user_config* is
     provided, its values are merged over the defaults — user values win and
@@ -51,11 +50,11 @@ class Config:
     Parameters
     ----------
     smoke : bool, optional
-        If ``True``, use reduced CV settings and single-value hyperparameter
-        grids for lightweight runs. Default is ``False``.
+        Whether to use reduced CV/search settings for lightweight execution
+        checks. Default is ``False``.
     user_config : pathlib.Path or None, optional
-        Path to a user-supplied TOML file. Only the keys present in this file
-        override the defaults. Default is ``None``.
+        Optional TOML configuration file merged over packaged defaults.
+        Default is ``None``.
 
     Attributes
     ----------
@@ -65,39 +64,42 @@ class Config:
         Dictionary with keys ``"INPUT"``, ``"DATASET"``, and ``"OUTPUT"``
         mapping to the corresponding directory paths as strings.
     RESULTS_FILE : str
-        Full path to the TXT results file (``output/results.txt`` by default).
+        Path to the TXT results file (``output/results.txt`` by default).
     RANDOM_STATE : int
-        Global random seed. Default is ``42``.
-    REDUCTION_TYPES : list of str
-        Reduction methods to evaluate (e.g. ``["PCA", "UMAP"]``).
-    REDUCTION_LEVELS : list of int
-        Variance retention levels to evaluate (e.g. ``[70, 75, 80, 85, 90, 95]``).
+        Canonical global random seed used by MELITE runtime and evaluation
+        components. Default is ``42``.
     DATASETS : dict
         Normalized dataset registry keyed by user-defined dataset id. Each
         entry contains ``path``, ``label_path``, and ``metadata`` keys.
-    ACTIVE_MODELS : list of str
-        Model keys to include in the evaluation (e.g. ``["svc", "rf", "xgb"]``;
+    ACTIVE_CLASSIFIERS : list of str
+        Classifier keys to include in the evaluation (e.g. ``["svc", "rf", "xgb"]``;
         add ``"stack"`` to opt in to stacking).
     CV_CONFIG : dict
-        Cross-validation settings with keys ``n_splits``, ``n_repeats``,
-        ``inner_n_splits``, and ``random_state``.
-    PARAM_GRID : list of dict
-        Raw hyperparameter grid definitions, one entry per model configuration.
-    PARAM_GRID_BY_MODEL : dict
-        Compiled :class:`~sklearn.model_selection.ParameterGrid` objects keyed
-        by model name (``"svc"``, ``"rf"``, ``"xgb"``, ``"stack"``).
+        Cross-validation settings with keys ``n_splits``, ``n_repeats``, and
+        ``inner_n_splits``.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the supplied user configuration file does not exist.
+    ValueError
+        If a user configuration uses the obsolete ``[models]`` section,
+        specifies ``random_state`` under ``[cv]`` or ``[cv_smoke]`` instead of
+        ``[benchmark]``, or defines a dataset without ``path`` or
+        ``label_path``.
 
     Examples
     --------
     Default configuration:
 
+    >>> from melite import Config
     >>> cfg = Config()
     >>> cfg.RANDOM_STATE
     42
 
-    Smoke mode with a user override:
+    Smoke mode:
 
-    >>> cfg = Config(smoke=True, user_config=Path("my_config.toml"))
+    >>> cfg = Config(smoke=True)
     >>> cfg.CV_CONFIG["n_splits"]
     3
     """
@@ -113,6 +115,19 @@ class Config:
         cfg = _load_toml(_DEFAULT_CONFIG)
         if user_config is not None:
             user_cfg = _load_toml(Path(user_config))
+            if "models" in user_cfg:
+                raise ValueError(
+                    "The [models] configuration section was renamed to "
+                    "[classifiers] in MELITE v0.2.4. Rename [models] to "
+                    "[classifiers] in your configuration file."
+                )
+            for section in ("cv", "cv_smoke"):
+                if "random_state" in user_cfg.get(section, {}):
+                    raise ValueError(
+                        f"[{section}].random_state is not supported. Configure "
+                        "the canonical random seed through "
+                        "[benchmark].random_state."
+                    )
             cfg = _deep_merge(cfg, user_cfg)
 
         # Paths
@@ -125,9 +140,7 @@ class Config:
 
         # Evaluation settings
         self.RANDOM_STATE     = cfg["benchmark"]["random_state"]
-        self.REDUCTION_TYPES  = cfg["benchmark"]["reduction_types"]
-        self.REDUCTION_LEVELS = cfg["benchmark"]["levels"]
-        self.ACTIVE_MODELS    = cfg["models"]["active"]
+        self.ACTIVE_CLASSIFIERS = cfg["classifiers"]["active"]
         self.DATASETS         = self._build_dataset_registry(cfg)
 
         # Cross-validation
@@ -136,12 +149,10 @@ class Config:
             "n_splits":       cv_section["n_splits"],
             "n_repeats":      cv_section["n_repeats"],
             "inner_n_splits": cv_section["inner_n_splits"],
-            "random_state":   self.RANDOM_STATE,
         }
 
         # Hyperparameter grids — developer-facing, defined in Python
-        self.PARAM_GRID = self._build_param_grid()
-        self.PARAM_GRID_BY_MODEL = self._group_param_grid_by_model()
+        self._param_grid = self._build_param_grid()
 
     # ------------------------------------------------------------------ #
     # Hyperparameter grids
@@ -151,7 +162,10 @@ class Config:
         datasets = cfg.get("datasets")
         if datasets:
             return self._normalize_user_datasets(datasets)
-        return self._synthesize_legacy_datasets()
+        benchmark = cfg["benchmark"]
+        return self._synthesize_legacy_datasets(
+            benchmark["reduction_types"], benchmark["levels"]
+        )
 
     @staticmethod
     def _normalize_user_datasets(datasets: dict) -> dict:
@@ -176,10 +190,10 @@ class Config:
             }
         return normalized
 
-    def _synthesize_legacy_datasets(self) -> dict:
+    def _synthesize_legacy_datasets(self, reduction_types, levels) -> dict:
         datasets = {}
-        for reduction_type in self.REDUCTION_TYPES:
-            for level in self.REDUCTION_LEVELS:
+        for reduction_type in reduction_types:
+            for level in levels:
                 dataset_id = f"{reduction_type}{level}"
                 datasets[dataset_id] = {
                     "path": os.path.join(
@@ -269,46 +283,7 @@ class Config:
             },
         ]
 
-    def _group_param_grid_by_model(self) -> dict:
-        grids: dict = {}
-        for entry in self.PARAM_GRID:
-            model = entry["model"][0]
-            grids.setdefault(model, []).append(
-                {k: v for k, v in entry.items() if k != "model"}
-            )
-        return {m: ParameterGrid(g) for m, g in grids.items()}
-
-    # ------------------------------------------------------------------ #
-    # Public accessors
-    # ------------------------------------------------------------------ #
-
-    def get_cv_config(self) -> dict:
-        """Return the cross-validation configuration dictionary.
-
-        Returns
-        -------
-        dict
-            Dictionary with keys ``n_splits``, ``n_repeats``,
-            ``inner_n_splits``, and ``random_state``.
-        """
-        return self.CV_CONFIG
-
-    def get_param_grid(self, model: str) -> ParameterGrid:
-        """Return the compiled hyperparameter grid for a given model.
-
-        Parameters
-        ----------
-        model : str
-            Model key. One of ``"svc"``, ``"rf"``, ``"xgb"``, or ``"stack"``.
-
-        Returns
-        -------
-        sklearn.model_selection.ParameterGrid
-            Iterable of hyperparameter combinations for the requested model.
-        """
-        return self.PARAM_GRID_BY_MODEL[model]
-
-    def setup(self) -> None:
+    def _setup(self) -> None:
         """Create output directories and set random seeds.
 
         This method must be called once from the pipeline entry point before

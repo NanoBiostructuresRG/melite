@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 [project]
 name = "melite"
 dynamic = ["version"]
-description = "Tabular classification benchmarking toolkit for model selection, repeated stratified cross-validation, final model export, and artifact-based inference."
+description = "Tabular classification benchmarking toolkit for classifier selection, repeated stratified cross-validation, final model export, and artifact-based inference."
 readme = "README.md"
 license = "LGPL-3.0-or-later"
 license-files = ["LICENSE", "COPYING", "COPYING.LESSER"]
@@ -19,7 +19,7 @@ keywords = [
     "benchmarking",
     "classification",
     "tabular data",
-    "model selection",
+    "classifier selection",
     "cross-validation",
     "inference",
     "PCA",

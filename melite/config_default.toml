@@ -22,6 +22,6 @@ n_splits = 3
 n_repeats = 1
 inner_n_splits = 2
 
-[models]
-# Active models to evaluate. Add "stack" to opt in to stacking.
+[classifiers]
+# Active classifiers to evaluate. Add "stack" to opt in to stacking.
 active = ["svc", "rf", "xgb"]
