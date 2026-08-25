@@ -132,50 +132,24 @@ mkdocs serve
 
 ## Quick Start
 
-### Command-Line Interface
-
-Run a fast smoke evaluation with the bundled synthetic example dataset:
-
-```bash
-melite run --smoke --config examples/example_config.toml
-```
-
-Run a configured evaluation:
+The bundled example creates a synthetic numeric tabular project and runs a
+short evaluation workflow so you can verify that MELITE is installed and
+working. Cloning the repository is **not** required.
 
 ```bash
-melite run --config my_config.toml
+melite example
+melite run --smoke --config melite_example/config.toml
 ```
 
-Export a selected model artifact from an existing results table:
+`melite example` creates `./melite_example/` in the current directory.
 
-```bash
-melite export --config examples/example_config.toml --row 0 --csv examples/output/results.csv --outdir examples/output/
-```
+### Next steps
 
-### Python API
-
-Use an exported artifact for inference:
-
-```python
-import numpy as np
-from melite import predict
-
-X_new = np.load("examples/sample_PCA70.npz")["X"]
-result = predict("examples/output/Model_SVC_sample_pca70.pkl", X_new)
-
-print(result["predictions"])
-print(result["probabilities"])
-```
-
-The current public API also exposes:
-
-```python
-from melite import Config
-from melite import load_datasets
-from melite import plot_f1_macro_evidence
-from melite import predict
-from melite import __version__
-```
+- [Prepare and use your own datasets](docs/usage.md#data-preparation).
+- [Configure MELITE](docs/usage.md#configuration).
+- [Run a full evaluation](docs/usage.md#melite-run).
+- [Export a model](docs/usage.md#melite-export) and use the
+  [Python prediction API](docs/usage.md#python-api).
 
 ## Workflow
 
@@ -346,43 +320,6 @@ melite run --smoke --config my_config.toml
 See the full configuration reference in the project documentation.
 
 ## Development
-
-### Project Structure
-
-```text
-MELITE/
-|-- melite/
-|   |-- __init__.py             # Public API
-|   |-- cli.py                  # Command-line interface
-|   |-- config.py               # Configuration loading and normalization
-|   |-- config_default.toml     # Default configuration
-|   |-- export_best_model.py    # Final model fitting and export
-|   |-- load_dataset.py         # Dataset loading and validation
-|   |-- main.py                 # Evaluation workflow orchestration
-|   |-- model_training.py       # Classifier tuning, evaluation, and selection
-|   |-- plot_metrics.py         # Evaluation evidence figures
-|   |-- predict.py              # Artifact-based inference
-|   |-- result_manager.py       # Results and artifact management
-|   `-- version.py              # Package version metadata
-|-- tests/                      # Test suite (pytest)
-|-- examples/                   # Example dataset, configuration, and generator
-|-- docs/                       # MkDocs documentation sources
-|-- scripts/
-|   `-- smoke_install_wheel.py  # Installed-wheel smoke validation
-|-- .github/
-|   `-- workflows/              # CI, documentation, and PyPI publishing
-|-- pyproject.toml              # Build, package, and dependency metadata
-|-- environment.yml             # Conda development environment
-|-- mkdocs.yml                  # Documentation site configuration
-|-- CHANGELOG.md
-|-- CITATION.cff
-|-- CODE_OF_CONDUCT.md
-|-- CONTRIBUTING.md
-|-- COPYING
-|-- COPYING.LESSER
-|-- LICENSE
-`-- README.md
-```
 
 ### Running Tests
 
