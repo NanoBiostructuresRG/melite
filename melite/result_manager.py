@@ -88,12 +88,9 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         :mod:`melite.version`, so the report always reflects the version that
         generated it.
         """
-        try:
-            with open(self.output_file, "w", encoding="utf-8") as f:
-                f.write(self._get_header())
-                f.write(content)
-        except Exception as e:
-            print(f"Error writing results: {e}")
+        with open(self.output_file, "w", encoding="utf-8") as f:
+            f.write(self._get_header())
+            f.write(content)
 
     def write_csv(self, rows: list[dict], path: Path | str, smoke: bool = False) -> None:
         """Write selected evaluation results to a CSV file.
@@ -128,14 +125,11 @@ Repository: https://github.com/NanoBiostructuresRG/melite
             "reduction_type", "classifier_name", "parameters", "f1_macro", "f1_std",
             "accuracy", "acc_std", "auc_roc", "auc_std", "smoke",
         ]
-        try:
-            with open(path, mode="w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                for row in rows:
-                    writer.writerow({**row, "smoke": smoke})
-        except Exception as e:
-            print(f"Error writing CSV: {e}")
+        with open(path, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({**row, "smoke": smoke})
 
     @staticmethod
     def _write_evaluation_csv(
@@ -143,21 +137,17 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         path: Path | str,
         fieldnames: list[str],
         smoke: bool,
-        error_message: str,
     ) -> None:
         if not rows:
             return
 
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            with open(path, mode="w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                for row in rows:
-                    writer.writerow({**row, "smoke": smoke})
-        except Exception as e:
-            print(f"{error_message}: {e}")
+        with open(path, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({**row, "smoke": smoke})
 
     def write_evaluations_csv(
         self, rows: list[dict], path: Path | str, smoke: bool = False
@@ -168,9 +158,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
             "reduction_type", "classifier_name", "f1_macro", "f1_std", "accuracy",
             "acc_std", "auc_roc", "auc_std", "selected", "smoke",
         ]
-        self._write_evaluation_csv(
-            rows, path, fieldnames, smoke, "Error writing evaluations CSV"
-        )
+        self._write_evaluation_csv(rows, path, fieldnames, smoke)
 
     def write_evaluation_folds_csv(
         self, rows: list[dict], path: Path | str, smoke: bool = False
@@ -181,9 +169,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
             "reduction_type", "classifier_name", "outer_split", "outer_repeat",
             "outer_fold", "f1_macro", "accuracy", "auc_roc", "selected", "smoke",
         ]
-        self._write_evaluation_csv(
-            rows, path, fieldnames, smoke, "Error writing evaluation folds CSV"
-        )
+        self._write_evaluation_csv(rows, path, fieldnames, smoke)
 
     def write_evaluation_figures(
         self, rows: list[dict], smoke: bool = False

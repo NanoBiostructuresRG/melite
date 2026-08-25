@@ -51,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for classifier selection.
 
 ### Fixed
+- Result and evaluation persistence failures now propagate to callers instead
+  of being silently printed and ignored.
 - Corrected tunable-classifier evaluation so hyperparameter search occurs
   inside each outer cross-validation split, separating hyperparameter tuning
   from classifier evaluation.

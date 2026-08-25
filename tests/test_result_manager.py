@@ -70,6 +70,10 @@ FOLD_ROW = {
 }
 
 
+def _raise_simulated_write_failure(*args, **kwargs):
+    raise OSError("simulated write failure")
+
+
 def test_write_results_creates_file(tmp_path):
     output_file = tmp_path / "results.txt"
     rm = ResultManager(str(output_file))
@@ -104,6 +108,14 @@ Repository: https://github.com/NanoBiostructuresRG/melite
 =====================================================
 
 report body"""
+
+
+def test_write_results_propagates_write_failure(monkeypatch, tmp_path):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    monkeypatch.setattr("builtins.open", _raise_simulated_write_failure)
+
+    with pytest.raises(OSError, match="simulated write failure"):
+        rm.write_results("report body")
 
 
 def test_write_results_header_contains_content(tmp_path):
@@ -166,6 +178,14 @@ def test_write_csv_empty_rows_produces_no_file(tmp_path):
     assert not csv_path.exists()
 
 
+def test_write_csv_propagates_write_failure(monkeypatch, tmp_path):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    monkeypatch.setattr("builtins.open", _raise_simulated_write_failure)
+
+    with pytest.raises(OSError, match="simulated write failure"):
+        rm.write_csv(SAMPLE_ROWS, tmp_path / "results.csv")
+
+
 def test_write_evaluations_csv_uses_exact_schema_and_raw_values(tmp_path):
     rm = ResultManager(str(tmp_path / "results.txt"))
     csv_path = tmp_path / "nested" / "evaluations.csv"
@@ -215,6 +235,27 @@ def test_evaluation_csv_writers_skip_empty_rows(tmp_path, method_name, filename)
     getattr(rm, method_name)([], csv_path, smoke=True)
 
     assert not csv_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("method_name", "rows", "filename"),
+    [
+        ("write_evaluations_csv", [EVALUATION_ROW], "evaluations.csv"),
+        (
+            "write_evaluation_folds_csv",
+            [FOLD_ROW],
+            "evaluation_folds.csv",
+        ),
+    ],
+)
+def test_evaluation_csv_writers_propagate_write_failure(
+    monkeypatch, tmp_path, method_name, rows, filename
+):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    monkeypatch.setattr("builtins.open", _raise_simulated_write_failure)
+
+    with pytest.raises(OSError, match="simulated write failure"):
+        getattr(rm, method_name)(rows, tmp_path / filename)
 
 
 def test_write_evaluation_figures_groups_existing_outer_scores(monkeypatch, tmp_path):
