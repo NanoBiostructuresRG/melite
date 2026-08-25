@@ -3,7 +3,7 @@ message: "If you use this software, please cite it as below."
 type: software
 title: "MELITE — Multi-Model Classifier Evaluator"
 version: "0.2.4"
-date-released: "2026-08-20"
+date-released: "2026-08-25"
 authors:
   - family-names: "Contreras-Torres"
     given-names: "Flavio F."

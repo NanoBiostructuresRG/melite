@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.2.4] - 2026-08-20
+## [0.2.4] - 2026-08-25
 
 ### Added
+- Added the packaged `melite example` Quick Start with deterministic synthetic
+  numeric tabular data, available directly from an installed distribution and
+  verified through installed-wheel smoke testing.
+- Added Ruff linting and formatting plus Mypy type checking as permanent CI
+  quality gates.
+- Added README contract tests covering canonical CLI commands, configuration
+  terminology, local links, and version synchronization.
 - Added persistent classifier evaluation evidence through `evaluations.csv`,
   with one aggregate row per dataset and active classifier.
 - Added `evaluation_folds.csv` with one row per dataset, classifier, and
@@ -19,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marking the selected classifier without running additional cross-validation.
 
 ### Changed
+- Stabilized the public Python API around `Config`, `load_datasets`,
+  `plot_f1_macro_evidence`, `predict`, and `__version__`; complete evaluation
+  remains available through the `melite run` CLI workflow.
+- Consolidated the public Quick Start around the packaged example and removed
+  the redundant repository-level `examples/` workflow and `environment.yml`;
+  `pyproject.toml` is now the dependency source of truth.
 - Adopted the public product identity
   **MELITE — Multi-Model Classifier Evaluator**.
 - Classifier selection is now based on mean outer-CV F1-macro from the
