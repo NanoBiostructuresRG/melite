@@ -173,7 +173,8 @@ class DatasetLoader:
                 f"No data found for {reduction}{level}: neither an individual "
                 f"file nor an entry inside an aggregated archive is present."
             )
-        return X, self._labels
+        labels = self._ensure_labels()
+        return X, labels
 
     def _try_individual_file(self, reduction: str, level: int) -> np.ndarray | None:
         fp = self._data_root / f"{reduction}{level}.npz"
@@ -201,7 +202,7 @@ class DatasetLoader:
         for pattern in self._CANDIDATE_KEYS:
             key = pattern.format(rtype=reduction, lvl=level)
             if key in arr:
-                self._ensure_labels()
+                labels = self._ensure_labels()
                 X = arr[key]
                 if X.ndim != 2:
                     raise ValueError(
@@ -213,18 +214,21 @@ class DatasetLoader:
                         f"Legacy dataset '{reduction}{level}' X must be numeric; "
                         f"got dtype {X.dtype}."
                     )
-                if len(self._labels) != X.shape[0]:
+                if len(labels) != X.shape[0]:
                     raise ValueError(
                         f"Legacy dataset '{reduction}{level}' X/y length mismatch: "
-                        f"X has {X.shape[0]} rows, y has {len(self._labels)} labels."
+                        f"X has {X.shape[0]} rows, y has {len(labels)} labels."
                     )
                 return X
         raise KeyError(f"Level {level} not found inside {fp.name}.")
 
-    def _ensure_labels(self) -> None:
-        if self._labels is None:
+    def _ensure_labels(self) -> np.ndarray:
+        labels = self._labels
+        if labels is None:
             label_path = Path(self._cfg.PATHS["INPUT"]) / "labels.npy"
-            self._labels = np.load(label_path)
+            labels = np.load(label_path)
+            self._labels = labels
+        return labels
 
 
 class Finalizer:

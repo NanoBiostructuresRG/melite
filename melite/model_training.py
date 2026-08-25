@@ -9,7 +9,6 @@ classifiers with nested cross-validation and supports opt-in stacking.
 
 from abc import ABC, abstractmethod
 
-import numpy as np
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import (

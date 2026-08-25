@@ -8,6 +8,7 @@ writing. It is invoked via ``melite run`` from the unified CLI.
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -98,11 +99,11 @@ class Main:
         self.config._setup()
         self.pipeline = Pipeline(self.config)
         self.result_manager = ResultManager(self.config.RESULTS_FILE)
-        self.final_results = []
-        self.csv_rows = []
-        self.evaluations_by_dataset = {}
-        self.evaluation_rows = []
-        self.evaluation_fold_rows = []
+        self.final_results: list[str] = []
+        self.csv_rows: list[dict[str, Any]] = []
+        self.evaluations_by_dataset: dict[str, list[dict[str, Any]]] = {}
+        self.evaluation_rows: list[dict[str, Any]] = []
+        self.evaluation_fold_rows: list[dict[str, Any]] = []
 
     @staticmethod
     def _clean_params(params):

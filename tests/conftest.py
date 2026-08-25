@@ -2,7 +2,6 @@
 """Shared pytest fixtures for MELITE test suite."""
 
 import csv
-from pathlib import Path
 
 import joblib
 import numpy as np

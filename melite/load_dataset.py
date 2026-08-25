@@ -246,7 +246,8 @@ def _load_dataset_legacy(config, reduction_type: str, levels: list) -> dict:
                 "           Place the feature matrix and labels at the configured paths and retry.",
                 exc,
             )
-        except Exception as exc:
+        # Legacy loading is best-effort: log one unexpected failure and continue.
+        except Exception as exc:  # noqa: BLE001
             logger.error("Error loading %s: %s", dataset_id, exc)
 
     if loaded == 0:

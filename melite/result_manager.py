@@ -178,7 +178,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         if not rows:
             return
 
-        scores_by_dataset = {}
+        scores_by_dataset: dict[str, dict[str, list[float]]] = {}
         selected_by_dataset = {}
         for row in rows:
             dataset_id = row["dataset"]

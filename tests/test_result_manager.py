@@ -4,7 +4,6 @@
 import csv
 from datetime import datetime
 import pytest
-from pathlib import Path
 
 import melite.result_manager as result_manager_module
 from melite.result_manager import ResultManager

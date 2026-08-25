@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
 LABELS_PATH  = EXAMPLES_DIR / "sample_labels.npy"
@@ -63,31 +62,32 @@ def test_y_matches_labels():
     assert np.array_equal(data["y"], y_labels)
 
 
-def test_generate_script_is_deterministic(tmp_path):
+def test_generate_script_is_deterministic():
     """Running generate_sample_data.py twice produces identical files."""
     script = EXAMPLES_DIR / "generate_sample_data.py"
 
-    # Patch OUTPUT_DIR to tmp_path by running the script with modified env
-    import importlib.util, types
-    spec = importlib.util.spec_from_file_location("gen", script)
-    mod = importlib.util.module_from_spec(spec)
-
-    # Patch Path(__file__).parent inside the module
-    import unittest.mock as mock
-    with mock.patch("pathlib.Path.parent", new_callable=mock.PropertyMock) as mp:
-        # Just run twice and compare outputs from examples/ directly
-        pass
-
-    # Simpler: run the script and compare to known-good files
-    result = subprocess.run(
+    first_result = subprocess.run(
         [sys.executable, str(script)],
         capture_output=True, text=True
     )
-    assert result.returncode == 0
+    assert first_result.returncode == 0
 
-    y_after = np.load(LABELS_PATH)
-    data_after = np.load(NPZ_PATH)
+    first_labels = np.load(LABELS_PATH).copy()
+    with np.load(NPZ_PATH) as first_data:
+        first_X = first_data["X"].copy()
+        first_embedded_y = first_data["y"].copy()
 
-    y_before = np.array([0] * 50 + [1] * 50, dtype=np.int64)
-    assert np.array_equal(y_after, y_before)
-    assert data_after["X"].shape == (100, 37)
+    second_result = subprocess.run(
+        [sys.executable, str(script)],
+        capture_output=True, text=True
+    )
+    assert second_result.returncode == 0
+
+    second_labels = np.load(LABELS_PATH)
+    with np.load(NPZ_PATH) as second_data:
+        second_X = second_data["X"]
+        second_embedded_y = second_data["y"]
+
+    assert np.array_equal(first_labels, second_labels)
+    assert np.array_equal(first_X, second_X)
+    assert np.array_equal(first_embedded_y, second_embedded_y)

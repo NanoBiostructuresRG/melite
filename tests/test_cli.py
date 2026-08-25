@@ -3,7 +3,6 @@
 
 import subprocess
 import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 import melite.cli as cli
