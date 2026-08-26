@@ -137,3 +137,37 @@ conditional search policy without depending on one optimization backend.
 registering user classifiers and their estimator or artifact semantics.
 
 **Revisit criterion:** Actual work begins on public classifier registration.
+
+## v0.3.0 Optimization Characterization
+
+**Status:** Baseline calibration protocol fixed; candidate characterization pending.
+
+The calibration stage executes only the historical v0.2.5 GridSearchCV engine;
+no v0.3.0 candidate metrics are inspected. The later comparison is defined as
+the v0.2.5 engine versus the v0.3.0 engine on one shared current pinned
+scientific stack, not as reproduction of the historical v0.2.5 environment.
+
+The fixed synthetic generator uses 240 samples, 20 features, 12 informative
+features, 4 redundant features, balanced binary classes, `flip_y=0.05`, and
+`random_state=42`. Stage 1 evaluates SVC only at ordered `class_sep` candidates
+0.60, 0.70, 0.80, 0.90, and 1.00. Eligible SVC means lie in `[0.65, 0.95]`;
+the selected profile is closest to 0.80, with lower `class_sep` breaking an
+exact tie.
+
+Stage 2 evaluates SVC, RandomForest, and XGBoost exactly once on the selected
+profile. Every classifier mean must lie in `[0.65, 0.95]`, and the selected
+classifier mean must lie in `[0.70, 0.90]`. Failure at either stage stops the
+protocol without candidate execution or automatic fallback. If B5-0 is
+explicitly reopened after review, the predefined next axis is `n_informative`
+with ordered candidates `(10, 14, 8, 16)`; additional outer repeats are not the
+reopen axis.
+
+Calibration is not smoke mode: outer CV is 5 folds × 1 repeat with 3 inner
+folds. Later characterization uses only SVC, RandomForest, and XGBoost.
+`fit_count` estimates `estimator.fit()` invocations and includes the
+best-model refit performed by GridSearchCV. `end_to_end_wall_seconds` measures
+the complete MELITE subprocess and is descriptive, not optimization-only
+timing. Candidate comparison may proceed only after verifying the candidate Python
+interpreter and common pinned dependencies against the baseline environment
+recorded in `B5_calibration.json`, and after regenerating the selected dataset
+with the exact recorded SHA-256.
