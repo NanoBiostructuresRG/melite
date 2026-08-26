@@ -68,17 +68,15 @@ compatibility. It must not be removed piecemeal.
 independently of package releases or for external consumers to negotiate
 schema versions.
 
-## Classifier Extensibility and Search-Space Contract
+## Public Classifier Extensibility
 
-**Status:** Deferred design decision.
+**Status:** Public classifier registration remains deferred.
 
-**Reason:** Opening classifier registration also requires a durable
-search-space contract. A design tied only to discrete `GridSearchCV` lists
-could constrain future optimization backends unnecessarily.
+**Resolved internal decision:** v0.3.0 work establishes a durable internal
+search-space contract that can represent discrete, integer, continuous, and
+conditional search policy without depending on one optimization backend.
 
-**Revisit criterion:** Work begins on user-extensible classifier registration
-or an alternative optimization backend.
+**Reason:** The internal contract does not itself define a stable public API for
+registering user classifiers and their estimator or artifact semantics.
 
-**Direction if reopened:** Design classifier registration and search-space
-representation together, accounting for both discrete grids and
-distribution-based optimizers.
+**Revisit criterion:** Actual work begins on public classifier registration.
