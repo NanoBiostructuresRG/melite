@@ -2,13 +2,10 @@
 """Tests for MELITE's internal classifier search-space contract."""
 
 import ast
-import copy
 import math
 from pathlib import Path
 
 import pytest
-from sklearn.model_selection import GridSearchCV
-
 import melite.main as main_module
 import melite.search_spaces as search_spaces_module
 from melite.config import Config
@@ -469,23 +466,10 @@ def test_search_space_module_has_no_optuna_or_runtime_training_dependency():
         )
 
 
-def test_existing_param_grid_and_grid_search_workflow_remain_unchanged():
+def test_search_spaces_are_the_only_production_search_contract():
     config = Config()
-    original_grid = copy.deepcopy(config._param_grid)
     trainer = MultiModelTrainer(config)
 
-    for classifier_key in ("svc", "rf", "xgb", "stack"):
-        expected_grid = [
-            {key: value for key, value in entry.items() if key != "model"}
-            for entry in original_grid
-            if entry["model"][0] == classifier_key
-        ]
-        assert trainer._filter_param_grid(classifier_key) == expected_grid
-
-    search = trainer._build_grid_search(
-        trainer.model_builders["svc"](), trainer._filter_param_grid("svc")
-    )
-    assert isinstance(search, GridSearchCV)
-    assert search.param_grid == trainer._filter_param_grid("svc")
-    assert search.scoring == "f1_macro"
-    assert config._param_grid == original_grid
+    assert not hasattr(config, "_param_grid")
+    assert not hasattr(config, "_build_param_grid")
+    assert not hasattr(trainer, "perform_grid_search")

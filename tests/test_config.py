@@ -219,69 +219,6 @@ def test_config_user_cv_override_inherits_default_inner_splits(tmp_path):
     assert cfg.CV_CONFIG["inner_n_splits"] == 3
 
 
-def test_config_smoke_true_uses_single_value_grids():
-    cfg = Config(smoke=True)
-    for entry in cfg._param_grid:
-        for key, val in entry.items():
-            if key == "model":
-                continue
-            assert len(val) == 1, f"Smoke grid for {key} has more than one value: {val}"
-
-
-def test_config_smoke_false_uses_full_grids():
-    cfg = Config(smoke=False)
-    # At least one grid entry should have multiple values
-    has_multiple = any(
-        len(val) > 1
-        for entry in cfg._param_grid
-        for key, val in entry.items()
-        if key != "model"
-    )
-    assert has_multiple
-
-
-def test_config_svc_grid_uses_pipeline_parameter_names():
-    cfg = Config()
-    svc_entries = [entry for entry in cfg._param_grid if entry["model"] == ["svc"]]
-
-    assert svc_entries
-    for entry in svc_entries:
-        assert "C" not in entry
-        assert "kernel" not in entry
-        assert "gamma" not in entry
-        assert "svc__C" in entry
-        assert "svc__kernel" in entry
-
-
-def test_config_full_svc_grid_includes_linear_kernel_without_unused_params():
-    cfg = Config()
-
-    linear_entries = [
-        entry
-        for entry in cfg._param_grid
-        if entry["model"] == ["svc"] and entry["svc__kernel"] == ["linear"]
-    ]
-
-    assert linear_entries == [
-        {
-            "model": ["svc"],
-            "svc__kernel": ["linear"],
-            "svc__C": [0.01, 0.1, 1, 10],
-        }
-    ]
-    assert "svc__gamma" not in linear_entries[0]
-    assert "svc__degree" not in linear_entries[0]
-    assert "svc__coef0" not in linear_entries[0]
-
-
-def test_config_smoke_svc_grid_uses_pipeline_parameter_names():
-    cfg = Config(smoke=True)
-    svc_entry = next(entry for entry in cfg._param_grid if entry["model"] == ["svc"])
-
-    assert svc_entry["svc__kernel"] == ["linear"]
-    assert svc_entry["svc__C"] == [1]
-
-
 def test_config_private_setup_creates_directories_and_seeds_rngs(tmp_path):
     cfg = Config()
     cfg.RANDOM_STATE = 17
@@ -401,6 +338,9 @@ def test_removed_config_public_members_are_absent():
         "setup",
     ):
         assert not hasattr(cfg, name)
+
+    assert not hasattr(cfg, "_param_grid")
+    assert not hasattr(cfg, "_build_param_grid")
 
 
 def test_actual_config_doctests_execute_successfully():

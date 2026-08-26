@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Tests for melite.main orchestration."""
 
+import ast
 import csv
+import logging
+from contextlib import contextmanager
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -152,6 +156,55 @@ def test_pipeline_run_with_evaluations_returns_rich_result_unchanged():
     assert trainer.calls == [("rich", ("X", "y", "PCA", 70))]
 
 
+@pytest.mark.parametrize(
+    ("smoke", "n_trials", "active", "expected_warnings"),
+    [
+        (False, 20, ["svc", "rf"], 1),
+        (False, 21, ["svc"], 0),
+        (True, 5, ["svc"], 0),
+        (False, 5, ["stack"], 0),
+    ],
+)
+def test_low_budget_warning_conditions(
+    caplog, smoke, n_trials, active, expected_warnings
+):
+    main = Main.__new__(Main)
+    main.config = SimpleNamespace(
+        SMOKE=smoke,
+        N_TRIALS=n_trials,
+        ACTIVE_CLASSIFIERS=active,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="melite.main"):
+        main._warn_for_low_optimization_budget()
+
+    warnings = [
+        record for record in caplog.records if "startup sampling" in record.message
+    ]
+    assert len(warnings) == expected_warnings
+
+
+def test_main_run_enters_optuna_logging_scope_once(monkeypatch):
+    events = []
+
+    @contextmanager
+    def fake_scope(*, verbose):
+        events.append(("enter", verbose))
+        try:
+            yield
+        finally:
+            events.append(("exit", verbose))
+
+    main = Main.__new__(Main)
+    main._run_evaluation = lambda: events.append(("run", None))
+    monkeypatch.setattr(main_module, "optuna_logging_scope", fake_scope)
+    monkeypatch.setattr(main_module.logger, "level", logging.INFO)
+
+    main.run()
+
+    assert events == [("enter", True), ("run", None), ("exit", True)]
+
+
 def test_main_run_uses_arbitrary_dataset_ids(monkeypatch, tmp_path):
     DummyPipeline.calls = []
     monkeypatch.setattr(main_module, "Pipeline", DummyPipeline)
@@ -300,6 +353,86 @@ level = 85
     assert len(figure_calls) == 1
     assert figure_calls[0]["rows"] is main.evaluation_fold_rows
     assert figure_calls[0]["smoke"] is False
+
+
+def test_main_persists_exact_final_parameters(monkeypatch, tmp_path):
+    final_params = {
+        "learning_rate": 0.123456789012345,
+        "max_depth": 7,
+        "gamma": 0.0123456789012345,
+    }
+
+    class XGBClassifier:
+        pass
+
+    class ExactParamsPipeline:
+        def __init__(self, config):
+            self.config = config
+
+        def run_with_evaluations(self, *args):
+            selected_result = (
+                XGBClassifier(),
+                final_params,
+                0.8123456789,
+                0.0123456789,
+                0.8234567891,
+                0.0234567891,
+                0.9345678912,
+                0.0345678912,
+            )
+            return selected_result, []
+
+    monkeypatch.setattr(main_module, "Pipeline", ExactParamsPipeline)
+    raw_dir = tmp_path / "raw"
+    data_dir = tmp_path / "data"
+    output_dir = tmp_path / "output"
+    label_path, y = _write_labels(raw_dir)
+    dataset_path = _write_npz(data_dir, "sample_tabular", np.ones((8, 3)), y)
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(f'''
+[paths]
+input = "{raw_dir.as_posix()}/"
+dataset = "{data_dir.as_posix()}/"
+output = "{output_dir.as_posix()}/"
+
+[datasets.sample_tabular]
+path = "{dataset_path.as_posix()}"
+label_path = "{label_path.as_posix()}"
+''')
+
+    Main(user_config=config_path).run()
+
+    row = _rows(output_dir / "results.csv")[0]
+    persisted_params = ast.literal_eval(row["parameters"])
+    assert persisted_params == final_params
+    assert row["f1_macro"] == "0.8123"
+    assert row["f1_std"] == "0.0123"
+    assert row["accuracy"] == "0.8235"
+    assert row["acc_std"] == "0.0235"
+    assert row["auc_roc"] == "0.9346"
+    assert row["auc_std"] == "0.0346"
+    report = (output_dir / "results.txt").read_text(encoding="utf-8")
+    assert f"Best classifier parameters: {final_params}" in report
+
+
+def test_clean_params_normalizes_numpy_scalars_without_loss():
+    params = {
+        "learning_rate": np.float64(0.123456789012345),
+        "max_depth": np.int64(7),
+        "enabled": np.bool_(True),
+    }
+
+    normalized = Main._clean_params(params)
+
+    assert normalized == {
+        "learning_rate": 0.123456789012345,
+        "max_depth": 7,
+        "enabled": True,
+    }
+    assert ast.literal_eval(str(normalized)) == normalized
+    assert type(normalized["learning_rate"]) is float
+    assert type(normalized["max_depth"]) is int
+    assert type(normalized["enabled"]) is bool
 
 
 def test_main_run_uses_legacy_registry_metadata(monkeypatch, tmp_path):

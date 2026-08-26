@@ -3,8 +3,6 @@
 
 Reads ``melite/config_default.toml`` as the base configuration.
 An optional user-supplied TOML file can override any key via deep merge.
-Hyperparameter grids are internal implementation details and are not part of
-the public :class:`Config` API.
 
 The :class:`Config` object is the single entry point for all runtime
 settings. It is designed to be instantiated without filesystem or global RNG
@@ -189,13 +187,6 @@ class Config:
             "inner_n_splits": cv_section["inner_n_splits"],
         }
 
-        # Hyperparameter grids — developer-facing, defined in Python
-        self._param_grid = self._build_param_grid()
-
-    # ------------------------------------------------------------------ #
-    # Hyperparameter grids
-    # ------------------------------------------------------------------ #
-
     def _build_dataset_registry(self, cfg: dict) -> dict:
         datasets = cfg.get("datasets")
         if datasets:
@@ -300,103 +291,6 @@ class Config:
                     },
                 }
         return datasets
-
-    def _build_param_grid(self) -> list:
-        if self.SMOKE:
-            return [
-                {
-                    "model": ["svc"],
-                    "svc__kernel": ["linear"],
-                    "svc__C": [1],
-                },
-                {
-                    "model": ["rf"],
-                    "n_estimators": [50],
-                    "max_depth": [5],
-                    "max_features": ["sqrt"],
-                    "min_samples_split": [2],
-                    "min_samples_leaf": [1],
-                },
-                {
-                    "model": ["xgb"],
-                    "n_estimators": [20],
-                    "learning_rate": [0.1],
-                    "max_depth": [3],
-                    "subsample": [0.8],
-                    "colsample_bytree": [1.0],
-                    "gamma": [0],
-                    "reg_alpha": [0],
-                    "reg_lambda": [1],
-                },
-                {
-                    "model": ["stack"],
-                },
-            ]
-        return [
-            {
-                "model": ["svc"],
-                "svc__kernel": ["linear"],
-                "svc__C": [0.01, 0.1, 1, 10],
-            },
-            {
-                "model": ["svc"],
-                "svc__kernel": ["poly"],
-                "svc__C": [0.01, 0.1, 1, 10],
-                "svc__coef0": [0.0, 0.1, 0.2, 0.6, 0.8, 1],
-                "svc__gamma": [
-                    0.001,
-                    0.002,
-                    0.004,
-                    0.008,
-                    0.01,
-                    0.02,
-                    0.04,
-                    0.08,
-                    0.1,
-                    0.2,
-                ],
-                "svc__degree": [3, 4, 5],
-            },
-            {
-                "model": ["svc"],
-                "svc__kernel": ["rbf"],
-                "svc__C": [0.01, 0.02, 0.1, 0.2, 1, 2, 10, 20],
-                "svc__gamma": [
-                    0.001,
-                    0.002,
-                    0.004,
-                    0.008,
-                    0.01,
-                    0.02,
-                    0.04,
-                    0.08,
-                    0.1,
-                    0.2,
-                ],
-            },
-            {
-                "model": ["rf"],
-                "n_estimators": [200, 400, 800],
-                "max_depth": [None, 10, 20, 30, 40],
-                "max_features": ["sqrt", "log2"],
-                "min_samples_split": [2, 5],
-                "min_samples_leaf": [1, 2],
-            },
-            {
-                "model": ["xgb"],
-                "n_estimators": [300, 400, 600],
-                "learning_rate": [0.01, 0.05, 0.1],
-                "max_depth": [4, 6, 8],
-                "subsample": [0.7, 0.85],
-                "colsample_bytree": [0.7, 1.0],
-                "gamma": [0, 0.01, 1, 5],
-                "reg_alpha": [0, 0.5],
-                "reg_lambda": [1, 2],
-            },
-            {
-                "model": ["stack"],
-            },
-        ]
 
     def _setup(self) -> None:
         """Create output directories and set random seeds.

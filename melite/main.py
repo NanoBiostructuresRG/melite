@@ -17,7 +17,10 @@ from sklearn.svm import SVC
 from melite.config import Config
 from melite.load_dataset import load_datasets
 from melite.model_training import MultiModelTrainer
+from melite.optimization import optuna_logging_scope
+from melite.optimization_policy import OPTIMIZATION_POLICY
 from melite.result_manager import ResultManager
+from melite.search_spaces import get_search_space
 
 logger = logging.getLogger(__name__)
 
@@ -107,9 +110,9 @@ class Main:
 
     @staticmethod
     def _clean_params(params):
+        """Return parameter values that round-trip exactly through ast.literal_eval."""
         return {
-            k: round(float(v), 4) if isinstance(v, (float, np.floating)) else v
-            for k, v in params.items()
+            k: v.item() if isinstance(v, np.generic) else v for k, v in params.items()
         }
 
     @staticmethod
@@ -144,12 +147,35 @@ class Main:
         regardless of the logging level, to ensure the user is aware that
         results are not suitable for final classifier selection.
         """
+        # The CLI configures MELITE logging before entering Main.run();
+        # programmatic callers may configure the logger directly.
+        verbose = logger.isEnabledFor(logging.INFO)
+        with optuna_logging_scope(verbose=verbose):
+            self._run_evaluation()
+
+    def _warn_for_low_optimization_budget(self) -> None:
+        if (
+            not self.config.SMOKE
+            and self.config.N_TRIALS <= OPTIMIZATION_POLICY.n_startup_trials
+            and any(
+                get_search_space(classifier_key) is not None
+                for classifier_key in self.config.ACTIVE_CLASSIFIERS
+            )
+        ):
+            logger.warning(
+                "The requested optimization budget remains within TPE startup "
+                "sampling and does not reach model-based TPE."
+            )
+
+    def _run_evaluation(self) -> None:
         if self.config.SMOKE:
             logger.info(
                 "SMOKE TEST - reduced search and cross-validation settings. "
                 "Results are not suitable for final classifier selection."
             )
             print(_SMOKE_WARNING)
+
+        self._warn_for_low_optimization_budget()
 
         datasets = load_datasets(self.config)
 

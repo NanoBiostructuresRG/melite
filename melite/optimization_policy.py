@@ -12,6 +12,10 @@ failed trials consume the requested budget. Contract, translation, and
 programming errors propagate. Zero completed trials are an explicit search
 failure, as is a best-configuration refit failure.
 
+Optuna TPE startup accounting includes COMPLETE and PRUNED trials. MELITE uses
+a no-op pruner, so PRUNED trials are unexpected contract violations; FAIL
+trials consume budget without advancing startup accounting.
+
 A normal run whose effective ``N_TRIALS`` is less than or equal to
 ``OPTIMIZATION_POLICY.n_startup_trials`` is valid, but the contract requires a
 warning that its budget remains within startup sampling and does not reach
