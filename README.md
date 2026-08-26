@@ -85,12 +85,14 @@ For a registered dataset, MELITE follows the contract below:
    dataset.
 6. Aggregate and per-fold evidence are preserved for every evaluated
    classifier.
-7. After selection, the chosen classifier is fitted using all available data.
-   If it is tunable, MELITE performs a final full-data hyperparameter search to
-   determine the exported configuration.
-8. `melite export` does not run a second post-selection evaluation. It fits the
-   selected classifier on all available data and serializes the final model
-   artifact.
+7. After selection, MELITE performs the final full-data fitting stage. For a
+   tunable classifier, `melite run` first performs a final full-data
+   hyperparameter search and records the resulting parameters in `results.csv`;
+   Stacking is fitted directly.
+8. `melite export` reconstructs the selected classifier from the persisted
+   result, fits it on all available data, and serializes the final model
+   artifact. It performs no additional hyperparameter search, cross-validation,
+   or classifier selection.
 9. Smoke mode is intended for fast execution checks, not final classifier selection.
 
 
@@ -375,7 +377,7 @@ If you use MELITE in your research, please cite it using the metadata in
 
 
 ```text
-Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments. Zenodo. https://doi.org/10.5281/zenodo.20382752
+Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE — Multi-Model Classifier Evaluator. Zenodo. https://doi.org/10.5281/zenodo.20382752
 ```
 
 ## Authors

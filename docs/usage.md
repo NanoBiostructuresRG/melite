@@ -397,8 +397,9 @@ melite export \
 ```
 
 `melite export` reconstructs the selected classifier and fits the final model
-on all available data. For tunable classifiers, the final fit includes a
-full-data hyperparameter search.
+on all available data. It uses the classifier parameters persisted in
+`results.csv` by `melite run`. It performs no additional hyperparameter search,
+cross-validation, or classifier selection.
 
 Smoke results are blocked from export by default. The `--force` option exists
 for deliberate testing or diagnostic use.
@@ -477,11 +478,11 @@ reconstruct a selected result produced by `melite run`.
 | `smoke` | Whether the row was produced in smoke mode. |
 
 The metric values in this selected-result summary are written rounded to four
-decimal places by the current `melite run` workflow. The recorded `parameters`
-must not be assumed to be the final parameters stored in a subsequently
-exported model. For tunable classifiers, `melite export` performs a final
-full-data hyperparameter search, so the exported fitted artifact may use
-parameters determined during that final fitting stage.
+decimal places by the current `melite run` workflow. For tunable classifiers,
+`parameters` records the hyperparameters selected by the final full-data search
+performed during `melite run`. `melite export` uses those persisted parameters
+to reconstruct and fit the final model; it does not perform another
+hyperparameter search.
 
 #### `evaluations.csv`
 
