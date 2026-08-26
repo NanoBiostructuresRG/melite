@@ -7,6 +7,7 @@ produced by the main evaluation pipeline.
 """
 
 import csv
+import json
 import os
 import re
 from datetime import datetime
@@ -21,6 +22,16 @@ __all__ = ["ResultManager"]
 
 _REPORT_PROJECT_NAME = "MELITE"
 _REPORT_LICENSE = "LGPL-3.0-or-later"
+_OPTIMIZATION_PROVENANCE_KEYS = (
+    "melite_version",
+    "optimization_backend",
+    "smoke",
+    "random_state",
+    "active_classifiers",
+    "cv",
+    "optimization",
+    "search_spaces",
+)
 
 
 def _safe_filename_part(value: str) -> str:
@@ -211,6 +222,80 @@ Repository: https://github.com/NanoBiostructuresRG/melite
             "smoke",
         ]
         self._write_evaluation_csv(rows, path, fieldnames, smoke)
+
+    def write_optimization_searches_csv(
+        self, rows: list[dict], path: Path | str, smoke: bool = False
+    ) -> None:
+        """Write one row per complete optimization search.
+
+        Unlike the existing CSV writers, this writer always creates the file
+        and its header. Zero searches is a valid successful result when all
+        active classifiers are non-tunable.
+        """
+        fieldnames = [
+            "dataset",
+            "family",
+            "method",
+            "variant",
+            "level",
+            "description",
+            "reduction_type",
+            "classifier_name",
+            "search_scope",
+            "outer_split",
+            "outer_repeat",
+            "outer_fold",
+            "best_inner_f1_macro",
+            "best_params",
+            "n_trials_requested",
+            "n_trials_complete",
+            "n_trials_failed",
+            "selected",
+            "smoke",
+        ]
+        prepared_rows = []
+        for row in rows:
+            output_row = dict(row)
+            if "best_params" in output_row:
+                output_row["best_params"] = json.dumps(
+                    output_row["best_params"],
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                    allow_nan=False,
+                )
+            prepared_rows.append({**output_row, "smoke": smoke})
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(prepared_rows)
+
+    def write_optimization_provenance_json(
+        self, provenance: dict, path: Path | str
+    ) -> None:
+        """Write the effective optimization and evaluation contract as JSON."""
+        expected_keys = set(_OPTIMIZATION_PROVENANCE_KEYS)
+        actual_keys = set(provenance)
+        if actual_keys != expected_keys:
+            raise ValueError(
+                "Optimization provenance must contain exactly "
+                f"{sorted(expected_keys)}; got {sorted(actual_keys)}."
+            )
+
+        payload = json.dumps(
+            provenance,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, mode="w", encoding="utf-8", newline="\n") as f:
+            f.write(f"{payload}\n")
 
     def write_evaluation_figures(self, rows: list[dict], smoke: bool = False) -> None:
         """Write one outer-CV F1-macro evidence figure per dataset."""

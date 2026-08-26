@@ -23,6 +23,7 @@ from melite.optimization import (
     OptimizationResult,
     OptimizationSearchError,
     OptunaSearchClassifier,
+    get_optimization_backend_info,
     TrialEvaluationError,
     _materialize_effective_params,
     _run_study,
@@ -560,3 +561,10 @@ def test_public_package_facade_remains_unchanged():
         "predict",
         "__version__",
     ]
+
+
+def test_optimization_backend_info_reports_runtime_optuna_version():
+    assert get_optimization_backend_info() == {
+        "name": "optuna",
+        "version": optuna.__version__,
+    }

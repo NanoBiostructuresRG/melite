@@ -104,6 +104,27 @@ budget without advancing startup accounting.
 only after it is stable and MELITE explicitly verifies compatible sampler
 behavior, trial/error semantics, and optimization policy.
 
+## Optimization Evidence and Provenance
+
+**Status:** Fixed for v0.3.0.
+
+MELITE persists one row per complete optimization search, not per trial.
+Outer and final searches share `optimization_searches.csv` through
+`search_scope`; `selected` applies only to outer rows and is not applicable to
+final rows. A Stack-only run legitimately produces a header-only optimization
+search artifact. Full trial traces are deliberately not persisted.
+
+Optimization provenance records the effective cross-validation design,
+canonical `RANDOM_STATE`, effective optimization budget, fixed optimization
+policy, backend identity and runtime version, and only the active search-space
+contracts. Stack is represented as `null`. Filesystem, data, and environment
+provenance are outside B4.
+
+The MELITE package version governs these artifact schemas; no independent
+`schema_version` is added. Optimization evidence is not an operational model
+input: `results.csv` remains the sole persisted parameter source used by
+`melite export`.
+
 ## Public Classifier Extensibility
 
 **Status:** Public classifier registration remains deferred.

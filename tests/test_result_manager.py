@@ -2,7 +2,9 @@
 """Tests for melite.result_manager."""
 
 import csv
+import json
 from datetime import datetime
+
 import pytest
 
 import melite.result_manager as result_manager_module
@@ -63,6 +65,28 @@ FOLD_FIELDS = [
     "smoke",
 ]
 
+OPTIMIZATION_FIELDS = [
+    "dataset",
+    "family",
+    "method",
+    "variant",
+    "level",
+    "description",
+    "reduction_type",
+    "classifier_name",
+    "search_scope",
+    "outer_split",
+    "outer_repeat",
+    "outer_fold",
+    "best_inner_f1_macro",
+    "best_params",
+    "n_trials_requested",
+    "n_trials_complete",
+    "n_trials_failed",
+    "selected",
+    "smoke",
+]
+
 EVALUATION_ROW = {
     "dataset": "morgan",
     "family": "fingerprints",
@@ -98,6 +122,40 @@ FOLD_ROW = {
     "auc_roc": None,
     "selected": True,
 }
+
+OPTIMIZATION_ROW = {
+    "dataset": "morgan",
+    "family": "fingerprints",
+    "method": "Morgan",
+    "variant": "r2_2048",
+    "level": None,
+    "description": "Morgan fingerprint",
+    "reduction_type": None,
+    "classifier_name": "SVC",
+    "search_scope": "outer",
+    "outer_split": 3,
+    "outer_repeat": 1,
+    "outer_fold": 1,
+    "best_inner_f1_macro": 0.8123456789012345,
+    "best_params": {"svc__kernel": "rbf", "svc__C": 0.123456789012345},
+    "n_trials_requested": 100,
+    "n_trials_complete": 97,
+    "n_trials_failed": 3,
+    "selected": True,
+}
+
+
+def _provenance():
+    return {
+        "melite_version": __version__,
+        "optimization_backend": {"name": "optuna", "version": "4.9.0"},
+        "smoke": False,
+        "random_state": 42,
+        "active_classifiers": ["svc"],
+        "cv": {"n_splits": 5, "n_repeats": 3, "inner_n_splits": 3},
+        "optimization": {"effective_n_trials": 100, "policy": {}},
+        "search_spaces": {"svc": {"classifier": "svc"}},
+    }
 
 
 def _raise_simulated_write_failure(*args, **kwargs):
@@ -302,6 +360,118 @@ def test_evaluation_csv_writers_propagate_write_failure(
 
     with pytest.raises(OSError, match="simulated write failure"):
         getattr(rm, method_name)(rows, tmp_path / filename)
+
+
+def test_write_optimization_searches_csv_uses_exact_schema_and_canonical_json(
+    tmp_path,
+):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    csv_path = tmp_path / "nested" / "optimization_searches.csv"
+
+    rm.write_optimization_searches_csv([OPTIMIZATION_ROW], csv_path, smoke=True)
+
+    with open(csv_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    assert reader.fieldnames == OPTIMIZATION_FIELDS
+    assert len(rows) == 1
+    assert rows[0]["best_inner_f1_macro"] == "0.8123456789012345"
+    assert rows[0]["best_params"] == (
+        '{"svc__C":0.123456789012345,"svc__kernel":"rbf"}'
+    )
+    assert json.loads(rows[0]["best_params"]) == OPTIMIZATION_ROW["best_params"]
+    assert rows[0]["n_trials_requested"] == "100"
+    assert rows[0]["n_trials_complete"] == "97"
+    assert rows[0]["n_trials_failed"] == "3"
+    assert rows[0]["selected"] == "True"
+    assert rows[0]["smoke"] == "True"
+    assert "n_trials_pruned" not in rows[0]
+
+
+def test_optimization_search_serialization_failure_leaves_no_partial_csv(tmp_path):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    csv_path = tmp_path / "nested" / "optimization_searches.csv"
+    rows = [
+        OPTIMIZATION_ROW,
+        {
+            **OPTIMIZATION_ROW,
+            "outer_split": 4,
+            "best_params": {"svc__C": float("nan")},
+        },
+    ]
+
+    with pytest.raises(ValueError, match="Out of range float values"):
+        rm.write_optimization_searches_csv(rows, csv_path)
+
+    assert not csv_path.exists()
+
+
+def test_write_optimization_searches_csv_creates_header_when_empty(tmp_path):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    csv_path = tmp_path / "optimization_searches.csv"
+
+    rm.write_optimization_searches_csv([], csv_path)
+
+    with open(csv_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        assert reader.fieldnames == OPTIMIZATION_FIELDS
+        assert list(reader) == []
+
+
+def test_write_optimization_searches_csv_accepts_absent_best_params(tmp_path):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    csv_path = tmp_path / "optimization_searches.csv"
+
+    rm.write_optimization_searches_csv([{}], csv_path)
+
+    with open(csv_path, encoding="utf-8") as f:
+        row = next(csv.DictReader(f))
+    assert row["best_params"] == ""
+
+
+def test_write_optimization_provenance_json_is_deterministic(tmp_path):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    first_path = tmp_path / "first.json"
+    second_path = tmp_path / "second.json"
+    provenance = _provenance()
+
+    rm.write_optimization_provenance_json(provenance, first_path)
+    rm.write_optimization_provenance_json(provenance, second_path)
+
+    first = first_path.read_bytes()
+    assert first == second_path.read_bytes()
+    assert first.endswith(b"\n")
+    assert not first.endswith(b"\n\n")
+    assert json.loads(first) == provenance
+    assert set(json.loads(first)) == set(
+        result_manager_module._OPTIMIZATION_PROVENANCE_KEYS
+    )
+    assert "schema_version" not in json.loads(first)
+
+
+@pytest.mark.parametrize("change", ["missing", "extra"])
+def test_write_optimization_provenance_json_rejects_invalid_keys(tmp_path, change):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    provenance = _provenance()
+    if change == "missing":
+        provenance.pop("cv")
+    else:
+        provenance["schema_version"] = 1
+
+    with pytest.raises(ValueError, match="must contain exactly"):
+        rm.write_optimization_provenance_json(provenance, tmp_path / "invalid.json")
+
+
+def test_write_optimization_provenance_json_rejects_nan(tmp_path):
+    rm = ResultManager(str(tmp_path / "results.txt"))
+    provenance = _provenance()
+    provenance["optimization"]["effective_n_trials"] = float("nan")
+    json_path = tmp_path / "invalid.json"
+
+    with pytest.raises(ValueError, match="Out of range float values"):
+        rm.write_optimization_provenance_json(provenance, json_path)
+
+    assert not json_path.exists()
 
 
 def test_write_evaluation_figures_groups_existing_outer_scores(monkeypatch, tmp_path):

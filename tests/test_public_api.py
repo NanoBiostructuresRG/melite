@@ -52,6 +52,8 @@ def test_private_helpers_not_in_dunder_all():
     assert "load_dataset" not in melite.__all__
     assert "ResultManager" not in melite.__all__
     assert "Pipeline" not in melite.__all__
+    assert "get_optimization_backend_info" not in melite.__all__
+    assert not hasattr(melite, "get_optimization_backend_info")
 
 
 def test_removed_top_level_symbols_not_exposed():

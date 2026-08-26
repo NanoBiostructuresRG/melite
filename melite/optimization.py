@@ -44,6 +44,14 @@ class OptimizationSearchError(RuntimeError):
     """An optimization study violated MELITE's search-completion contract."""
 
 
+def get_optimization_backend_info() -> dict[str, str]:
+    """Identify the optimization backend for provenance metadata.
+
+    This helper does not participate in optimization execution.
+    """
+    return {"name": "optuna", "version": optuna.__version__}
+
+
 def _suggest_parameter(trial, parameter: ParameterSpec) -> Any:
     domain = parameter.domain
     if isinstance(domain, FloatDomain):
