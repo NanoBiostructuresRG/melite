@@ -18,6 +18,8 @@ from pathlib import Path
 
 import numpy as np
 
+from melite.optimization_policy import OPTIMIZATION_POLICY
+
 __all__ = ["Config"]
 
 # Path to the default configuration file bundled with the package
@@ -69,6 +71,10 @@ class Config:
     RANDOM_STATE : int
         Canonical global random seed used by MELITE runtime and evaluation
         components. Default is ``42``.
+    N_TRIALS : int
+        Optimization trial budget. Normal mode uses the effective
+        ``[optimization].n_trials`` value, which defaults to ``100``. Smoke
+        mode always uses MELITE's internal, non-configurable budget of ``5``.
     DATASETS : dict
         Normalized dataset registry keyed by user-defined dataset id. Each
         entry contains ``path`` and ``metadata`` plus ``label_path`` for NPZ
@@ -86,10 +92,13 @@ class Config:
         If the supplied user configuration file does not exist.
     ValueError
         If a user configuration uses the obsolete ``[models]`` section,
+        defines the unsupported ``[optimization_smoke]`` section,
         specifies ``random_state`` under ``[cv]`` or ``[cv_smoke]`` instead of
-        ``[benchmark]``, or defines an invalid registered dataset. Registered
-        datasets support only ``.npz`` files with ``label_path`` and ``.csv``
-        files with a non-empty ``label_column``.
+        ``[benchmark]``, contains an unsupported ``[optimization]`` key, sets
+        an invalid ``[optimization].n_trials`` value, or defines an invalid
+        registered dataset. Registered datasets support only ``.npz`` files
+        with ``label_path`` and ``.csv`` files with a non-empty
+        ``label_column``.
 
     Examples
     --------
@@ -124,12 +133,28 @@ class Config:
                     "[classifiers] in MELITE v0.2.4. Rename [models] to "
                     "[classifiers] in your configuration file."
                 )
+            if "optimization_smoke" in user_cfg:
+                raise ValueError(
+                    "[optimization_smoke] is unsupported. The smoke optimization "
+                    "budget is internal, non-configurable MELITE policy."
+                )
             for section in ("cv", "cv_smoke"):
                 if "random_state" in user_cfg.get(section, {}):
                     raise ValueError(
                         f"[{section}].random_state is not supported. Configure "
                         "the canonical random seed through "
                         "[benchmark].random_state."
+                    )
+            optimization_cfg = user_cfg.get("optimization")
+            if optimization_cfg is not None:
+                if not isinstance(optimization_cfg, dict):
+                    raise ValueError("[optimization] must be a TOML table.")
+                unknown_keys = sorted(set(optimization_cfg) - {"n_trials"})
+                if unknown_keys:
+                    raise ValueError(
+                        "[optimization] contains unsupported key(s): "
+                        f"{', '.join(unknown_keys)}. The only supported key in "
+                        "MELITE v0.3.0 is n_trials."
                     )
             cfg = _deep_merge(cfg, user_cfg)
 
@@ -143,6 +168,16 @@ class Config:
 
         # Evaluation settings
         self.RANDOM_STATE = cfg["benchmark"]["random_state"]
+        normal_n_trials = cfg["optimization"]["n_trials"]
+        if (
+            isinstance(normal_n_trials, bool)
+            or not isinstance(normal_n_trials, int)
+            or normal_n_trials < 1
+        ):
+            raise ValueError(
+                "[optimization].n_trials must be an integer greater than or equal to 1."
+            )
+        self.N_TRIALS = OPTIMIZATION_POLICY.smoke_n_trials if smoke else normal_n_trials
         self.ACTIVE_CLASSIFIERS = cfg["classifiers"]["active"]
         self.DATASETS = self._build_dataset_registry(cfg)
 
