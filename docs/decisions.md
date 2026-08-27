@@ -140,7 +140,7 @@ registering user classifiers and their estimator or artifact semantics.
 
 ## v0.3.0 Optimization Characterization
 
-**Status:** Baseline calibration protocol fixed; candidate characterization pending.
+**Status:** Baseline calibration fixed; candidate characterization protocol fixed.
 
 The calibration stage executes only the historical v0.2.5 GridSearchCV engine;
 no v0.3.0 candidate metrics are inspected. The later comparison is defined as
@@ -171,3 +171,19 @@ timing. Candidate comparison may proceed only after verifying the candidate Pyth
 interpreter and common pinned dependencies against the baseline environment
 recorded in `B5_calibration.json`, and after regenerating the selected dataset
 with the exact recorded SHA-256.
+
+Candidate characterization reuses the committed baseline; v0.2.5 is not rerun.
+The orchestrator Python version and all seven common dependency versions must
+match the baseline evidence exactly, and the regenerated selected dataset must
+match its recorded SHA-256 before MELITE executes. The candidate uses a fresh
+output directory, SVC, RandomForest, and XGBoost, 100 trials per search,
+5 folds × 1 repeat outside, and 3 folds inside.
+
+Every optimization row must account for its complete 100-trial budget
+(`n_trials_complete + n_trials_failed == n_trials_requested`) and must have no
+failed trials. Scientific acceptance requires each candidate classifier's mean
+outer F1-macro delta from baseline to be at least `-0.05`; a winner change is
+informational only, and the worst classifier delta is reported. Estimated fit
+count and end-to-end wall-clock remain separate evidence: wall-clock is
+descriptive and is not a runtime gate. The full verbose candidate console log
+is retained locally for diagnostics.
