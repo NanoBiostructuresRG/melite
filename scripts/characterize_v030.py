@@ -30,6 +30,7 @@ from melite.search_spaces import get_search_space
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONSTRAINTS_PATH = Path(__file__).with_name("characterize_v030_constraints.txt")
+FROZEN_DATASET_PATH = Path(__file__).with_name("b5_characterization_dataset.csv")
 REPORT_PATH = REPO_ROOT / "B5_calibration.json"
 CANDIDATE_REPORT_PATH = REPO_ROOT / "B5_characterization.json"
 CANDIDATE_CONSOLE_LOG_PATH = REPO_ROOT / "B5_candidate_console.log"
@@ -450,19 +451,16 @@ def validate_optuna_version(expected: str, actual: str) -> dict[str, Any]:
 
 
 def validate_candidate_dataset(
-    baseline: dict[str, Any], payload: bytes | None = None
+    baseline: dict[str, Any], fixture_path: Path | None = None
 ) -> tuple[bytes, dict[str, Any]]:
-    """Regenerate and verify only the frozen selected candidate dataset."""
+    """Read and verify the frozen candidate characterization dataset."""
     selected_profile = baseline["selected_profile"]
-    expected_generator = {**GENERATOR_PARAMETERS, "class_sep": FROZEN_CLASS_SEP}
-    recorded_generator = selected_profile.get("generator_parameters")
-    if recorded_generator != expected_generator:
+    fixture_path = FROZEN_DATASET_PATH if fixture_path is None else fixture_path
+    if not fixture_path.is_file():
         raise CalibrationError(
-            "Baseline selected generator parameters drifted from the fixed contract: "
-            f"expected {expected_generator!r}; got {recorded_generator!r}."
+            f"Frozen candidate characterization dataset does not exist: {fixture_path}."
         )
-    if payload is None:
-        payload = generate_dataset_bytes(FROZEN_CLASS_SEP)
+    payload = fixture_path.read_bytes()
     expected_sha256 = selected_profile["dataset_sha256"]
     actual_sha256 = sha256_bytes(payload)
     if actual_sha256 != expected_sha256:

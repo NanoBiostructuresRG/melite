@@ -95,6 +95,8 @@ exclude = [
     "/dist",
     "/docs",
     "/mkdocs.yml",
+    # Characterization-only evidence/tooling; not part of the published sdist.
+    "/scripts/b5_characterization_dataset.csv",
     # Leading "/" is intentional: exclude repository-root runtime directories,
     # not packaged resources such as melite/_example_assets/data/.
     "/data",

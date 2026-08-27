@@ -169,13 +169,15 @@ best-model refit performed by GridSearchCV. `end_to_end_wall_seconds` measures
 the complete MELITE subprocess and is descriptive, not optimization-only
 timing. Candidate comparison may proceed only after verifying the candidate Python
 interpreter and common pinned dependencies against the baseline environment
-recorded in `B5_calibration.json`, and after regenerating the selected dataset
-with the exact recorded SHA-256.
+recorded in `B5_calibration.json`, and after verifying the frozen selected
+dataset bytes against the exact recorded SHA-256.
 
 Candidate characterization reuses the committed baseline; v0.2.5 is not rerun.
 The orchestrator Python version and all seven common dependency versions must
-match the baseline evidence exactly, and the regenerated selected dataset must
-match its recorded SHA-256 before MELITE executes. The candidate uses a fresh
+match the baseline evidence exactly. The characterization dataset is frozen
+byte-for-byte in `scripts/b5_characterization_dataset.csv` as an experimental
+input and protected by its recorded SHA-256 before MELITE executes. The
+candidate uses a fresh
 output directory, SVC, RandomForest, and XGBoost, 100 trials per search,
 5 folds × 1 repeat outside, and 3 folds inside.
 

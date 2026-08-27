@@ -502,6 +502,13 @@ def test_frozen_candidate_dataset_sha_matches(baseline_evidence):
     }
 
 
+def test_committed_characterization_fixture_has_frozen_sha256():
+    assert (
+        characterization.sha256_bytes(characterization.FROZEN_DATASET_PATH.read_bytes())
+        == "8fcf49be02395073e63014f6096d587897595c664cf08f3dddf55aac470a29bb"
+    )
+
+
 def test_candidate_dataset_sha_mismatch_fails_before_subprocess(
     monkeypatch, tmp_path, baseline_evidence
 ):
@@ -514,9 +521,9 @@ def test_candidate_dataset_sha_mismatch_fails_before_subprocess(
         "installed_distribution_versions",
         lambda: baseline_evidence["environment"]["installed_packages"],
     )
-    monkeypatch.setattr(
-        characterization, "generate_dataset_bytes", lambda value: b"bad"
-    )
+    invalid_fixture = tmp_path / "invalid.csv"
+    invalid_fixture.write_bytes(b"bad")
+    monkeypatch.setattr(characterization, "FROZEN_DATASET_PATH", invalid_fixture)
 
     def unexpected_subprocess(*args, **kwargs):
         pytest.fail("candidate SHA failure must occur before any subprocess")
@@ -532,10 +539,12 @@ def test_candidate_dataset_sha_mismatch_fails_before_subprocess(
     assert characterization.REPORT_PATH.read_bytes() == baseline_bytes
 
 
-def test_recorded_generator_drift_is_detected(baseline_evidence):
+def test_frozen_candidate_dataset_does_not_depend_on_generator_metadata(
+    baseline_evidence,
+):
     baseline_evidence["selected_profile"]["generator_parameters"]["n_informative"] = 10
-    with pytest.raises(characterization.CalibrationError, match="drifted"):
-        characterization.validate_candidate_dataset(baseline_evidence)
+    _, gate = characterization.validate_candidate_dataset(baseline_evidence)
+    assert gate["passed"] is True
 
 
 def test_preexisting_output_is_rejected(tmp_path):
