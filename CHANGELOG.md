@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-08-28
+
+### Added
+- Added Optuna/TPE hyperparameter optimization for tunable classifiers with a
+  declared per-search trial budget configured through `[optimization].n_trials`.
+- Added a backend-independent internal search-space contract supporting
+  discrete, integer, continuous, and conditional parameter definitions.
+- Added `optimization_searches.csv`, preserving one row per completed outer or
+  final optimization search.
+- Added `optimization_provenance.json`, recording the effective optimization
+  backend, policy, cross-validation design, random state, trial budget, and
+  active search-space contracts.
+
+### Changed
+- Replaced `GridSearchCV` with Optuna as the optimization engine for tunable
+  classifiers while preserving nested outer-CV evaluation and mean outer-CV
+  F1-macro classifier selection.
+- Hyperparameter-search effort is now controlled by an explicit and homogeneous
+  trial budget rather than by the implicit size of classifier-specific grids.
+- The fixed v0.3.0 optimization policy uses seeded sequential TPE from MELITE's
+  canonical `RANDOM_STATE`; the normal default is 100 trials per search and
+  smoke mode uses an internal 5-trial budget.
+- `melite run` now performs and persists the final full-data optimization for a
+  selected tunable classifier; `melite export` reuses the parameters stored in
+  `results.csv` and performs no additional hyperparameter search.
+- Hyperparameters persisted in `results.csv.parameters` now retain their full
+  numeric precision so `melite export` can reconstruct the exact configuration
+  selected by `melite run`.
+- Updated public documentation, package metadata, citation metadata,
+  configuration guidance, and the evaluation-workflow figure for the v0.3.0
+  optimization and evidence contracts.
+
+### Notes
+- Scientific characterization used one frozen synthetic dataset with 240
+  samples and 20 features, evaluated with SVC, Random Forest, and XGBoost under
+  5-fold × 1-repeat outer cross-validation, 3-fold inner cross-validation, and
+  100 Optuna trials per search.
+- Under that fixed condition, all three tunable classifiers remained within the
+  predefined `-0.05` mean outer-CV F1-macro acceptance margin, and SVC remained
+  the selected classifier.
+- The estimated optimization workload decreased from 42,208 to 4,816 estimator
+  fits under that condition. End-to-end wall-clock was 2981.1 s for the v0.2.5
+  baseline and 3005.0 s for v0.3.0; wall-clock was descriptive and not an
+  acceptance gate.
+- Public custom-classifier registration remains outside the v0.3.0 scope; the
+  supported classifier keys remain SVC, Random Forest, XGBoost, and opt-in
+  Stacking.
+
+---
+
 ## [0.2.5] - 2026-08-25
 
 ### Added
@@ -539,6 +589,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.3.0]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.5...v0.3.0
 [0.2.5]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.2...v0.2.3
