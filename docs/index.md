@@ -59,7 +59,7 @@ inspectable — and keeps the evidence.
 
 ## Evaluation Workflow
 
-<img class="ms-workflow-image" src="assets/Melite_pipeline.png" alt="MELITE evaluation workflow">
+<img class="ms-workflow-image" src="assets/melite_v0.3.0.png" alt="MELITE evaluation workflow">
 
 ## What You Provide and Receive
 
