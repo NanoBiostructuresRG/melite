@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Model training, grid search and cross-validation for MELITE.
+"""Model optimization, training, and cross-validation for MELITE.
 
 This module implements the multi-classifier evaluation core. It defines an
 abstract base class :class:`ModelTrainer` and the concrete implementation
@@ -8,11 +8,11 @@ classifiers with nested cross-validation and supports opt-in stacking.
 """
 
 from abc import ABC, abstractmethod
+from dataclasses import asdict
 
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import (
-    GridSearchCV,
     RepeatedStratifiedKFold,
     StratifiedKFold,
     cross_validate,
@@ -21,6 +21,9 @@ from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
+
+from melite.optimization import OptunaSearchClassifier, optimize_and_refit
+from melite.search_spaces import get_search_space
 
 __all__ = ["MultiModelTrainer"]
 
@@ -31,8 +34,7 @@ class ModelTrainer(ABC):
     Parameters
     ----------
     config : melite.config.Config
-        MELITE configuration object providing CV settings and hyperparameter
-        grids.
+        MELITE configuration object providing evaluation and optimization settings.
     """
 
     def __init__(self, config):
@@ -64,21 +66,21 @@ class ModelTrainer(ABC):
 class MultiModelTrainer(ModelTrainer):
     """Train and select the best classifier across SVC, Random Forest and XGBoost.
 
-    Uses nested cross-validation for tunable classifiers: an inner
-    stratified grid search selects hyperparameters independently within each
-    outer repeated-stratified fold, and the outer folds provide F1-macro,
-    Accuracy, and AUC-ROC estimates. Stacking is evaluated directly.
+    Uses nested cross-validation for tunable classifiers: an inner Optuna
+    search selects hyperparameters independently within each outer
+    repeated-stratified fold, and the outer folds provide F1-macro, Accuracy,
+    and AUC-ROC estimates. Non-tunable classifiers are evaluated directly.
 
     Parameters
     ----------
     config : melite.config.Config
         MELITE configuration object providing classifier, CV, and random-seed
-        settings together with the internal hyperparameter search grid.
+        settings together with the optimization trial budget.
 
     Notes
     -----
     Model instances are created lazily via ``model_builders`` — a dict of
-    zero-argument callables — so each grid search starts from a fresh,
+    zero-argument callables — so each fit starts from a fresh,
     unfitted estimator.
     """
 
@@ -172,59 +174,9 @@ class MultiModelTrainer(ModelTrainer):
             random_state=self.config.RANDOM_STATE,
         )
 
-    def _build_inner_cv(self):
-        cv_cfg = self.config.CV_CONFIG
-        return StratifiedKFold(
-            n_splits=cv_cfg["inner_n_splits"],
-            shuffle=True,
-            random_state=self.config.RANDOM_STATE,
-        )
-
     def _build_cv_strategy(self):
         """Return the outer CV strategy (backward-compatible internal alias)."""
         return self._build_outer_cv()
-
-    def _filter_param_grid(self, classifier_name):
-        return [
-            {k: v for k, v in g.items() if k != "model"}
-            for g in self.config._param_grid
-            if g["model"][0] == classifier_name
-        ]
-
-    def _build_grid_search(self, model, param_grid):
-        return GridSearchCV(
-            model,
-            param_grid,
-            scoring="f1_macro",
-            cv=self._build_inner_cv(),
-            n_jobs=-1,
-        )
-
-    def perform_grid_search(self, model, X_train, y_train, param_grid):
-        """Run grid search and return the best estimator and parameters.
-
-        Parameters
-        ----------
-        model : estimator
-            Unfitted scikit-learn compatible estimator.
-        X_train : numpy.ndarray
-            Feature matrix of shape ``(n_samples, n_features)``.
-        y_train : numpy.ndarray
-            Label vector of shape ``(n_samples,)``.
-        param_grid : list of dict
-            Hyperparameter grid as expected by
-            :class:`~sklearn.model_selection.GridSearchCV`.
-
-        Returns
-        -------
-        best_estimator : estimator
-            Refitted estimator with the best hyperparameters.
-        best_params : dict
-            Best hyperparameter combination found.
-        """
-        grid = self._build_grid_search(model, param_grid)
-        grid.fit(X_train, y_train)
-        return grid.best_estimator_, grid.best_params_
 
     def cross_validate_model(self, model, X_train, y_train):
         """Evaluate an estimator with the outer repeated-stratified CV.
@@ -232,8 +184,7 @@ class MultiModelTrainer(ModelTrainer):
         Parameters
         ----------
         model : estimator
-            Scikit-learn compatible estimator. For tunable families this is
-            an unfitted :class:`~sklearn.model_selection.GridSearchCV` object.
+            Scikit-learn compatible estimator.
         X_train : numpy.ndarray
             Feature matrix of shape ``(n_samples, n_features)``.
         y_train : numpy.ndarray
@@ -262,15 +213,19 @@ class MultiModelTrainer(ModelTrainer):
         cv_cfg = self.config.CV_CONFIG
         cv = self._build_outer_cv()
         scoring = {"f1": "f1_macro", "acc": "accuracy", "auc": "roc_auc"}
-        scores = cross_validate(
-            model,
-            X_train,
-            y_train,
-            scoring=scoring,
-            cv=cv,
-            n_jobs=1,
-            return_train_score=False,
-        )
+        tunable = isinstance(model, OptunaSearchClassifier)
+        cross_validate_kwargs = {
+            "scoring": scoring,
+            "cv": cv,
+            "n_jobs": 1,
+            "return_train_score": False,
+        }
+        if tunable:
+            cross_validate_kwargs.update(
+                return_estimator=True,
+                error_score="raise",
+            )
+        scores = cross_validate(model, X_train, y_train, **cross_validate_kwargs)
 
         f1_vals = scores["test_f1"]
         acc_vals = scores["test_acc"]
@@ -290,6 +245,18 @@ class MultiModelTrainer(ModelTrainer):
             }
             for outer_split, f1_value in enumerate(f1_vals)
         ]
+        optimization_searches = []
+        if tunable:
+            fitted_wrappers = scores.pop("estimator")
+            optimization_searches = [
+                {
+                    "outer_split": outer_split,
+                    "outer_repeat": outer_split // n_splits,
+                    "outer_fold": outer_split % n_splits,
+                    **asdict(wrapper.optimization_result_),
+                }
+                for outer_split, wrapper in enumerate(fitted_wrappers)
+            ]
 
         return {
             "f1_macro": f1_vals.mean(),
@@ -299,15 +266,23 @@ class MultiModelTrainer(ModelTrainer):
             "auc_roc": auc_mean,
             "auc_std": auc_std,
             "outer_scores": outer_scores,
+            "optimization_searches": optimization_searches,
         }
 
     def _evaluate_classifier(self, classifier_name, X_train, y_train):
         model = self.model_builders[classifier_name]()
-        if classifier_name == "stack":
-            evaluation_estimator = model
-        else:
-            param_grid = self._filter_param_grid(classifier_name)
-            evaluation_estimator = self._build_grid_search(model, param_grid)
+        search_space = get_search_space(classifier_name)
+        evaluation_estimator = (
+            model
+            if search_space is None
+            else OptunaSearchClassifier(
+                estimator=model,
+                search_space=search_space,
+                inner_n_splits=self.config.CV_CONFIG["inner_n_splits"],
+                n_trials=self.config.N_TRIALS,
+                random_state=self.config.RANDOM_STATE,
+            )
+        )
         evaluation = self._cross_validate_model_with_scores(
             evaluation_estimator, X_train, y_train
         )
@@ -320,9 +295,10 @@ class MultiModelTrainer(ModelTrainer):
     def evaluate_and_select_models(self, X_train, y_train, reduction_type, level):
         """Evaluate every active classifier and return the selected model and evidence.
 
-        Each tunable classifier is evaluated with nested cross-validation; stacking
-        is evaluated directly. The classifier with the highest outer mean F1-macro
-        is selected, then a fresh winning estimator is fitted on all data.
+        Each tunable classifier is evaluated with nested cross-validation;
+        non-tunable classifiers are evaluated directly. The classifier with the
+        highest outer mean F1-macro is selected, then a fresh winning estimator
+        is fitted on all data.
 
         Parameters
         ----------
@@ -353,14 +329,23 @@ class MultiModelTrainer(ModelTrainer):
         best["selected"] = True
 
         winning_model = self.model_builders[best["classifier_key"]]()
-        if best["classifier_key"] == "stack":
+        winning_space = get_search_space(best["classifier_key"])
+        if winning_space is None:
             winning_model.fit(X_train, y_train)
             params = {}
+            best["final_optimization_search"] = None
         else:
-            param_grid = self._filter_param_grid(best["classifier_key"])
-            winning_model, params = self.perform_grid_search(
-                winning_model, X_train, y_train, param_grid
+            winning_model, optimization_result = optimize_and_refit(
+                winning_model,
+                winning_space,
+                X_train,
+                y_train,
+                inner_n_splits=self.config.CV_CONFIG["inner_n_splits"],
+                n_trials=self.config.N_TRIALS,
+                random_state=self.config.RANDOM_STATE,
             )
+            params = optimization_result.best_params
+            best["final_optimization_search"] = optimization_result
 
         selected_result = (
             winning_model,

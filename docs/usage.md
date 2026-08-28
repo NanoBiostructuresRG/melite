@@ -43,7 +43,8 @@ melite run --smoke --config melite_example/config.toml
 ```
 
 A successful run creates `melite_example/output/` with `results.txt`,
-`results.csv`, `evaluations.csv`, `evaluation_folds.csv`, and the F1-macro
+`results.csv`, `evaluations.csv`, `evaluation_folds.csv`,
+`optimization_searches.csv`, `optimization_provenance.json`, and the F1-macro
 evidence figure. For the bundled example, `results.csv` contains one selected
 result for `sample_tabular`.
 
@@ -262,6 +263,17 @@ contains its own inner hyperparameter search.
   hyperparameter search. Stacking also uses this split count for its internal
   out-of-fold predictions.
 
+The public optimization budget for tunable classifiers is configured as:
+
+```toml
+[optimization]
+n_trials = 100
+```
+
+`n_trials` is the trial budget per optimization search and is the primary
+public control for optimization search effort. The normal default is 100.
+Smoke mode instead uses an internal 5-trial budget.
+
 The global random seed is configured as:
 
 ```toml
@@ -365,9 +377,9 @@ melite run --smoke --config my_config.toml
 ```
 
 Evaluation time depends on the number of registered datasets, active
-classifiers, cross-validation settings, and the hyperparameter searches
-required by the active classifiers. A normal evaluation can therefore take
-substantially longer than a smoke run.
+classifiers, cross-validation settings, and the configured `n_trials` budget
+for tunable classifiers. A normal evaluation can therefore take substantially
+longer than a smoke run.
 
 ### `melite export`
 
@@ -397,8 +409,9 @@ melite export \
 ```
 
 `melite export` reconstructs the selected classifier and fits the final model
-on all available data. For tunable classifiers, the final fit includes a
-full-data hyperparameter search.
+on all available data. It uses the classifier parameters persisted in
+`results.csv` by `melite run`. It performs no additional hyperparameter search,
+cross-validation, or classifier selection.
 
 Smoke results are blocked from export by default. The `--force` option exists
 for deliberate testing or diagnostic use.
@@ -414,6 +427,8 @@ output/
 ├── results.csv
 ├── evaluations.csv
 ├── evaluation_folds.csv
+├── optimization_searches.csv
+├── optimization_provenance.json
 ├── figures/
 │   └── evaluation_f1_macro_<dataset>.png
 └── Model_<classifier>_<dataset>.pkl
@@ -422,26 +437,33 @@ output/
 The artifacts have distinct roles:
 
 - `results.txt` — human-readable summary of selected results;
-- `results.csv` — selected classifier result for each dataset;
+- `results.csv` — selected classifier result for each dataset and the sole
+  operational persisted parameter input used by `melite export`;
 - `evaluations.csv` — aggregate evaluation evidence for every active
   classifier;
 - `evaluation_folds.csv` — outer-CV evidence for every dataset, classifier, and
   outer split;
+- `optimization_searches.csv` — one persisted row per optimization search,
+  covering outer and optional final optimization evidence;
+- `optimization_provenance.json` — effective optimization and evaluation
+  contract for the run;
 - `figures/evaluation_f1_macro_<dataset>.png` — visualization of the outer-CV
   F1-macro evidence used for classifier selection;
 - `Model_<classifier>_<dataset>.pkl` — final full-data fitted model created by
   `melite export`.
 
-`results.csv`, `evaluations.csv`, and `evaluation_folds.csv` include a `smoke`
-column identifying whether their evidence was produced in smoke mode.
+`results.csv`, `evaluations.csv`, `evaluation_folds.csv`, and
+`optimization_searches.csv` include a `smoke` column identifying whether their
+evidence was produced in smoke mode. `optimization_provenance.json` records the
+same condition in its top-level `smoke` key rather than a CSV column.
 
 ### Output Data Contract
 
-The three CSV files are persistent data artifacts whose schemas are part of
-the MELITE package-version contract. MELITE does not embed an
-independent machine-readable `schema_version`. A separate schema version
-should be reconsidered only if output schemas need to evolve independently of
-the MELITE package version.
+The four CSV files and the optimization provenance JSON are persistent data
+artifacts whose schemas are part of the MELITE package-version contract.
+MELITE does not embed an independent machine-readable `schema_version`. A
+separate schema version should be reconsidered only if output schemas need to
+evolve independently of the MELITE package version.
 
 Optional metadata that is absent is serialized as an empty CSV field.
 `reduction_type` is retained for legacy compatibility and is normally empty
@@ -477,11 +499,11 @@ reconstruct a selected result produced by `melite run`.
 | `smoke` | Whether the row was produced in smoke mode. |
 
 The metric values in this selected-result summary are written rounded to four
-decimal places by the current `melite run` workflow. The recorded `parameters`
-must not be assumed to be the final parameters stored in a subsequently
-exported model. For tunable classifiers, `melite export` performs a final
-full-data hyperparameter search, so the exported fitted artifact may use
-parameters determined during that final fitting stage.
+decimal places by the current `melite run` workflow. For tunable classifiers,
+`parameters` records the hyperparameters selected by the final full-data search
+performed during `melite run`. `melite export` uses those persisted parameters
+to reconstruct and fit the final model; it does not perform another
+hyperparameter search.
 
 #### `evaluations.csv`
 
@@ -544,6 +566,82 @@ reconstruct and inspect the aggregate comparison.
 
 The `selected` field does not mean that classifier selection occurred
 independently within that fold.
+
+#### `optimization_searches.csv`
+
+`optimization_searches.csv` contains one row per complete optimization search,
+never one row per Optuna trial. It preserves both the inner optimization
+associated with outer evaluation splits and the optional post-selection final
+optimization.
+
+<!-- melite-schema:optimization_searches.csv -->
+
+| Column | Meaning |
+|---|---|
+| `dataset` | User-defined registered dataset identifier. |
+| `family` | Optional dataset-family metadata preserved for reporting and traceability. |
+| `method` | Optional dataset-method metadata preserved for reporting and traceability. |
+| `variant` | Optional dataset-variant metadata preserved for reporting and traceability. |
+| `level` | Optional dataset-level metadata preserved for reporting and traceability. |
+| `description` | Optional dataset description preserved for reporting and traceability. |
+| `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
+| `classifier_name` | Name of the classifier whose optimization search completed. |
+| `search_scope` | `outer` for an inner optimization associated with one outer evaluation split; `final` for post-selection full-data optimization. |
+| `outer_split` | Sequential outer split identifier for outer rows; empty for final rows. |
+| `outer_repeat` | Outer repeated-CV repeat identifier for outer rows; empty for final rows. |
+| `outer_fold` | Fold identifier within the repeat for outer rows; empty for final rows. |
+| `best_inner_f1_macro` | Best inner-CV F1-macro from the search, persisted at full precision without summary rounding. |
+| `best_params` | Effective best parameters serialized as canonical JSON. |
+| `n_trials_requested` | Number of trials requested for the search. |
+| `n_trials_complete` | Number of successfully completed trials. |
+| `n_trials_failed` | Number of failed trials. |
+| `selected` | Dataset-level classifier-selection boolean for outer rows; empty and not applicable for final rows. |
+| `smoke` | Whether the search was produced in smoke mode. |
+
+Outer rows use `search_scope="outer"` and contain `True` or `False` in
+`selected`. Final rows use `search_scope="final"`, leave all outer indices
+empty, and leave `selected` empty because classifier selection has already
+occurred. Generic dataframe readers may therefore infer a nullable or
+object-like `selected` column; pandas dtype inference is not part of the CSV
+contract. A Stack-only run creates a header-only `optimization_searches.csv`,
+because zero optimization searches is a legitimate successful outcome.
+
+`best_params` uses canonical JSON, while `results.csv.parameters` retains its
+Python representation. For the selected tunable classifier, both encode the
+same semantic parameter mapping. `results.csv` remains the sole operational
+input used by `melite export`; `optimization_searches.csv` is methodological
+evidence only.
+
+The requested, complete, and failed counters summarize a search without
+preserving trial ordering. When failed trials occur, those counters alone may
+not establish retrospectively whether TPE entered model-based sampling. Full
+trial traces, including individual configurations and objective values, are
+deliberately not persisted.
+
+#### `optimization_provenance.json`
+
+`optimization_provenance.json` records the effective optimization and
+evaluation contract under which the run evidence was produced.
+
+<!-- melite-schema:optimization_provenance.json -->
+
+| Key | Meaning |
+|---|---|
+| `melite_version` | MELITE package version governing the artifact contracts. |
+| `optimization_backend` | Optimization backend name and runtime version; currently Optuna. |
+| `smoke` | Whether the effective run used smoke settings. |
+| `random_state` | Canonical MELITE random state used by evaluation and optimization. |
+| `active_classifiers` | Active classifier keys in configured evaluation order. |
+| `cv` | Effective outer split count, repeat count, and inner split count. |
+| `optimization` | Effective trial budget and the complete fixed optimization policy. |
+| `search_spaces` | Complete B1 search-space contracts for active tunable classifiers; active Stack is represented as `null`. |
+
+The `optimization.policy` object records sampler, startup budget, smoke budget,
+TPE options, pruning, storage, parallelism, direction, and objective. Only
+active classifiers appear in `search_spaces`; inactive search spaces are not
+included. The artifact deliberately excludes filesystem, dataset, user,
+environment, estimator, Study, Trial, and per-trial runtime state. MELITE does
+not introduce a separate formal JSON Schema or independent `schema_version`.
 
 ## Python API
 

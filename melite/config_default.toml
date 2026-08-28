@@ -1,16 +1,10 @@
-# MELITE default configuration
-# Copy this file and pass it with --config to override any of these values.
-# Only the keys you include in your custom file will be overridden.
+# MELITE built-in defaults
+# A user TOML file only needs project-specific dataset definitions and any
+# default values it wants to override.
 
-[paths]
-input   = "raw/"
-dataset = "data/"
-output  = "output/"
-
-[benchmark]
-reduction_types = ["PCA", "UMAP"]
-levels          = [70, 75, 80, 85, 90, 95]
-random_state    = 42
+[classifiers]
+# Active classifiers to evaluate. Add "stack" to opt in to stacking.
+active = ["svc", "rf", "xgb"]
 
 [cv]
 n_splits = 5
@@ -22,6 +16,24 @@ n_splits = 3
 n_repeats = 1
 inner_n_splits = 2
 
-[classifiers]
-# Active classifiers to evaluate. Add "stack" to opt in to stacking.
-active = ["svc", "rf", "xgb"]
+[optimization]
+n_trials = 100
+
+[paths]
+output  = "output/"
+dataset = "data/"
+# Legacy input location used by the historical dataset-discovery path.
+input   = "raw/"
+
+# Example modern dataset registration:
+#
+# [datasets.my_dataset]
+# path = "data/my_dataset.csv"
+# label_column = "label"
+
+[benchmark]
+# Active canonical random seed for evaluation and optimization.
+random_state = 42
+# Legacy compatibility settings used when [datasets] is absent.
+reduction_types = ["PCA", "UMAP"]
+levels          = [70, 75, 80, 85, 90, 95]

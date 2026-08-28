@@ -1,7 +1,7 @@
 # MELITE — Multi-Model Classifier Evaluator
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.2.5-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.3.0-blue.svg)]()
 [![PyPI](https://img.shields.io/pypi/v/melite.svg)](https://pypi.org/project/melite/)
 [![Python](https://img.shields.io/pypi/pyversions/melite.svg)](https://pypi.org/project/melite/)
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
@@ -85,12 +85,14 @@ For a registered dataset, MELITE follows the contract below:
    dataset.
 6. Aggregate and per-fold evidence are preserved for every evaluated
    classifier.
-7. After selection, the chosen classifier is fitted using all available data.
-   If it is tunable, MELITE performs a final full-data hyperparameter search to
-   determine the exported configuration.
-8. `melite export` does not run a second post-selection evaluation. It fits the
-   selected classifier on all available data and serializes the final model
-   artifact.
+7. After selection, MELITE performs the final full-data fitting stage. For a
+   tunable classifier, `melite run` first performs a final full-data
+   hyperparameter search and records the resulting parameters in `results.csv`;
+   Stacking is fitted directly.
+8. `melite export` reconstructs the selected classifier from the persisted
+   result, fits it on all available data, and serializes the final model
+   artifact. It performs no additional hyperparameter search, cross-validation,
+   or classifier selection.
 9. Smoke mode is intended for fast execution checks, not final classifier selection.
 
 
@@ -161,7 +163,8 @@ The command-line interface provides the canonical end-to-end MELITE workflow:
 1. Register one or more numeric datasets in a TOML configuration file.
 2. Choose the active classifiers.
 3. Run `melite run` to generate evaluation evidence and selected results.
-4. Inspect `results.csv`, `evaluations.csv`, `evaluation_folds.csv`, and the
+4. Inspect `results.csv`, `evaluations.csv`, `evaluation_folds.csv`,
+   `optimization_searches.csv`, `optimization_provenance.json`, and the
    dataset-level F1-macro evidence figures.
 5. Run `melite export` for the selected result you want to preserve as a model
    artifact.
@@ -190,6 +193,9 @@ CLI and a version-controlled TOML configuration.
 | `xgb` | XGBoost | Yes |
 | `stack` | Stacking classifier | No |
 
+MELITE v0.3.0 supports this fixed set of four classifier keys and does not
+expose public registration of custom classifiers.
+
 The default configuration is:
 
 ```toml
@@ -205,6 +211,12 @@ artifacts retain probability support for inference. Random Forest and XGBoost
 remain unscaled. The opt-in Stacking classifier combines a scaled probabilistic SVC
 with Random Forest and XGBoost base estimators and uses logistic regression as
 the final estimator.
+
+Tunable classifiers use Optuna with its TPE sampler for hyperparameter
+optimization. The public `n_trials` setting explicitly declares the budget per
+search, with a normal default of 100 trials. Searches are sequential and seeded
+from the canonical `RANDOM_STATE`, supporting reproducible optimization under
+the same configuration and software environment.
 
 ## Input Format
 
@@ -271,6 +283,8 @@ output/
 ├── results.csv
 ├── evaluations.csv
 ├── evaluation_folds.csv
+├── optimization_searches.csv
+├── optimization_provenance.json
 ├── figures/
 │   └── evaluation_f1_macro_<dataset>.png
 └── Model_<classifier>_<dataset>.pkl
@@ -279,10 +293,15 @@ output/
 The artifacts have distinct roles:
 
 - `results.txt` — human-readable summary of the selected results.
-- `results.csv` — selected classifier result for each dataset.
+- `results.csv` — selected classifier result for each dataset and the persisted
+  parameter source used by `melite export`.
 - `evaluations.csv` — aggregate evaluation evidence for every active classifier.
 - `evaluation_folds.csv` — outer-CV evidence for every dataset, classifier, and
   outer split.
+- `optimization_searches.csv` — one row per completed outer or final
+  optimization search.
+- `optimization_provenance.json` — the effective optimization and evaluation
+  contract for the run.
 - `figures/evaluation_f1_macro_<dataset>.png` — visualization of the outer-CV
   F1-macro evidence used for classifier selection.
 - `Model_<classifier>_<dataset>.pkl` — final full-data fitted model created by
@@ -304,6 +323,7 @@ reproducible. Configuration controls, among other settings:
 - active classifiers;
 - random state;
 - inner and outer cross-validation settings;
+- optimization trial budget (`n_trials`);
 - input and output paths.
 
 Use `--config` to supply a project-specific configuration:
@@ -375,7 +395,7 @@ If you use MELITE in your research, please cite it using the metadata in
 
 
 ```text
-Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE: Multi-model Evaluation and Learning for Inference-ready Tabular Experiments. Zenodo. https://doi.org/10.5281/zenodo.20382752
+Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE — Multi-Model Classifier Evaluator. Zenodo. https://doi.org/10.5281/zenodo.20382752
 ```
 
 ## Authors

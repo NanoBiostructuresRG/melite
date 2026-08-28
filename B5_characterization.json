@@ -1,0 +1,153 @@
+{
+  "active_classifiers": [
+    "svc",
+    "rf",
+    "xgb"
+  ],
+  "baseline_evidence": {
+    "calibration_source_commit": "8fc6c1c3038399b4a4576f71bc53380285815f03",
+    "committed_evidence": {
+      "git_blob": "682623042848b25708fb8d84f691ec5be5f800d9",
+      "git_commit": "c1ff19e69fda19bb0ca50acbbeb34e6963ff27d5",
+      "passed": true,
+      "sha256": "ba741c3e09c0e63e393ed5d04be3b3c8240e98c1a6b58d2cc1e4ca686f7d22e9"
+    },
+    "dataset_sha256": "8fcf49be02395073e63014f6096d587897595c664cf08f3dddf55aac470a29bb",
+    "package_version": "0.2.5",
+    "tag": "v0.2.5"
+  },
+  "candidate": {
+    "package_version": "0.3.0",
+    "source_commit": "c1ff19e69fda19bb0ca50acbbeb34e6963ff27d5"
+  },
+  "candidate_optuna": {
+    "actual": "4.9.0",
+    "expected": "4.9.0",
+    "passed": true
+  },
+  "characterization_status": "passed",
+  "class_sep": 0.7,
+  "common_dependency_checks": {
+    "candidate_venv": {
+      "environment": "candidate_venv",
+      "passed": true,
+      "versions": {
+        "joblib": "1.5.3",
+        "matplotlib": "3.10.9",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "scikit-learn": "1.8.0",
+        "scipy": "1.17.1",
+        "xgboost": "3.2.0"
+      }
+    },
+    "orchestrator": {
+      "environment": "orchestrator",
+      "passed": true,
+      "versions": {
+        "joblib": "1.5.3",
+        "matplotlib": "3.10.9",
+        "numpy": "2.4.6",
+        "pandas": "3.0.3",
+        "scikit-learn": "1.8.0",
+        "scipy": "1.17.1",
+        "xgboost": "3.2.0"
+      }
+    }
+  },
+  "cv": {
+    "inner_n_splits": 3,
+    "n_repeats": 1,
+    "n_splits": 5
+  },
+  "dataset": {
+    "actual_sha256": "8fcf49be02395073e63014f6096d587897595c664cf08f3dddf55aac470a29bb",
+    "expected_sha256": "8fcf49be02395073e63014f6096d587897595c664cf08f3dddf55aac470a29bb",
+    "passed": true
+  },
+  "effective_n_trials": 100,
+  "optimization_search_gates": {
+    "complete_outer_split_coverage": true,
+    "e1_budget_accounting": true,
+    "e2_trial_health": true,
+    "final_searches": 1,
+    "n_trials_pruned_required": false,
+    "outer_searches": 15,
+    "overall_pass": true,
+    "total_searches": 16
+  },
+  "overall_pass": true,
+  "provenance_gates": {
+    "active_classifiers": true,
+    "backend": true,
+    "cv": true,
+    "melite_version": true,
+    "optimization": true,
+    "overall_pass": true,
+    "random_state": true,
+    "search_spaces": true,
+    "smoke": true
+  },
+  "python_check": {
+    "candidate_venv": {
+      "actual": "3.12.3",
+      "expected": "3.12.3",
+      "passed": true
+    },
+    "orchestrator": {
+      "actual": "3.12.3",
+      "expected": "3.12.3",
+      "passed": true
+    }
+  },
+  "scientific_comparison": {
+    "baseline_selected_classifier": "SVC",
+    "candidate_selected_classifier": "SVC",
+    "classifiers": {
+      "RandomForestClassifier": {
+        "baseline_mean_outer_f1_macro": 0.7660740105672047,
+        "candidate_mean_outer_f1_macro": 0.7701989893283668,
+        "delta": 0.004124978761162135,
+        "passed": true
+      },
+      "SVC": {
+        "baseline_mean_outer_f1_macro": 0.8153189729660317,
+        "candidate_mean_outer_f1_macro": 0.8285693852008889,
+        "delta": 0.013250412234857123,
+        "passed": true
+      },
+      "XGBClassifier": {
+        "baseline_mean_outer_f1_macro": 0.7534739915895242,
+        "candidate_mean_outer_f1_macro": 0.7366799005213484,
+        "delta": -0.016794091068175865,
+        "passed": true
+      }
+    },
+    "margin": -0.05,
+    "overall_pass": true,
+    "selected_classifier_changed": false,
+    "worst_classifier_delta": {
+      "classifier": "XGBClassifier",
+      "delta": -0.016794091068175865
+    }
+  },
+  "wall_clock": {
+    "baseline_end_to_end_wall_seconds": 2981.05904740002,
+    "candidate_end_to_end_wall_seconds": 3005.0019774999237,
+    "candidate_to_baseline_ratio": 1.0080316859609963,
+    "definition": "complete MELITE subprocess; descriptive, not a gate"
+  },
+  "workload": {
+    "baseline": {
+      "definition": "fit_count means estimated estimator.fit() invocations, including one best-model refit performed by GridSearchCV after candidate CV evaluation.",
+      "expected_total_fit_count": 42208
+    },
+    "candidate": {
+      "definition": "fit_count means estimated estimator.fit() invocations, including one best-model refit per Optuna search.",
+      "expected_total_fit_count": 4816,
+      "final_search_fit_count": 301,
+      "outer_search_fit_count": 4515,
+      "per_search_fit_count": 301
+    }
+  }
+}

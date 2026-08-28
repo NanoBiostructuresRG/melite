@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import melite.result_manager as result_manager_module
 from melite.result_manager import ResultManager
 
 
@@ -23,7 +24,9 @@ def _parse_table_row(line: str) -> list[str] | None:
     return [cell.strip() for cell in stripped[1:-1].split("|")]
 
 
-def _documented_schema(markdown: str, filename: str) -> list[str]:
+def _documented_schema(
+    markdown: str, filename: str, first_column_heading: str = "Column"
+) -> list[str]:
     marker = f"<!-- melite-schema:{filename} -->"
     marker_count = markdown.count(marker)
     assert marker_count == 1, (
@@ -39,8 +42,9 @@ def _documented_schema(markdown: str, filename: str) -> list[str]:
 
     header = _parse_table_row(following_lines[table_start])
     assert header is not None, f"No valid Markdown table follows {marker!r}."
-    assert header == ["Column", "Meaning"], (
-        f"Schema table after {marker!r} must have the expected 'Column' header."
+    assert header == [first_column_heading, "Meaning"], (
+        f"Schema table after {marker!r} must have the expected "
+        f"{first_column_heading!r} header."
     )
 
     separator_index = table_start + 1
@@ -89,6 +93,7 @@ def _writer_schema(tmp_path: Path, writer_name: str, filename: str) -> list[str]
         ("results.csv", "write_csv"),
         ("evaluations.csv", "write_evaluations_csv"),
         ("evaluation_folds.csv", "write_evaluation_folds_csv"),
+        ("optimization_searches.csv", "write_optimization_searches_csv"),
     ],
 )
 def test_documented_schema_matches_real_result_manager_writer(
@@ -100,6 +105,18 @@ def test_documented_schema_matches_real_result_manager_writer(
     actual = _writer_schema(tmp_path, writer_name, filename)
 
     assert documented == actual
+
+
+def test_documented_provenance_keys_match_writer_contract():
+    markdown = USAGE_PATH.read_text(encoding="utf-8")
+
+    documented = _documented_schema(
+        markdown,
+        "optimization_provenance.json",
+        first_column_heading="Key",
+    )
+
+    assert set(documented) == set(result_manager_module._OPTIMIZATION_PROVENANCE_KEYS)
 
 
 def test_schema_parser_fails_when_marker_is_missing():

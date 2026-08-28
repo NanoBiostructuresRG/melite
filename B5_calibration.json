@@ -1,0 +1,276 @@
+{
+  "acceptance": {
+    "classifier_band": [
+      0.65,
+      0.95
+    ],
+    "classifier_band_checks": {
+      "RandomForestClassifier": true,
+      "SVC": true,
+      "XGBClassifier": true
+    },
+    "overall_pass": true,
+    "winner_band": [
+      0.7,
+      0.9
+    ],
+    "winner_band_check": true
+  },
+  "baseline": {
+    "package_version": "0.2.5",
+    "source_commit": "8fc6c1c3038399b4a4576f71bc53380285815f03",
+    "tag": "v0.2.5"
+  },
+  "calibration_status": "passed",
+  "class_sep_candidates": [
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0
+  ],
+  "comparison_scope": "Historical MELITE v0.2.5 GridSearchCV engine on the current pinned characterization stack; this is not a reproduction of the historical v0.2.5 software environment.",
+  "constraints": {
+    "file": "scripts/characterize_v030_constraints.txt",
+    "sha256": "4f30c7416260f3121dc4d77037073b9c7c5a850867e10ea8f2c584434dcf1d51"
+  },
+  "cv": {
+    "inner_n_splits": 3,
+    "n_repeats": 1,
+    "n_splits": 5
+  },
+  "environment": {
+    "installed_packages": {
+      "joblib": "1.5.3",
+      "matplotlib": "3.10.9",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "scikit-learn": "1.8.0",
+      "scipy": "1.17.1",
+      "xgboost": "3.2.0"
+    },
+    "orchestrator_platform": "Windows-11-10.0.26200-SP0",
+    "orchestrator_python_version": "3.12.3",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python_implementation": "CPython",
+    "python_version": "3.12.3"
+  },
+  "generator": {
+    "flip_y": 0.05,
+    "n_classes": 2,
+    "n_clusters_per_class": 2,
+    "n_features": 20,
+    "n_informative": 12,
+    "n_redundant": 4,
+    "n_repeated": 0,
+    "n_samples": 240,
+    "random_state": 42,
+    "weights": [
+      0.5,
+      0.5
+    ]
+  },
+  "predefined_reopen_axis": {
+    "applied": false,
+    "candidates": [
+      10,
+      14,
+      8,
+      16
+    ],
+    "name": "n_informative"
+  },
+  "random_state": 42,
+  "selected_profile": {
+    "class_sep": 0.7,
+    "dataset_sha256": "8fcf49be02395073e63014f6096d587897595c664cf08f3dddf55aac470a29bb",
+    "generator_parameters": {
+      "class_sep": 0.7,
+      "flip_y": 0.05,
+      "n_classes": 2,
+      "n_clusters_per_class": 2,
+      "n_features": 20,
+      "n_informative": 12,
+      "n_redundant": 4,
+      "n_repeated": 0,
+      "n_samples": 240,
+      "random_state": 42,
+      "weights": [
+        0.5,
+        0.5
+      ]
+    },
+    "selection_rationale": {
+      "absolute_distance": 0.015318972966031685,
+      "rule": "eligible SVC mean closest to 0.80; exact tie uses lower class_sep",
+      "selected_svc_mean_outer_f1_macro": 0.8153189729660317,
+      "target_svc_mean_outer_f1_macro": 0.8
+    }
+  },
+  "stage_1": [
+    {
+      "class_sep": 0.6,
+      "dataset_sha256": "3c758b6abab760453a1405ebe759d12a55e80a932fd4082f9ecbe6204dcd8ba8",
+      "eligible": true,
+      "end_to_end_wall_seconds": 83.60476869996637,
+      "svc_mean_outer_f1_macro": 0.7676143327203825,
+      "verified_effective_config": {
+        "active_classifiers": [
+          "svc"
+        ],
+        "cv": {
+          "inner_n_splits": 3,
+          "n_repeats": 1,
+          "n_splits": 5
+        },
+        "dataset": {
+          "id": "b5_calibration",
+          "label_column": "label",
+          "path_verified": true
+        },
+        "random_state": 42
+      }
+    },
+    {
+      "class_sep": 0.7,
+      "dataset_sha256": "8fcf49be02395073e63014f6096d587897595c664cf08f3dddf55aac470a29bb",
+      "eligible": true,
+      "end_to_end_wall_seconds": 76.11793369997758,
+      "svc_mean_outer_f1_macro": 0.8153189729660317,
+      "verified_effective_config": {
+        "active_classifiers": [
+          "svc"
+        ],
+        "cv": {
+          "inner_n_splits": 3,
+          "n_repeats": 1,
+          "n_splits": 5
+        },
+        "dataset": {
+          "id": "b5_calibration",
+          "label_column": "label",
+          "path_verified": true
+        },
+        "random_state": 42
+      }
+    },
+    {
+      "class_sep": 0.8,
+      "dataset_sha256": "60f329ae96bf94e4430d40f8a6e9e15254284fb56eeec3d48d4e7939d4a05de1",
+      "eligible": true,
+      "end_to_end_wall_seconds": 75.72507589997258,
+      "svc_mean_outer_f1_macro": 0.8366961148434335,
+      "verified_effective_config": {
+        "active_classifiers": [
+          "svc"
+        ],
+        "cv": {
+          "inner_n_splits": 3,
+          "n_repeats": 1,
+          "n_splits": 5
+        },
+        "dataset": {
+          "id": "b5_calibration",
+          "label_column": "label",
+          "path_verified": true
+        },
+        "random_state": 42
+      }
+    },
+    {
+      "class_sep": 0.9,
+      "dataset_sha256": "dc7e02ee6e5f9f19f554173b954cc5f6ca91a87784b933113b4904b93e643d02",
+      "eligible": true,
+      "end_to_end_wall_seconds": 70.98294919996988,
+      "svc_mean_outer_f1_macro": 0.8410886767046252,
+      "verified_effective_config": {
+        "active_classifiers": [
+          "svc"
+        ],
+        "cv": {
+          "inner_n_splits": 3,
+          "n_repeats": 1,
+          "n_splits": 5
+        },
+        "dataset": {
+          "id": "b5_calibration",
+          "label_column": "label",
+          "path_verified": true
+        },
+        "random_state": 42
+      }
+    },
+    {
+      "class_sep": 1.0,
+      "dataset_sha256": "a6a2073f9d21b39df968aed821fa3c20b1195a3f63bed7d0d78823d56f34297b",
+      "eligible": true,
+      "end_to_end_wall_seconds": 81.9219339999836,
+      "svc_mean_outer_f1_macro": 0.8494870257270153,
+      "verified_effective_config": {
+        "active_classifiers": [
+          "svc"
+        ],
+        "cv": {
+          "inner_n_splits": 3,
+          "n_repeats": 1,
+          "n_splits": 5
+        },
+        "dataset": {
+          "id": "b5_calibration",
+          "label_column": "label",
+          "path_verified": true
+        },
+        "random_state": 42
+      }
+    }
+  ],
+  "stage_2": {
+    "classifier_mean_outer_f1_macro": {
+      "RandomForestClassifier": 0.7660740105672047,
+      "SVC": 0.8153189729660317,
+      "XGBClassifier": 0.7534739915895242
+    },
+    "end_to_end_wall_seconds": 2981.05904740002,
+    "fit_count_accounting": {
+      "definition": "fit_count means estimated estimator.fit() invocations, including one best-model refit performed by GridSearchCV after candidate CV evaluation.",
+      "expected_total_fit_count": 42208,
+      "historical_grid_candidate_counts": {
+        "rf": 120,
+        "svc": 804,
+        "xgb": 1728
+      },
+      "outer_search_fit_count": {
+        "rf": 1805,
+        "svc": 12065,
+        "xgb": 25925
+      },
+      "outer_search_total_fit_count": 39795,
+      "possible_final_search_fit_count": {
+        "rf": 361,
+        "svc": 2413,
+        "xgb": 5185
+      },
+      "selected_final_search_fit_count": 2413
+    },
+    "selected_classifier": "SVC",
+    "selected_classifier_mean_outer_f1_macro": 0.8153189729660317,
+    "verified_effective_config": {
+      "active_classifiers": [
+        "svc",
+        "rf",
+        "xgb"
+      ],
+      "cv": {
+        "inner_n_splits": 3,
+        "n_repeats": 1,
+        "n_splits": 5
+      },
+      "dataset": {
+        "id": "b5_calibration",
+        "label_column": "label",
+        "path_verified": true
+      },
+      "random_state": 42
+    }
+  }
+}

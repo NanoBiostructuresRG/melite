@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Tests for melite.export_best_model."""
 
+import ast
 import csv
 
 import joblib
@@ -384,6 +385,37 @@ def test_export_svc_accepts_legacy_unprefixed_parameters():
     assert isinstance(model, SklearnPipeline)
     assert model.named_steps["svc"].kernel == "linear"
     assert model.named_steps["svc"].C == 1
+
+
+def test_export_reconstructs_exact_persisted_continuous_parameters(tmp_path):
+    final_params = {
+        "learning_rate": 0.123456789012345,
+        "max_depth": 7,
+        "gamma": 0.0123456789012345,
+    }
+    csv_path = tmp_path / "results.csv"
+    _write_results_csv(
+        csv_path,
+        ["dataset", "classifier_name", "parameters", "smoke"],
+        {
+            "dataset": "sample_tabular",
+            "classifier_name": "XGBClassifier",
+            "parameters": str(final_params),
+            "smoke": False,
+        },
+    )
+
+    with open(csv_path, encoding="utf-8") as f:
+        row = next(csv.DictReader(f))
+    recovered_params = ast.literal_eval(row["parameters"])
+    model = Finalizer._build_model(
+        row["classifier_name"], row["parameters"], random_state=42
+    )
+
+    assert recovered_params == final_params
+    assert {
+        key: model.get_params()[key] for key in ("learning_rate", "max_depth", "gamma")
+    } == final_params
 
 
 def test_export_rejects_unknown_classifier_with_classifier_vocabulary():

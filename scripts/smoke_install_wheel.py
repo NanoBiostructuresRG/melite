@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import os
 import shutil
 import subprocess
@@ -111,6 +112,8 @@ def _verify_outputs(work_dir: Path) -> None:
     results_csv = output_dir / "results.csv"
     evaluations_csv = output_dir / "evaluations.csv"
     folds_csv = output_dir / "evaluation_folds.csv"
+    optimization_csv = output_dir / "optimization_searches.csv"
+    provenance_json = output_dir / "optimization_provenance.json"
     model_path = output_dir / "Model_SVC_sample_tabular.pkl"
     figure_path = output_dir / "figures" / "evaluation_f1_macro_sample_tabular.png"
 
@@ -121,6 +124,8 @@ def _verify_outputs(work_dir: Path) -> None:
         results_csv,
         evaluations_csv,
         folds_csv,
+        optimization_csv,
+        provenance_json,
         model_path,
         figure_path,
     )
@@ -152,6 +157,39 @@ def _verify_outputs(work_dir: Path) -> None:
             raise AssertionError(
                 f"Expected smoke=True rows in {csv_path}, got {smoke_values}"
             )
+
+    with open(optimization_csv, newline="", encoding="utf-8") as f:
+        optimization_rows = list(csv.DictReader(f))
+    if not optimization_rows:
+        raise AssertionError("Expected optimization rows for bundled SVC example")
+    if not any(row["search_scope"] == "outer" for row in optimization_rows):
+        raise AssertionError("Expected at least one outer optimization row")
+    final_rows = [row for row in optimization_rows if row["search_scope"] == "final"]
+    if len(final_rows) != 1:
+        raise AssertionError(f"Expected one final optimization row, got {final_rows}")
+    final_row = final_rows[0]
+    for field in ("outer_split", "outer_repeat", "outer_fold", "selected"):
+        if final_row[field] != "":
+            raise AssertionError(
+                f"Expected empty final {field}, got {final_row[field]!r}"
+            )
+    if final_row["smoke"] != "True":
+        raise AssertionError(
+            f"Expected smoke=True final optimization row, got {final_row['smoke']!r}"
+        )
+
+    with open(provenance_json, encoding="utf-8") as f:
+        provenance = json.load(f)
+    if provenance["smoke"] is not True:
+        raise AssertionError("Expected smoke=true optimization provenance")
+    if provenance["active_classifiers"] != ["svc"]:
+        raise AssertionError(
+            "Expected active_classifiers=['svc'] in optimization provenance"
+        )
+    if provenance["optimization"]["effective_n_trials"] != 5:
+        raise AssertionError("Expected effective_n_trials=5 in smoke provenance")
+    if provenance["optimization_backend"]["name"] != "optuna":
+        raise AssertionError("Expected Optuna optimization backend provenance")
 
 
 def main() -> None:

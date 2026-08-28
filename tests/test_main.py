@@ -1,13 +1,22 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Tests for melite.main orchestration."""
 
+import ast
 import csv
+import json
+import logging
+from contextlib import contextmanager
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 import melite.main as main_module
+from melite.config import Config
 from melite.main import Main, Pipeline
+from melite.optimization import OptimizationResult
+from melite.search_spaces import get_search_space
+from melite.version import __version__
 
 
 class SVC:
@@ -69,6 +78,35 @@ class DummyPipeline:
                         "auc_roc": 0.9456789123,
                     },
                 ],
+                "optimization_searches": [
+                    {
+                        "outer_split": 0,
+                        "outer_repeat": 0,
+                        "outer_fold": 0,
+                        "best_params": {"C": 0.123456789012345},
+                        "best_inner_f1_macro": 0.7111111111111111,
+                        "n_trials_requested": 100,
+                        "n_trials_complete": 99,
+                        "n_trials_failed": 1,
+                    },
+                    {
+                        "outer_split": 1,
+                        "outer_repeat": 0,
+                        "outer_fold": 1,
+                        "best_params": {"C": 1.23456789012345},
+                        "best_inner_f1_macro": 0.7222222222222222,
+                        "n_trials_requested": 100,
+                        "n_trials_complete": 100,
+                        "n_trials_failed": 0,
+                    },
+                ],
+                "final_optimization_search": OptimizationResult(
+                    best_params={"C": 1.0, "kernel": "linear"},
+                    best_inner_f1_macro=0.8333333333333333,
+                    n_trials_requested=100,
+                    n_trials_complete=98,
+                    n_trials_failed=2,
+                ),
                 "selected": True,
             },
             {
@@ -87,6 +125,18 @@ class DummyPipeline:
                         "f1_macro": 0.7123456789,
                         "accuracy": 0.7234567891,
                         "auc_roc": None,
+                    }
+                ],
+                "optimization_searches": [
+                    {
+                        "outer_split": 0,
+                        "outer_repeat": 0,
+                        "outer_fold": 0,
+                        "best_params": {"max_depth": 7},
+                        "best_inner_f1_macro": 0.6111111111111111,
+                        "n_trials_requested": 100,
+                        "n_trials_complete": 97,
+                        "n_trials_failed": 3,
                     }
                 ],
                 "selected": False,
@@ -150,6 +200,70 @@ def test_pipeline_run_with_evaluations_returns_rich_result_unchanged():
 
     assert result is trainer.rich_result
     assert trainer.calls == [("rich", ("X", "y", "PCA", 70))]
+
+
+@pytest.mark.parametrize(
+    ("smoke", "n_trials", "active", "expected_warnings"),
+    [
+        (False, 20, ["svc", "rf"], 1),
+        (False, 21, ["svc"], 0),
+        (True, 5, ["svc"], 0),
+        (False, 5, ["stack"], 0),
+    ],
+)
+def test_low_budget_warning_conditions(
+    caplog, smoke, n_trials, active, expected_warnings
+):
+    main = Main.__new__(Main)
+    main.config = SimpleNamespace(
+        SMOKE=smoke,
+        N_TRIALS=n_trials,
+        ACTIVE_CLASSIFIERS=active,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="melite.main"):
+        main._warn_for_low_optimization_budget()
+
+    warnings = [
+        record for record in caplog.records if "startup sampling" in record.message
+    ]
+    assert len(warnings) == expected_warnings
+
+
+def test_main_run_enters_optuna_logging_scope_once(monkeypatch):
+    events = []
+
+    @contextmanager
+    def fake_scope(*, verbose):
+        events.append(("enter", verbose))
+        try:
+            yield
+        finally:
+            events.append(("exit", verbose))
+
+    main = Main.__new__(Main)
+    main._run_evaluation = lambda: events.append(("run", None))
+    monkeypatch.setattr(main_module, "optuna_logging_scope", fake_scope)
+    monkeypatch.setattr(main_module.logger, "level", logging.INFO)
+
+    main.run()
+
+    assert events == [("enter", True), ("run", None), ("exit", True)]
+
+
+@pytest.mark.parametrize(
+    ("evaluations", "count"),
+    [
+        ([], 0),
+        ([{"selected": True}, {"selected": True}], 2),
+    ],
+)
+def test_selected_evaluation_requires_exactly_one(evaluations, count):
+    with pytest.raises(
+        RuntimeError,
+        match=rf"Expected exactly one selected classifier evaluation; found {count}",
+    ):
+        Main._selected_evaluation(evaluations)
 
 
 def test_main_run_uses_arbitrary_dataset_ids(monkeypatch, tmp_path):
@@ -244,6 +358,7 @@ level = 85
 
     evaluation_rows = _rows(output_dir / "evaluations.csv")
     fold_rows = _rows(output_dir / "evaluation_folds.csv")
+    optimization_rows = _rows(output_dir / "optimization_searches.csv")
     assert len(evaluation_rows) == 6
     assert len(fold_rows) == 9
     assert list(evaluation_rows[0]) == [
@@ -297,9 +412,291 @@ level = 85
     assert fold_rows[1]["outer_fold"] == "1"
     assert fold_rows[1]["f1_macro"] == "0.8234567891"
     assert fold_rows[1]["selected"] == "True"
+    assert len(optimization_rows) == 12
+    assert [
+        (
+            row["classifier_name"],
+            row["search_scope"],
+            row["outer_split"],
+        )
+        for row in optimization_rows[:4]
+    ] == [
+        ("SVC", "outer", "0"),
+        ("SVC", "outer", "1"),
+        ("RandomForestClassifier", "outer", "0"),
+        ("SVC", "final", ""),
+    ]
+    assert optimization_rows[0]["selected"] == "True"
+    assert optimization_rows[2]["selected"] == "False"
+    assert optimization_rows[3]["outer_repeat"] == ""
+    assert optimization_rows[3]["outer_fold"] == ""
+    assert optimization_rows[3]["selected"] == ""
+    assert optimization_rows[3]["best_inner_f1_macro"] == "0.8333333333333333"
+    assert optimization_rows[3]["n_trials_requested"] == "100"
+    assert optimization_rows[3]["n_trials_complete"] == "98"
+    assert optimization_rows[3]["n_trials_failed"] == "2"
+    assert optimization_rows[3]["smoke"] == "False"
+    assert json.loads(optimization_rows[3]["best_params"]) == {
+        "C": 1.0,
+        "kernel": "linear",
+    }
+    assert main.optimization_rows[-1]["search_scope"] == "final"
     assert len(figure_calls) == 1
     assert figure_calls[0]["rows"] is main.evaluation_fold_rows
     assert figure_calls[0]["smoke"] is False
+
+
+def test_main_persists_exact_final_parameters(monkeypatch, tmp_path):
+    final_params = {
+        "learning_rate": 0.123456789012345,
+        "max_depth": 7,
+        "gamma": 0.0123456789012345,
+    }
+    final_inner_f1_macro = 0.8567890123456789
+
+    class XGBClassifier:
+        pass
+
+    class ExactParamsPipeline:
+        def __init__(self, config):
+            self.config = config
+
+        def run_with_evaluations(self, *args):
+            selected_result = (
+                XGBClassifier(),
+                final_params,
+                0.8123456789,
+                0.0123456789,
+                0.8234567891,
+                0.0234567891,
+                0.9345678912,
+                0.0345678912,
+            )
+            evaluation = {
+                "classifier_key": "xgb",
+                "f1_macro": 0.8123456789,
+                "f1_std": 0.0123456789,
+                "accuracy": 0.8234567891,
+                "acc_std": 0.0234567891,
+                "auc_roc": 0.9345678912,
+                "auc_std": 0.0345678912,
+                "outer_scores": [],
+                "optimization_searches": [
+                    {
+                        "outer_split": 0,
+                        "outer_repeat": 0,
+                        "outer_fold": 0,
+                        "best_params": final_params,
+                        "best_inner_f1_macro": 0.8456789012345678,
+                        "n_trials_requested": 37,
+                        "n_trials_complete": 35,
+                        "n_trials_failed": 2,
+                    }
+                ],
+                "final_optimization_search": OptimizationResult(
+                    best_params=final_params,
+                    best_inner_f1_macro=final_inner_f1_macro,
+                    n_trials_requested=37,
+                    n_trials_complete=36,
+                    n_trials_failed=1,
+                ),
+                "selected": True,
+            }
+            return selected_result, [evaluation]
+
+    monkeypatch.setattr(main_module, "Pipeline", ExactParamsPipeline)
+    raw_dir = tmp_path / "raw"
+    data_dir = tmp_path / "data"
+    output_dir = tmp_path / "output"
+    label_path, y = _write_labels(raw_dir)
+    dataset_path = _write_npz(data_dir, "sample_tabular", np.ones((8, 3)), y)
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(f'''
+[paths]
+input = "{raw_dir.as_posix()}/"
+dataset = "{data_dir.as_posix()}/"
+output = "{output_dir.as_posix()}/"
+
+[datasets.sample_tabular]
+path = "{dataset_path.as_posix()}"
+label_path = "{label_path.as_posix()}"
+
+[classifiers]
+active = ["xgb"]
+
+[optimization]
+n_trials = 37
+''')
+
+    Main(user_config=config_path).run()
+
+    row = _rows(output_dir / "results.csv")[0]
+    persisted_params = ast.literal_eval(row["parameters"])
+    assert persisted_params == final_params
+    optimization_rows = _rows(output_dir / "optimization_searches.csv")
+    assert [row["search_scope"] for row in optimization_rows] == ["outer", "final"]
+    assert json.loads(optimization_rows[-1]["best_params"]) == persisted_params
+    assert optimization_rows[-1]["best_inner_f1_macro"] == str(final_inner_f1_macro)
+    assert optimization_rows[-1]["outer_split"] == ""
+    assert optimization_rows[-1]["outer_repeat"] == ""
+    assert optimization_rows[-1]["outer_fold"] == ""
+    assert optimization_rows[-1]["selected"] == ""
+    assert row["f1_macro"] == "0.8123"
+    assert row["f1_std"] == "0.0123"
+    assert row["accuracy"] == "0.8235"
+    assert row["acc_std"] == "0.0235"
+    assert row["auc_roc"] == "0.9346"
+    assert row["auc_std"] == "0.0346"
+    report = (output_dir / "results.txt").read_text(encoding="utf-8")
+    assert f"Best classifier parameters: {final_params}" in report
+
+    provenance = json.loads(
+        (output_dir / "optimization_provenance.json").read_text(encoding="utf-8")
+    )
+    assert set(provenance) == {
+        "melite_version",
+        "optimization_backend",
+        "smoke",
+        "random_state",
+        "active_classifiers",
+        "cv",
+        "optimization",
+        "search_spaces",
+    }
+    assert provenance["melite_version"] == __version__
+    assert provenance["optimization_backend"]["name"] == "optuna"
+    assert provenance["optimization_backend"]["version"]
+    assert provenance["smoke"] is False
+    assert provenance["random_state"] == 42
+    assert provenance["active_classifiers"] == ["xgb"]
+    assert provenance["cv"] == {
+        "n_splits": 5,
+        "n_repeats": 3,
+        "inner_n_splits": 3,
+    }
+    assert provenance["optimization"]["effective_n_trials"] == 37
+    assert set(provenance["optimization"]["policy"]) == {
+        "sampler",
+        "n_startup_trials",
+        "smoke_n_trials",
+        "multivariate",
+        "group",
+        "constant_liar",
+        "pruning",
+        "storage",
+        "n_jobs",
+        "direction",
+        "objective",
+    }
+    assert provenance["search_spaces"] == {"xgb": get_search_space("xgb").to_dict()}
+    assert "schema_version" not in provenance
+    assert str(tmp_path) not in json.dumps(provenance)
+
+
+def test_clean_params_normalizes_numpy_scalars_without_loss():
+    params = {
+        "learning_rate": np.float64(0.123456789012345),
+        "max_depth": np.int64(7),
+        "enabled": np.bool_(True),
+    }
+
+    normalized = Main._clean_params(params)
+
+    assert normalized == {
+        "learning_rate": 0.123456789012345,
+        "max_depth": 7,
+        "enabled": True,
+    }
+    assert ast.literal_eval(str(normalized)) == normalized
+    assert type(normalized["learning_rate"]) is float
+    assert type(normalized["max_depth"]) is int
+    assert type(normalized["enabled"]) is bool
+
+
+def test_smoke_provenance_uses_effective_budget_and_canonical_seed():
+    main = Main.__new__(Main)
+    main.config = Config(smoke=True)
+
+    provenance = main._optimization_provenance()
+
+    assert provenance["smoke"] is True
+    assert provenance["optimization"]["effective_n_trials"] == 5
+    assert provenance["random_state"] == main.config.RANDOM_STATE
+
+
+def test_stack_only_writes_header_only_optimization_artifact(monkeypatch, tmp_path):
+    class StackingClassifier:
+        def fit(self, X, y):
+            return self
+
+    class StackPipeline:
+        def __init__(self, config):
+            self.config = config
+
+        def run_with_evaluations(self, *args):
+            selected_result = (
+                StackingClassifier(),
+                {},
+                0.8,
+                0.01,
+                0.82,
+                0.02,
+                0.9,
+                0.03,
+            )
+            evaluation = {
+                "classifier_key": "stack",
+                "f1_macro": 0.8,
+                "f1_std": 0.01,
+                "accuracy": 0.82,
+                "acc_std": 0.02,
+                "auc_roc": 0.9,
+                "auc_std": 0.03,
+                "outer_scores": [],
+                "optimization_searches": [],
+                "final_optimization_search": None,
+                "selected": True,
+            }
+            return selected_result, [evaluation]
+
+    monkeypatch.setattr(main_module, "Pipeline", StackPipeline)
+    monkeypatch.setattr(
+        main_module.ResultManager,
+        "write_evaluation_figures",
+        lambda self, rows, smoke=False: None,
+    )
+    raw_dir = tmp_path / "raw"
+    data_dir = tmp_path / "data"
+    output_dir = tmp_path / "output"
+    label_path, y = _write_labels(raw_dir)
+    dataset_path = _write_npz(data_dir, "sample_tabular", np.ones((8, 3)), y)
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(f'''
+[paths]
+input = "{raw_dir.as_posix()}/"
+dataset = "{data_dir.as_posix()}/"
+output = "{output_dir.as_posix()}/"
+
+[datasets.sample_tabular]
+path = "{dataset_path.as_posix()}"
+label_path = "{label_path.as_posix()}"
+
+[classifiers]
+active = ["stack"]
+''')
+
+    Main(user_config=config_path).run()
+
+    optimization_path = output_dir / "optimization_searches.csv"
+    with open(optimization_path, encoding="utf-8") as f:
+        assert list(csv.DictReader(f)) == []
+    result_row = _rows(output_dir / "results.csv")[0]
+    assert ast.literal_eval(result_row["parameters"]) == {}
+    provenance = json.loads(
+        (output_dir / "optimization_provenance.json").read_text(encoding="utf-8")
+    )
+    assert provenance["active_classifiers"] == ["stack"]
+    assert provenance["search_spaces"] == {"stack": None}
 
 
 def test_main_run_uses_legacy_registry_metadata(monkeypatch, tmp_path):

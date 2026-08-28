@@ -7,6 +7,7 @@ writing. It is invoked via ``melite run`` from the unified CLI.
 """
 
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,11 @@ from sklearn.svm import SVC
 from melite.config import Config
 from melite.load_dataset import load_datasets
 from melite.model_training import MultiModelTrainer
+from melite.optimization import get_optimization_backend_info, optuna_logging_scope
+from melite.optimization_policy import OPTIMIZATION_POLICY
 from melite.result_manager import ResultManager
+from melite.search_spaces import get_search_space
+from melite.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -104,12 +109,13 @@ class Main:
         self.evaluations_by_dataset: dict[str, list[dict[str, Any]]] = {}
         self.evaluation_rows: list[dict[str, Any]] = []
         self.evaluation_fold_rows: list[dict[str, Any]] = []
+        self.optimization_rows: list[dict[str, Any]] = []
 
     @staticmethod
     def _clean_params(params):
+        """Return parameter values that round-trip exactly through ast.literal_eval."""
         return {
-            k: round(float(v), 4) if isinstance(v, (float, np.floating)) else v
-            for k, v in params.items()
+            k: v.item() if isinstance(v, np.generic) else v for k, v in params.items()
         }
 
     @staticmethod
@@ -131,6 +137,43 @@ class Main:
             return "SVC"
         return model.__class__.__name__
 
+    @staticmethod
+    def _selected_evaluation(evaluations):
+        selected = [
+            evaluation for evaluation in evaluations if evaluation["selected"] is True
+        ]
+        if len(selected) != 1:
+            raise RuntimeError(
+                "Expected exactly one selected classifier evaluation; "
+                f"found {len(selected)}."
+            )
+        return selected[0]
+
+    def _optimization_provenance(self) -> dict[str, Any]:
+        search_spaces = {}
+        for classifier_key in self.config.ACTIVE_CLASSIFIERS:
+            search_space = get_search_space(classifier_key)
+            search_spaces[classifier_key] = (
+                search_space.to_dict() if search_space is not None else None
+            )
+
+        return {
+            "melite_version": __version__,
+            "optimization_backend": get_optimization_backend_info(),
+            "smoke": self.config.SMOKE,
+            "random_state": self.config.RANDOM_STATE,
+            "active_classifiers": list(self.config.ACTIVE_CLASSIFIERS),
+            "cv": {
+                key: self.config.CV_CONFIG[key]
+                for key in ("n_splits", "n_repeats", "inner_n_splits")
+            },
+            "optimization": {
+                "effective_n_trials": self.config.N_TRIALS,
+                "policy": asdict(OPTIMIZATION_POLICY),
+            },
+            "search_spaces": search_spaces,
+        }
+
     def run(self) -> None:
         """Execute the evaluation pipeline for all configured datasets.
 
@@ -144,12 +187,35 @@ class Main:
         regardless of the logging level, to ensure the user is aware that
         results are not suitable for final classifier selection.
         """
+        # The CLI configures MELITE logging before entering Main.run();
+        # programmatic callers may configure the logger directly.
+        verbose = logger.isEnabledFor(logging.INFO)
+        with optuna_logging_scope(verbose=verbose):
+            self._run_evaluation()
+
+    def _warn_for_low_optimization_budget(self) -> None:
+        if (
+            not self.config.SMOKE
+            and self.config.N_TRIALS <= OPTIMIZATION_POLICY.n_startup_trials
+            and any(
+                get_search_space(classifier_key) is not None
+                for classifier_key in self.config.ACTIVE_CLASSIFIERS
+            )
+        ):
+            logger.warning(
+                "The requested optimization budget remains within TPE startup "
+                "sampling and does not reach model-based TPE."
+            )
+
+    def _run_evaluation(self) -> None:
         if self.config.SMOKE:
             logger.info(
                 "SMOKE TEST - reduced search and cross-validation settings. "
                 "Results are not suitable for final classifier selection."
             )
             print(_SMOKE_WARNING)
+
+        self._warn_for_low_optimization_budget()
 
         datasets = load_datasets(self.config)
 
@@ -163,6 +229,15 @@ class Main:
             level = metadata.get("level")
             description = metadata.get("description")
             reduction_type = self._legacy_reduction_type(metadata)
+            dataset_metadata = {
+                "dataset": dataset_id,
+                "family": family,
+                "method": method,
+                "variant": variant,
+                "level": level,
+                "description": description,
+                "reduction_type": reduction_type,
+            }
 
             logger.info("Training with dataset %s.", dataset_id)
 
@@ -173,13 +248,7 @@ class Main:
 
             for evaluation in evaluations:
                 evaluation_metadata = {
-                    "dataset": dataset_id,
-                    "family": family,
-                    "method": method,
-                    "variant": variant,
-                    "level": level,
-                    "description": description,
-                    "reduction_type": reduction_type,
+                    **dataset_metadata,
                     "classifier_name": _CLASSIFIER_NAMES[evaluation["classifier_key"]],
                 }
                 self.evaluation_rows.append(
@@ -207,6 +276,38 @@ class Main:
                             "selected": evaluation["selected"],
                         }
                     )
+                for optimization_search in evaluation.get("optimization_searches", []):
+                    self.optimization_rows.append(
+                        {
+                            **evaluation_metadata,
+                            "search_scope": "outer",
+                            **optimization_search,
+                            "selected": evaluation["selected"],
+                        }
+                    )
+
+            selected_evaluation = self._selected_evaluation(evaluations)
+            final_optimization_search = selected_evaluation.get(
+                "final_optimization_search"
+            )
+            if final_optimization_search is not None:
+                selected_metadata = {
+                    **dataset_metadata,
+                    "classifier_name": _CLASSIFIER_NAMES[
+                        selected_evaluation["classifier_key"]
+                    ],
+                }
+                self.optimization_rows.append(
+                    {
+                        **selected_metadata,
+                        "search_scope": "final",
+                        "outer_split": None,
+                        "outer_repeat": None,
+                        "outer_fold": None,
+                        **asdict(final_optimization_search),
+                        "selected": None,
+                    }
+                )
 
             (
                 best_model,
@@ -286,6 +387,21 @@ class Main:
         self.result_manager.write_evaluation_folds_csv(
             self.evaluation_fold_rows, folds_path, smoke=self.config.SMOKE
         )
+
+        optimization_path = (
+            Path(self.config.PATHS["OUTPUT"]) / "optimization_searches.csv"
+        )
+        self.result_manager.write_optimization_searches_csv(
+            self.optimization_rows, optimization_path, smoke=self.config.SMOKE
+        )
+
+        provenance_path = (
+            Path(self.config.PATHS["OUTPUT"]) / "optimization_provenance.json"
+        )
+        self.result_manager.write_optimization_provenance_json(
+            self._optimization_provenance(), provenance_path
+        )
+
         self.result_manager.write_evaluation_figures(
             self.evaluation_fold_rows,
             smoke=self.config.SMOKE,

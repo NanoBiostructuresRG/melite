@@ -1,18 +1,13 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Tests for MELITE nested classifier-training and selection behavior."""
+"""Tests for MELITE nested classifier optimization and selection behavior."""
 
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
-
 from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
-from sklearn.model_selection import (
-    GridSearchCV,
-    RepeatedStratifiedKFold,
-    StratifiedKFold,
-)
+from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -20,27 +15,20 @@ from xgboost import XGBClassifier
 
 import melite.model_training as model_training
 from melite.model_training import MultiModelTrainer
+from melite.optimization import OptimizationResult, OptunaSearchClassifier
+from melite.search_spaces import get_search_space
 
 
 X = np.ones((6, 2))
 Y = np.array([0, 1, 0, 1, 0, 1])
 
 
-def _config(active_classifiers, random_state=42):
+def _config(active_classifiers, random_state=42, n_trials=5):
     return SimpleNamespace(
         ACTIVE_CLASSIFIERS=active_classifiers,
         RANDOM_STATE=random_state,
-        _param_grid=[
-            {"model": ["svc"], "svc__C": [1], "svc__kernel": ["linear"]},
-            {"model": ["rf"], "n_estimators": [10]},
-            {"model": ["xgb"], "n_estimators": [10]},
-            {"model": ["stack"]},
-        ],
-        CV_CONFIG={
-            "n_splits": 2,
-            "n_repeats": 3,
-            "inner_n_splits": 2,
-        },
+        N_TRIALS=n_trials,
+        CV_CONFIG={"n_splits": 2, "n_repeats": 3, "inner_n_splits": 2},
     )
 
 
@@ -53,6 +41,7 @@ def _rich_evaluation(f1_macro, accuracy=0.8, auc_roc=0.9):
         "auc_roc": auc_roc,
         "auc_std": 0.03,
         "outer_scores": [],
+        "optimization_searches": [],
     }
 
 
@@ -64,39 +53,29 @@ def _classifier_evaluation(classifier_key, f1_macro, accuracy=0.8, auc_roc=0.9):
     }
 
 
+def _optimization_result(params=None):
+    return OptimizationResult(
+        best_params=params or {"n_estimators": 10},
+        best_inner_f1_macro=0.75,
+        n_trials_requested=5,
+        n_trials_complete=5,
+        n_trials_failed=0,
+    )
+
+
 def test_outer_cv_uses_configured_repeated_stratified_folds():
     cv = MultiModelTrainer(_config(["svc"]))._build_outer_cv()
-
     assert isinstance(cv, RepeatedStratifiedKFold)
     assert cv.cvargs["n_splits"] == 2
     assert cv.n_repeats == 3
     assert cv.random_state == 42
 
 
-def test_inner_cv_uses_configured_shuffled_stratified_folds():
-    cv = MultiModelTrainer(_config(["svc"]))._build_inner_cv()
-
-    assert isinstance(cv, StratifiedKFold)
-    assert cv.n_splits == 2
-    assert cv.shuffle is True
-    assert cv.random_state == 42
-
-
-def test_canonical_seed_propagates_to_cv_search_and_stacking():
+def test_canonical_seed_propagates_to_classifiers_and_stacking():
     trainer = MultiModelTrainer(_config(["svc", "stack"], random_state=17))
-
-    outer_cv = trainer._build_outer_cv()
-    inner_cv = trainer._build_inner_cv()
-    grid = trainer._build_grid_search(
-        trainer.model_builders["svc"](),
-        trainer._filter_param_grid("svc"),
-    )
     stack = trainer.model_builders["stack"]()
     stack_estimators = dict(stack.estimators)
-
-    assert outer_cv.random_state == 17
-    assert inner_cv.random_state == 17
-    assert grid.cv.random_state == 17
+    assert trainer._build_outer_cv().random_state == 17
     assert trainer.model_builders["svc"]().named_steps["svc"].random_state == 17
     assert trainer.model_builders["rf"]().random_state == 17
     assert trainer.model_builders["xgb"]().random_state == 17
@@ -107,228 +86,222 @@ def test_canonical_seed_propagates_to_cv_search_and_stacking():
     assert stack.final_estimator.random_state == 17
 
 
-def test_grid_search_uses_f1_macro_and_inner_cv():
-    trainer = MultiModelTrainer(_config(["svc"]))
-
-    grid = trainer._build_grid_search(
-        trainer.model_builders["svc"](),
-        trainer._filter_param_grid("svc"),
-    )
-
-    assert isinstance(grid, GridSearchCV)
-    assert grid.scoring == "f1_macro"
-    assert grid.n_jobs == -1
-    assert isinstance(grid.cv, StratifiedKFold)
-    assert grid.cv.n_splits == 2
-
-
-@pytest.mark.parametrize("classifier_name", ["svc", "rf", "xgb"])
-def test_tunable_classifier_evaluation_wraps_fresh_model_in_grid_search(
-    monkeypatch, classifier_name
-):
-    trainer = MultiModelTrainer(_config([classifier_name]))
+def test_tunable_classifier_is_wrapped_from_search_space_presence(monkeypatch):
+    trainer = MultiModelTrainer(_config(["svc"], random_state=17, n_trials=9))
     captured = {}
-    sentinel_grid = object()
 
-    def fake_build_grid_search(model, param_grid):
-        captured["model"] = model
-        captured["param_grid"] = param_grid
-        return sentinel_grid
+    def fake_cross_validate(estimator, *_args):
+        captured["estimator"] = estimator
+        return _rich_evaluation(0.8)
 
-    def fake_cross_validate(model, X_train, y_train):
-        captured["evaluated"] = model
-        return _rich_evaluation(0.7)
-
-    monkeypatch.setattr(trainer, "_build_grid_search", fake_build_grid_search)
     monkeypatch.setattr(
         trainer, "_cross_validate_model_with_scores", fake_cross_validate
     )
+    trainer._evaluate_classifier("svc", X, Y)
+    wrapper = captured["estimator"]
+    assert isinstance(wrapper, OptunaSearchClassifier)
+    assert wrapper.search_space == get_search_space("svc")
+    assert wrapper.inner_n_splits == 2
+    assert wrapper.n_trials == 9
+    assert wrapper.random_state == 17
 
-    evaluation = trainer._evaluate_classifier(classifier_name, X, Y)
 
-    assert captured["evaluated"] is sentinel_grid
-    assert captured["param_grid"] == trainer._filter_param_grid(classifier_name)
-    assert evaluation == _classifier_evaluation(classifier_name, 0.7)
-
-
-def test_cross_validate_evaluates_search_with_outer_cv_and_single_job(monkeypatch):
+def test_non_tunable_classifier_is_evaluated_directly_without_optuna(monkeypatch):
+    trainer = MultiModelTrainer(_config(["stack"]))
     captured = {}
-    sentinel_search = object()
 
-    def fake_cross_validate(estimator, X_train, y_train, **kwargs):
-        captured.update(estimator=estimator, kwargs=kwargs)
+    def fake_cross_validate(estimator, *_args):
+        captured["estimator"] = estimator
+        return _rich_evaluation(0.8)
+
+    monkeypatch.setattr(
+        trainer, "_cross_validate_model_with_scores", fake_cross_validate
+    )
+    trainer._evaluate_classifier("stack", X, Y)
+    assert isinstance(captured["estimator"], StackingClassifier)
+    assert not isinstance(captured["estimator"], OptunaSearchClassifier)
+
+
+def test_search_decision_uses_space_presence_not_classifier_name(monkeypatch):
+    trainer = MultiModelTrainer(_config(["svc"]))
+    captured = {}
+    monkeypatch.setattr(model_training, "get_search_space", lambda _name: None)
+
+    def fake_cross_validate(estimator, *_args):
+        captured["estimator"] = estimator
+        return _rich_evaluation(0.8)
+
+    monkeypatch.setattr(
+        trainer, "_cross_validate_model_with_scores", fake_cross_validate
+    )
+    trainer._evaluate_classifier("svc", X, Y)
+    assert isinstance(captured["estimator"], SklearnPipeline)
+
+
+def test_direct_outer_cross_validate_preserves_historical_kwargs(monkeypatch):
+    trainer = MultiModelTrainer(_config(["stack"]))
+    captured = {}
+
+    def fake_cross_validate(*args, **kwargs):
+        captured.update(kwargs)
         return {
-            "test_f1": np.array([0.6, 0.8]),
-            "test_acc": np.array([0.7, 0.9]),
-            "test_auc": np.array([0.8, 1.0]),
+            "test_f1": np.array([0.7, 0.9]),
+            "test_acc": np.array([0.6, 0.8]),
+            "test_auc": np.array([0.75, 0.85]),
         }
 
     monkeypatch.setattr(model_training, "cross_validate", fake_cross_validate)
-    trainer = MultiModelTrainer(_config(["svc"]))
-
-    metrics = trainer.cross_validate_model(sentinel_search, X, Y)
-
-    assert captured["estimator"] is sentinel_search
-    assert isinstance(captured["kwargs"]["cv"], RepeatedStratifiedKFold)
-    assert captured["kwargs"]["n_jobs"] == 1
-    assert captured["kwargs"]["return_train_score"] is False
-    assert captured["kwargs"]["scoring"] == {
+    result = trainer._cross_validate_model_with_scores(object(), X, Y)
+    assert captured["scoring"] == {
         "f1": "f1_macro",
         "acc": "accuracy",
         "auc": "roc_auc",
     }
-    assert metrics == pytest.approx((0.7, 0.1, 0.8, 0.1, 0.9, 0.1))
+    assert captured["n_jobs"] == 1
+    assert captured["return_train_score"] is False
+    assert "error_score" not in captured
+    assert "return_estimator" not in captured
+    assert result["optimization_searches"] == []
 
 
-def test_rich_cross_validation_preserves_raw_outer_scores_and_indexing(monkeypatch):
-    calls = []
-    raw_scores = {
-        "test_f1": np.array([0.60, 0.70, 0.80, 0.90, 0.65, 0.75]),
-        "test_acc": np.array([0.61, 0.71, 0.81, 0.91, 0.66, 0.76]),
-        "test_auc": np.array([0.62, 0.72, 0.82, 0.92, 0.67, 0.77]),
-    }
-
-    def fake_cross_validate(*args, **kwargs):
-        calls.append((args, kwargs))
-        return raw_scores
-
-    monkeypatch.setattr(model_training, "cross_validate", fake_cross_validate)
+def test_tunable_outer_cross_validate_raises_errors_and_extracts_level2(monkeypatch):
     trainer = MultiModelTrainer(_config(["svc"]))
-
-    evaluation = trainer._cross_validate_model_with_scores(object(), X, Y)
-
-    assert len(calls) == 1
-    assert evaluation["f1_macro"] == pytest.approx(raw_scores["test_f1"].mean())
-    assert evaluation["f1_std"] == pytest.approx(raw_scores["test_f1"].std())
-    assert evaluation["accuracy"] == pytest.approx(raw_scores["test_acc"].mean())
-    assert evaluation["acc_std"] == pytest.approx(raw_scores["test_acc"].std())
-    assert evaluation["auc_roc"] == pytest.approx(raw_scores["test_auc"].mean())
-    assert evaluation["auc_std"] == pytest.approx(raw_scores["test_auc"].std())
-    assert evaluation["outer_scores"] == [
-        {
-            "outer_split": split,
-            "outer_repeat": split // 2,
-            "outer_fold": split % 2,
-            "f1_macro": raw_scores["test_f1"][split],
-            "accuracy": raw_scores["test_acc"][split],
-            "auc_roc": raw_scores["test_auc"][split],
-        }
-        for split in range(6)
+    wrapper = OptunaSearchClassifier(
+        trainer.model_builders["svc"](), get_search_space("svc"), 2, 5, 42
+    )
+    captured = {}
+    fitted = [
+        SimpleNamespace(optimization_result_=_optimization_result({"svc__C": value}))
+        for value in (1.0, 2.0)
     ]
 
+    def fake_cross_validate(*args, **kwargs):
+        captured.update(kwargs)
+        return {
+            "test_f1": np.array([0.7, 0.9]),
+            "test_acc": np.array([0.6, 0.8]),
+            "test_auc": np.array([0.75, 0.85]),
+            "estimator": fitted,
+        }
 
-def test_selection_uses_outer_f1_and_runs_one_final_search_for_winner(monkeypatch):
-    trainer = MultiModelTrainer(_config(["svc", "rf", "xgb"]))
-    trainer.model_builders = {
-        name: (lambda name=name: f"{name}-fresh")
-        for name in ("svc", "rf", "xgb", "stack")
-    }
-    classifier_evaluations = {
-        "svc": _classifier_evaluation("svc", 0.70, 0.71, 0.72),
-        "rf": _classifier_evaluation("rf", 0.85, 0.81, 0.82),
-        "xgb": _classifier_evaluation("xgb", 0.75, 0.91, 0.92),
-    }
-    evaluated = []
-    final_searches = []
+    monkeypatch.setattr(model_training, "cross_validate", fake_cross_validate)
+    result = trainer._cross_validate_model_with_scores(wrapper, X, Y)
+    assert captured["error_score"] == "raise"
+    assert captured["return_estimator"] is True
+    assert [item["outer_split"] for item in result["optimization_searches"]] == [0, 1]
+    assert [item["outer_fold"] for item in result["optimization_searches"]] == [0, 1]
+    assert result["optimization_searches"][0]["best_params"] == {"svc__C": 1.0}
+    assert all(not hasattr(item, "fit") for item in result["optimization_searches"])
 
-    def fake_evaluate(classifier_name, X_train, y_train):
-        evaluated.append(classifier_name)
-        return classifier_evaluations[classifier_name]
 
-    def fake_final_search(model, X_train, y_train, param_grid):
-        final_searches.append((model, param_grid, X_train, y_train))
-        return "rf-final-estimator", {"n_estimators": 10}
+def test_outer_metric_aggregation_and_split_indexing_are_unchanged(monkeypatch):
+    trainer = MultiModelTrainer(_config(["stack"]))
+    monkeypatch.setattr(
+        model_training,
+        "cross_validate",
+        lambda *_args, **_kwargs: {
+            "test_f1": np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
+            "test_acc": np.array([0.2, 0.3, 0.4, 0.5, 0.6, 0.7]),
+            "test_auc": np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8]),
+        },
+    )
+    result = trainer._cross_validate_model_with_scores(object(), X, Y)
+    assert result["f1_macro"] == np.mean([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+    assert result["f1_std"] == np.std([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+    assert result["accuracy"] == np.mean([0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
+    assert result["auc_roc"] == np.mean([0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
+    assert result["outer_scores"][5]["outer_split"] == 5
+    assert result["outer_scores"][5]["outer_repeat"] == 2
+    assert result["outer_scores"][5]["outer_fold"] == 1
 
-    monkeypatch.setattr(trainer, "_evaluate_classifier", fake_evaluate)
-    monkeypatch.setattr(trainer, "perform_grid_search", fake_final_search)
 
-    result, evaluations = trainer.evaluate_and_select_models(X, Y, "PCA", 70)
-
-    assert evaluated == ["svc", "rf", "xgb"]
-    assert [item["classifier_key"] for item in evaluations] == ["svc", "rf", "xgb"]
-    assert [item["selected"] for item in evaluations] == [False, True, False]
-    assert len(final_searches) == 1
-    assert final_searches[0][0] == "rf-fresh"
-    assert np.shares_memory(final_searches[0][2], X)
-    assert np.shares_memory(final_searches[0][3], Y)
-    assert result == (
-        "rf-final-estimator",
-        {"n_estimators": 10},
-        0.85,
+def test_cross_validate_model_keeps_six_element_public_result(monkeypatch):
+    trainer = MultiModelTrainer(_config(["stack"]))
+    monkeypatch.setattr(
+        trainer,
+        "_cross_validate_model_with_scores",
+        lambda *_args: _rich_evaluation(0.8, 0.7, 0.9),
+    )
+    assert trainer.cross_validate_model(object(), X, Y) == (
+        0.8,
         0.01,
-        0.81,
+        0.7,
         0.02,
-        0.82,
+        0.9,
         0.03,
     )
-    assert len(result) == 8
 
 
-def test_exact_outer_f1_tie_selects_first_active_model(monkeypatch):
+def test_all_active_families_remain_ordered_and_exact_tie_selects_first(monkeypatch):
     trainer = MultiModelTrainer(_config(["svc", "rf"]))
     monkeypatch.setattr(
         trainer,
         "_evaluate_classifier",
-        lambda name, X_train, y_train: _classifier_evaluation(name, 0.8),
+        lambda name, *_args: _classifier_evaluation(name, 0.8),
     )
-    final_searches = []
-
-    def fake_final_search(model, X_train, y_train, param_grid):
-        final_searches.append(model)
-        return "svc-final", {"svc__C": 1}
-
-    monkeypatch.setattr(trainer, "perform_grid_search", fake_final_search)
-
-    result, evaluations = trainer.evaluate_and_select_models(X, Y, "PCA", 70)
-
-    assert result[:2] == ("svc-final", {"svc__C": 1})
-    assert [item["selected"] for item in evaluations] == [True, False]
-    assert len(final_searches) == 1
-    assert isinstance(final_searches[0], SklearnPipeline)
-
-
-def test_stack_is_evaluated_directly_without_grid_search(monkeypatch):
-    trainer = MultiModelTrainer(_config(["stack"]))
-    stack = object()
-    captured = {}
-    trainer.model_builders["stack"] = lambda: stack
-
-    def forbidden_grid_search(*args, **kwargs):
-        pytest.fail("stack must not be wrapped in GridSearchCV")
-
-    def fake_cross_validate(model, X_train, y_train):
-        captured["model"] = model
-        return _rich_evaluation(0.7)
-
-    monkeypatch.setattr(trainer, "_build_grid_search", forbidden_grid_search)
     monkeypatch.setattr(
-        trainer, "_cross_validate_model_with_scores", fake_cross_validate
+        model_training,
+        "optimize_and_refit",
+        lambda model, *_args, **_kwargs: (
+            model,
+            _optimization_result({"svc__C": 1.0, "svc__kernel": "linear"}),
+        ),
     )
-
-    trainer._evaluate_classifier("stack", X, Y)
-
-    assert captured["model"] is stack
-
-
-def test_stack_internal_cv_uses_configured_inner_stratified_folds():
-    model = MultiModelTrainer(_config(["stack"])).model_builders["stack"]()
-
-    assert isinstance(model.cv, StratifiedKFold)
-    assert model.cv.n_splits == 2
-    assert model.cv.shuffle is True
-    assert model.cv.random_state == 42
+    selected, evaluations = trainer.evaluate_and_select_models(X, Y, "dataset", None)
+    assert [item["classifier_key"] for item in evaluations] == ["svc", "rf"]
+    assert [item["selected"] for item in evaluations] == [True, False]
+    assert isinstance(selected[0], SklearnPipeline)
+    assert not isinstance(selected[0], OptunaSearchClassifier)
+    assert len(selected) == 8
 
 
-def test_stack_winner_fits_fresh_estimator_on_all_data(monkeypatch):
+def test_final_tunable_winner_runs_one_fresh_search_and_uses_effective_params(
+    monkeypatch,
+):
+    trainer = MultiModelTrainer(_config(["rf"]))
+    monkeypatch.setattr(
+        trainer,
+        "_evaluate_classifier",
+        lambda name, *_args: _classifier_evaluation(name, 0.8),
+    )
+    calls = []
+    fitted = RandomForestClassifier(n_estimators=10)
+    result = _optimization_result({"n_estimators": 10, "max_depth": None})
+
+    def fake_optimize(model, space, X_train, y_train, **kwargs):
+        calls.append((model, space, X_train, y_train, kwargs))
+        return fitted, result
+
+    monkeypatch.setattr(model_training, "optimize_and_refit", fake_optimize)
+    selected, evaluations = trainer.evaluate_and_select_models(X, Y, "dataset", None)
+    assert len(calls) == 1
+    assert calls[0][1] == get_search_space("rf")
+    assert calls[0][4] == {
+        "inner_n_splits": 2,
+        "n_trials": 5,
+        "random_state": 42,
+    }
+    assert selected[0] is fitted
+    assert selected[1] == {"n_estimators": 10, "max_depth": None}
+    assert evaluations[0]["final_optimization_search"] is result
+    assert evaluations[0]["final_optimization_search"].best_params == selected[1]
+
+
+def test_final_non_tunable_winner_direct_fits_once_without_search(monkeypatch):
     trainer = MultiModelTrainer(_config(["stack"]))
+    monkeypatch.setattr(
+        trainer,
+        "_evaluate_classifier",
+        lambda name, *_args: _classifier_evaluation(name, 0.8),
+    )
     instances = []
 
     class DummyStack:
         def __init__(self):
-            self.fit_args = None
+            self.fit_calls = 0
 
         def fit(self, X_train, y_train):
-            self.fit_args = (X_train, y_train)
+            self.fit_calls += 1
             return self
 
     def build_stack():
@@ -338,93 +311,81 @@ def test_stack_winner_fits_fresh_estimator_on_all_data(monkeypatch):
 
     trainer.model_builders["stack"] = build_stack
     monkeypatch.setattr(
-        trainer,
-        "_cross_validate_model_with_scores",
-        lambda model, X_train, y_train: _rich_evaluation(0.8, 0.7, 0.9),
+        model_training,
+        "optimize_and_refit",
+        lambda *_args, **_kwargs: pytest.fail("non-tunable classifier must not search"),
     )
-
-    result = trainer.train_and_select_best_model(X, Y, "PCA", 70)
-
-    assert len(instances) == 2
-    assert result[0] is instances[1]
-    assert result[0] is not instances[0]
-    assert result[0].fit_args == (X, Y)
-    assert result[1] == {}
-    assert result[2:] == (0.8, 0.01, 0.7, 0.02, 0.9, 0.03)
-    assert len(result) == 8
+    selected, evaluations = trainer.evaluate_and_select_models(X, Y, "dataset", None)
+    assert len(instances) == 1
+    assert instances[0].fit_calls == 1
+    assert selected[:2] == (instances[0], {})
+    assert evaluations[0]["final_optimization_search"] is None
 
 
-def test_active_classifier_filtering_remains_intact(monkeypatch):
-    trainer = MultiModelTrainer(_config(["rf"]))
-    evaluated = []
+def test_train_and_select_best_model_still_returns_exactly_eight_elements(monkeypatch):
+    trainer = MultiModelTrainer(_config(["stack"]))
+    expected = (object(), {}, 0.8, 0.1, 0.7, 0.1, 0.9, 0.1)
     monkeypatch.setattr(
-        trainer,
-        "_evaluate_classifier",
-        lambda name, X_train, y_train: (
-            evaluated.append(name) or _classifier_evaluation(name, 0.8, 0.7, 0.9)
-        ),
+        trainer, "evaluate_and_select_models", lambda *_args: (expected, [])
     )
-    monkeypatch.setattr(
-        trainer,
-        "perform_grid_search",
-        lambda model, X_train, y_train, grid: ("rf-final", {"best": True}),
-    )
-
-    result = trainer.train_and_select_best_model(X, Y, "PCA", 70)
-
-    assert evaluated == ["rf"]
-    assert result[:2] == ("rf-final", {"best": True})
-    assert len(result) == 8
+    assert trainer.train_and_select_best_model(X, Y, "dataset", None) is expected
+    assert len(expected) == 8
 
 
-def test_svc_builder_returns_scaler_then_svc_pipeline():
+def test_svc_builder_preserves_scaler_and_decision_function_auc_path():
     model = MultiModelTrainer(_config(["svc"])).model_builders["svc"]()
-
     assert isinstance(model, SklearnPipeline)
     assert list(model.named_steps) == ["scaler", "svc"]
     assert isinstance(model.named_steps["scaler"], StandardScaler)
     assert isinstance(model.named_steps["svc"], SVC)
     assert model.named_steps["svc"].probability is False
+    assert hasattr(model, "decision_function")
+    assert not hasattr(model, "predict_proba")
 
 
-def test_rf_and_xgb_builders_remain_unscaled_direct_estimators():
+def test_real_tunable_svc_outer_auc_uses_decision_function():
+    X_svc, y_svc = make_classification(
+        n_samples=24,
+        n_features=4,
+        n_informative=3,
+        n_redundant=0,
+        random_state=42,
+    )
+    config = _config(["svc"], n_trials=1)
+    config.CV_CONFIG["n_repeats"] = 1
+    trainer = MultiModelTrainer(config)
+
+    evaluation = trainer._evaluate_classifier("svc", X_svc, y_svc)
+
+    assert np.isfinite(evaluation["auc_roc"])
+    assert len(evaluation["optimization_searches"]) == 2
+
+
+def test_rf_and_xgb_builders_remain_sequential_direct_estimators():
     trainer = MultiModelTrainer(_config(["rf", "xgb"]))
-
     rf = trainer.model_builders["rf"]()
     xgb = trainer.model_builders["xgb"]()
-
     assert isinstance(rf, RandomForestClassifier)
     assert isinstance(xgb, XGBClassifier)
     assert rf.n_jobs == 1
     assert xgb.n_jobs == 1
 
 
-def test_stacking_builder_returns_expected_stacking_classifier():
+def test_stacking_builder_contract_remains_unchanged():
     model = MultiModelTrainer(_config(["stack"])).model_builders["stack"]()
     estimators = dict(model.estimators)
-    svc = estimators["svc"]
-    rf = estimators["rf"]
-    xgb = estimators["xgb"]
-
     assert isinstance(model, StackingClassifier)
+    assert isinstance(model.cv, StratifiedKFold)
+    assert model.cv.n_splits == 2
+    assert model.cv.shuffle is True
+    assert model.cv.random_state == 42
     assert model.stack_method == "predict_proba"
     assert model.passthrough is False
     assert model.n_jobs == -1
-
-    assert isinstance(svc, SklearnPipeline)
-    assert list(svc.named_steps) == ["scaler", "svc"]
-    assert isinstance(svc.named_steps["scaler"], StandardScaler)
-    assert isinstance(svc.named_steps["svc"], SVC)
-    assert svc.named_steps["svc"].probability is True
-
-    assert isinstance(rf, RandomForestClassifier)
-    assert rf.n_jobs == 1
-
-    assert isinstance(xgb, XGBClassifier)
-    assert xgb.n_jobs == 1
-
-    assert not isinstance(rf, SklearnPipeline)
-    assert not isinstance(xgb, SklearnPipeline)
+    assert isinstance(estimators["svc"], SklearnPipeline)
+    assert estimators["svc"].named_steps["svc"].probability is True
+    assert isinstance(estimators["rf"], RandomForestClassifier)
+    assert isinstance(estimators["xgb"], XGBClassifier)
 
 
 def test_real_stacking_builder_fits_predicts_and_predicts_probabilities():
@@ -433,46 +394,27 @@ def test_real_stacking_builder_fits_predicts_and_predicts_probabilities():
         n_features=6,
         n_informative=4,
         n_redundant=0,
-        n_classes=2,
         weights=[0.5, 0.5],
-        flip_y=0,
         random_state=42,
     )
     model = MultiModelTrainer(_config(["stack"])).model_builders["stack"]()
     model.set_params(rf__n_estimators=5, xgb__n_estimators=5)
-
     model.fit(X_stack, y_stack)
-    predictions = model.predict(X_stack)
+    assert model.predict(X_stack).shape == (40,)
     probabilities = model.predict_proba(X_stack)
-
-    classes, counts = np.unique(y_stack, return_counts=True)
-    assert classes.tolist() == [0, 1]
-    assert counts.min() >= 2
-    assert predictions.shape == (40,)
     assert probabilities.shape == (40, 2)
     assert np.allclose(probabilities.sum(axis=1), 1.0)
 
 
-def test_filter_param_grid_preserves_svc_pipeline_prefixes():
-    grid = MultiModelTrainer(_config(["svc"]))._filter_param_grid("svc")
-
-    assert grid == [{"svc__C": [1], "svc__kernel": ["linear"]}]
-
-
-def test_filter_param_grid_supports_minimal_stack_grid():
-    grid = MultiModelTrainer(_config(["stack"]))._filter_param_grid("stack")
-
-    assert grid == [{}]
+def test_legacy_grid_search_members_are_absent():
+    trainer = MultiModelTrainer(_config(["svc"]))
+    assert not hasattr(trainer, "_filter_param_grid")
+    assert not hasattr(trainer, "_build_grid_search")
+    assert not hasattr(trainer, "perform_grid_search")
 
 
-def test_invalid_active_classifier_raises_clear_error():
+def test_invalid_and_empty_active_classifier_lists_raise_clear_errors():
     with pytest.raises(ValueError, match="Unknown active classifier\\(s\\): knn"):
         MultiModelTrainer(_config(["svc", "knn"]))
-
-
-def test_empty_active_classifiers_raises_clear_error():
-    with pytest.raises(
-        ValueError,
-        match="ACTIVE_CLASSIFIERS must contain at least one classifier key",
-    ):
+    with pytest.raises(ValueError, match="must contain at least one"):
         MultiModelTrainer(_config([]))

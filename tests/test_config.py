@@ -60,10 +60,132 @@ def test_config_exposes_only_the_intended_public_runtime_values():
         "PATHS",
         "RESULTS_FILE",
         "RANDOM_STATE",
+        "N_TRIALS",
         "DATASETS",
         "ACTIVE_CLASSIFIERS",
         "CV_CONFIG",
     }
+
+
+def test_config_uses_default_normal_optimization_budget():
+    assert Config().N_TRIALS == 100
+
+
+def test_config_smoke_uses_internal_optimization_budget():
+    assert Config(smoke=True).N_TRIALS == 5
+
+
+def test_config_user_optimization_budget_overrides_normal_default(tmp_path):
+    user_toml = tmp_path / "optimization.toml"
+    user_toml.write_text("[optimization]\nn_trials = 250\n", encoding="utf-8")
+
+    assert Config(user_config=user_toml).N_TRIALS == 250
+
+
+def test_config_smoke_budget_ignores_valid_normal_override(tmp_path):
+    user_toml = tmp_path / "optimization.toml"
+    user_toml.write_text("[optimization]\nn_trials = 250\n", encoding="utf-8")
+
+    assert Config(smoke=True, user_config=user_toml).N_TRIALS == 5
+
+
+def test_config_accepts_one_optimization_trial(tmp_path):
+    user_toml = tmp_path / "optimization.toml"
+    user_toml.write_text("[optimization]\nn_trials = 1\n", encoding="utf-8")
+
+    assert Config(user_config=user_toml).N_TRIALS == 1
+
+
+@pytest.mark.parametrize("toml_value", ["0", "-3", "true", "false", "1.5", '"100"'])
+def test_config_rejects_invalid_optimization_trial_budget(tmp_path, toml_value):
+    user_toml = tmp_path / "optimization.toml"
+    user_toml.write_text(
+        f"[optimization]\nn_trials = {toml_value}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"\[optimization\]\.n_trials"):
+        Config(user_config=user_toml)
+
+
+def test_config_smoke_does_not_mask_invalid_optimization_budget(tmp_path):
+    user_toml = tmp_path / "optimization.toml"
+    user_toml.write_text("[optimization]\nn_trials = 0\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"\[optimization\]\.n_trials"):
+        Config(smoke=True, user_config=user_toml)
+
+
+@pytest.mark.parametrize("unknown_key", ["n_trial", "trials"])
+def test_config_rejects_unknown_raw_optimization_key(tmp_path, unknown_key):
+    user_toml = tmp_path / "optimization.toml"
+    user_toml.write_text(
+        f"[optimization]\n{unknown_key} = 500\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=rf"\[optimization\].*{unknown_key}"):
+        Config(user_config=user_toml)
+
+
+def test_config_rejects_unknown_optimization_key_alongside_n_trials(tmp_path):
+    user_toml = tmp_path / "optimization.toml"
+    user_toml.write_text(
+        '[optimization]\nn_trials = 500\nsampler = "tpe"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"\[optimization\].*sampler"):
+        Config(user_config=user_toml)
+
+
+def test_config_rejects_unknown_optimization_key_before_deep_merge(
+    monkeypatch, tmp_path
+):
+    user_toml = tmp_path / "optimization.toml"
+    user_toml.write_text("[optimization]\nn_trial = 500\n", encoding="utf-8")
+
+    def fail_deep_merge(_base, _override):
+        pytest.fail("raw [optimization] must be validated before deep merge")
+
+    monkeypatch.setattr(config_module, "_deep_merge", fail_deep_merge)
+
+    with pytest.raises(ValueError, match=r"\[optimization\].*n_trial"):
+        Config(user_config=user_toml)
+
+
+def test_config_rejects_user_optimization_smoke_section(tmp_path):
+    user_toml = tmp_path / "optimization-smoke.toml"
+    user_toml.write_text(
+        "[optimization_smoke]\nn_trials = 500\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"\[optimization_smoke\].*internal, non-configurable",
+    ):
+        Config(user_config=user_toml)
+
+
+def test_config_rejects_optimization_smoke_before_deep_merge(monkeypatch, tmp_path):
+    user_toml = tmp_path / "optimization-smoke.toml"
+    user_toml.write_text(
+        "[optimization_smoke]\nn_trials = 500\n",
+        encoding="utf-8",
+    )
+
+    def fail_deep_merge(_base, _override):
+        pytest.fail("raw [optimization_smoke] must be rejected before deep merge")
+
+    monkeypatch.setattr(config_module, "_deep_merge", fail_deep_merge)
+
+    with pytest.raises(ValueError, match=r"\[optimization_smoke\].*unsupported"):
+        Config(user_config=user_toml)
+
+
+def test_config_docstring_documents_n_trials_public_attribute():
+    assert "N_TRIALS" in (Config.__doc__ or "")
 
 
 def test_config_smoke_false_uses_full_cv():
@@ -95,69 +217,6 @@ def test_config_user_cv_override_inherits_default_inner_splits(tmp_path):
     assert cfg.CV_CONFIG["n_splits"] == 4
     assert cfg.CV_CONFIG["n_repeats"] == 2
     assert cfg.CV_CONFIG["inner_n_splits"] == 3
-
-
-def test_config_smoke_true_uses_single_value_grids():
-    cfg = Config(smoke=True)
-    for entry in cfg._param_grid:
-        for key, val in entry.items():
-            if key == "model":
-                continue
-            assert len(val) == 1, f"Smoke grid for {key} has more than one value: {val}"
-
-
-def test_config_smoke_false_uses_full_grids():
-    cfg = Config(smoke=False)
-    # At least one grid entry should have multiple values
-    has_multiple = any(
-        len(val) > 1
-        for entry in cfg._param_grid
-        for key, val in entry.items()
-        if key != "model"
-    )
-    assert has_multiple
-
-
-def test_config_svc_grid_uses_pipeline_parameter_names():
-    cfg = Config()
-    svc_entries = [entry for entry in cfg._param_grid if entry["model"] == ["svc"]]
-
-    assert svc_entries
-    for entry in svc_entries:
-        assert "C" not in entry
-        assert "kernel" not in entry
-        assert "gamma" not in entry
-        assert "svc__C" in entry
-        assert "svc__kernel" in entry
-
-
-def test_config_full_svc_grid_includes_linear_kernel_without_unused_params():
-    cfg = Config()
-
-    linear_entries = [
-        entry
-        for entry in cfg._param_grid
-        if entry["model"] == ["svc"] and entry["svc__kernel"] == ["linear"]
-    ]
-
-    assert linear_entries == [
-        {
-            "model": ["svc"],
-            "svc__kernel": ["linear"],
-            "svc__C": [0.01, 0.1, 1, 10],
-        }
-    ]
-    assert "svc__gamma" not in linear_entries[0]
-    assert "svc__degree" not in linear_entries[0]
-    assert "svc__coef0" not in linear_entries[0]
-
-
-def test_config_smoke_svc_grid_uses_pipeline_parameter_names():
-    cfg = Config(smoke=True)
-    svc_entry = next(entry for entry in cfg._param_grid if entry["model"] == ["svc"])
-
-    assert svc_entry["svc__kernel"] == ["linear"]
-    assert svc_entry["svc__C"] == [1]
 
 
 def test_config_private_setup_creates_directories_and_seeds_rngs(tmp_path):
@@ -279,6 +338,9 @@ def test_removed_config_public_members_are_absent():
         "setup",
     ):
         assert not hasattr(cfg, name)
+
+    assert not hasattr(cfg, "_param_grid")
+    assert not hasattr(cfg, "_build_param_grid")
 
 
 def test_actual_config_doctests_execute_successfully():

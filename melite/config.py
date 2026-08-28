@@ -3,8 +3,6 @@
 
 Reads ``melite/config_default.toml`` as the base configuration.
 An optional user-supplied TOML file can override any key via deep merge.
-Hyperparameter grids are internal implementation details and are not part of
-the public :class:`Config` API.
 
 The :class:`Config` object is the single entry point for all runtime
 settings. It is designed to be instantiated without filesystem or global RNG
@@ -17,6 +15,8 @@ import tomllib
 from pathlib import Path
 
 import numpy as np
+
+from melite.optimization_policy import OPTIMIZATION_POLICY
 
 __all__ = ["Config"]
 
@@ -69,6 +69,10 @@ class Config:
     RANDOM_STATE : int
         Canonical global random seed used by MELITE runtime and evaluation
         components. Default is ``42``.
+    N_TRIALS : int
+        Optimization trial budget. Normal mode uses the effective
+        ``[optimization].n_trials`` value, which defaults to ``100``. Smoke
+        mode always uses MELITE's internal, non-configurable budget of ``5``.
     DATASETS : dict
         Normalized dataset registry keyed by user-defined dataset id. Each
         entry contains ``path`` and ``metadata`` plus ``label_path`` for NPZ
@@ -86,10 +90,13 @@ class Config:
         If the supplied user configuration file does not exist.
     ValueError
         If a user configuration uses the obsolete ``[models]`` section,
+        defines the unsupported ``[optimization_smoke]`` section,
         specifies ``random_state`` under ``[cv]`` or ``[cv_smoke]`` instead of
-        ``[benchmark]``, or defines an invalid registered dataset. Registered
-        datasets support only ``.npz`` files with ``label_path`` and ``.csv``
-        files with a non-empty ``label_column``.
+        ``[benchmark]``, contains an unsupported ``[optimization]`` key, sets
+        an invalid ``[optimization].n_trials`` value, or defines an invalid
+        registered dataset. Registered datasets support only ``.npz`` files
+        with ``label_path`` and ``.csv`` files with a non-empty
+        ``label_column``.
 
     Examples
     --------
@@ -124,12 +131,28 @@ class Config:
                     "[classifiers] in MELITE v0.2.4. Rename [models] to "
                     "[classifiers] in your configuration file."
                 )
+            if "optimization_smoke" in user_cfg:
+                raise ValueError(
+                    "[optimization_smoke] is unsupported. The smoke optimization "
+                    "budget is internal, non-configurable MELITE policy."
+                )
             for section in ("cv", "cv_smoke"):
                 if "random_state" in user_cfg.get(section, {}):
                     raise ValueError(
                         f"[{section}].random_state is not supported. Configure "
                         "the canonical random seed through "
                         "[benchmark].random_state."
+                    )
+            optimization_cfg = user_cfg.get("optimization")
+            if optimization_cfg is not None:
+                if not isinstance(optimization_cfg, dict):
+                    raise ValueError("[optimization] must be a TOML table.")
+                unknown_keys = sorted(set(optimization_cfg) - {"n_trials"})
+                if unknown_keys:
+                    raise ValueError(
+                        "[optimization] contains unsupported key(s): "
+                        f"{', '.join(unknown_keys)}. The only supported key in "
+                        "MELITE v0.3.0 is n_trials."
                     )
             cfg = _deep_merge(cfg, user_cfg)
 
@@ -143,6 +166,16 @@ class Config:
 
         # Evaluation settings
         self.RANDOM_STATE = cfg["benchmark"]["random_state"]
+        normal_n_trials = cfg["optimization"]["n_trials"]
+        if (
+            isinstance(normal_n_trials, bool)
+            or not isinstance(normal_n_trials, int)
+            or normal_n_trials < 1
+        ):
+            raise ValueError(
+                "[optimization].n_trials must be an integer greater than or equal to 1."
+            )
+        self.N_TRIALS = OPTIMIZATION_POLICY.smoke_n_trials if smoke else normal_n_trials
         self.ACTIVE_CLASSIFIERS = cfg["classifiers"]["active"]
         self.DATASETS = self._build_dataset_registry(cfg)
 
@@ -153,13 +186,6 @@ class Config:
             "n_repeats": cv_section["n_repeats"],
             "inner_n_splits": cv_section["inner_n_splits"],
         }
-
-        # Hyperparameter grids — developer-facing, defined in Python
-        self._param_grid = self._build_param_grid()
-
-    # ------------------------------------------------------------------ #
-    # Hyperparameter grids
-    # ------------------------------------------------------------------ #
 
     def _build_dataset_registry(self, cfg: dict) -> dict:
         datasets = cfg.get("datasets")
@@ -265,103 +291,6 @@ class Config:
                     },
                 }
         return datasets
-
-    def _build_param_grid(self) -> list:
-        if self.SMOKE:
-            return [
-                {
-                    "model": ["svc"],
-                    "svc__kernel": ["linear"],
-                    "svc__C": [1],
-                },
-                {
-                    "model": ["rf"],
-                    "n_estimators": [50],
-                    "max_depth": [5],
-                    "max_features": ["sqrt"],
-                    "min_samples_split": [2],
-                    "min_samples_leaf": [1],
-                },
-                {
-                    "model": ["xgb"],
-                    "n_estimators": [20],
-                    "learning_rate": [0.1],
-                    "max_depth": [3],
-                    "subsample": [0.8],
-                    "colsample_bytree": [1.0],
-                    "gamma": [0],
-                    "reg_alpha": [0],
-                    "reg_lambda": [1],
-                },
-                {
-                    "model": ["stack"],
-                },
-            ]
-        return [
-            {
-                "model": ["svc"],
-                "svc__kernel": ["linear"],
-                "svc__C": [0.01, 0.1, 1, 10],
-            },
-            {
-                "model": ["svc"],
-                "svc__kernel": ["poly"],
-                "svc__C": [0.01, 0.1, 1, 10],
-                "svc__coef0": [0.0, 0.1, 0.2, 0.6, 0.8, 1],
-                "svc__gamma": [
-                    0.001,
-                    0.002,
-                    0.004,
-                    0.008,
-                    0.01,
-                    0.02,
-                    0.04,
-                    0.08,
-                    0.1,
-                    0.2,
-                ],
-                "svc__degree": [3, 4, 5],
-            },
-            {
-                "model": ["svc"],
-                "svc__kernel": ["rbf"],
-                "svc__C": [0.01, 0.02, 0.1, 0.2, 1, 2, 10, 20],
-                "svc__gamma": [
-                    0.001,
-                    0.002,
-                    0.004,
-                    0.008,
-                    0.01,
-                    0.02,
-                    0.04,
-                    0.08,
-                    0.1,
-                    0.2,
-                ],
-            },
-            {
-                "model": ["rf"],
-                "n_estimators": [200, 400, 800],
-                "max_depth": [None, 10, 20, 30, 40],
-                "max_features": ["sqrt", "log2"],
-                "min_samples_split": [2, 5],
-                "min_samples_leaf": [1, 2],
-            },
-            {
-                "model": ["xgb"],
-                "n_estimators": [300, 400, 600],
-                "learning_rate": [0.01, 0.05, 0.1],
-                "max_depth": [4, 6, 8],
-                "subsample": [0.7, 0.85],
-                "colsample_bytree": [0.7, 1.0],
-                "gamma": [0, 0.01, 1, 5],
-                "reg_alpha": [0, 0.5],
-                "reg_lambda": [1, 2],
-            },
-            {
-                "model": ["stack"],
-            },
-        ]
 
     def _setup(self) -> None:
         """Create output directories and set random seeds.
