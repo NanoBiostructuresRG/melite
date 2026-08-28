@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 site_name: MELITE
-site_description: Multi-model classifier evaluator for tabular classification with nested cross-validation, classifier selection, final model export, and artifact-based inference
+site_description: Comparative classifier evaluation for reproducible model selection on numeric tabular data, with nested cross-validation and preserved evaluation evidence.
 site_url: https://nanobiostructuresrg.github.io/melite/
 repo_url: https://github.com/NanoBiostructuresRG/melite
 repo_name: NanoBiostructuresRG/melite

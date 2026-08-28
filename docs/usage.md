@@ -263,6 +263,17 @@ contains its own inner hyperparameter search.
   hyperparameter search. Stacking also uses this split count for its internal
   out-of-fold predictions.
 
+The public optimization budget for tunable classifiers is configured as:
+
+```toml
+[optimization]
+n_trials = 100
+```
+
+`n_trials` is the trial budget per optimization search and is the primary
+public control for optimization search effort. The normal default is 100.
+Smoke mode instead uses an internal 5-trial budget.
+
 The global random seed is configured as:
 
 ```toml
@@ -366,9 +377,9 @@ melite run --smoke --config my_config.toml
 ```
 
 Evaluation time depends on the number of registered datasets, active
-classifiers, cross-validation settings, and the hyperparameter searches
-required by the active classifiers. A normal evaluation can therefore take
-substantially longer than a smoke run.
+classifiers, cross-validation settings, and the configured `n_trials` budget
+for tunable classifiers. A normal evaluation can therefore take substantially
+longer than a smoke run.
 
 ### `melite export`
 

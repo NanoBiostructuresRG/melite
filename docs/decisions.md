@@ -140,7 +140,7 @@ registering user classifiers and their estimator or artifact semantics.
 
 ## v0.3.0 Optimization Characterization
 
-**Status:** Baseline calibration fixed; candidate characterization protocol fixed.
+**Status:** Characterization completed and passed for v0.3.0.
 
 The calibration stage executes only the historical v0.2.5 GridSearchCV engine;
 no v0.3.0 candidate metrics are inspected. The later comparison is defined as
@@ -189,3 +189,33 @@ informational only, and the worst classifier delta is reported. Estimated fit
 count and end-to-end wall-clock remain separate evidence: wall-clock is
 descriptive and is not a runtime gate. The full verbose candidate console log
 is retained locally for diagnostics.
+
+The completed characterization produced the following mean outer-CV F1-macro
+comparison:
+
+| Classifier | v0.2.5 baseline | v0.3.0 candidate | Delta | Result |
+|---|---:|---:|---:|---|
+| SVC | `0.8153189729660317` | `0.8285693852008889` | `+0.013250412234857123` | Pass |
+| RandomForest | `0.7660740105672047` | `0.7701989893283668` | `+0.004124978761162135` | Pass |
+| XGBoost | `0.7534739915895242` | `0.7366799005213484` | `-0.016794091068175865` | Pass |
+
+All three classifiers passed the predefined `-0.05` acceptance margin. SVC was
+the baseline and candidate winner, so the winner did not change. Under the
+static fit-count definition, the estimated workload fell from `42,208` fits
+for v0.2.5 to `4,816` for v0.3.0: approximately 88.6% fewer estimator fits, or
+approximately 8.8× fewer fits.
+
+End-to-end wall-clock was `2981.05904740002 s` for the baseline and
+`3005.0019774999237 s` for the candidate, a ratio of
+`1.0080316859609963`. Wall-clock was descriptive and not an acceptance gate.
+The fit-count reduction demonstrates a smaller declared optimization workload,
+not a general wall-clock speedup claim: the historical GridSearchCV baseline
+allowed parallel execution with `n_jobs=-1`, while the v0.3.0 Optuna policy is
+sequential with `n_jobs=1`.
+
+Under this frozen B5 characterization condition, v0.3.0 preserved classifier
+selection and predictive performance within the predefined scientific margin.
+These results must not be generalized to every dataset or search budget.
+Parallel Optuna trials or searches may be reconsidered in a future version only
+with separate characterization; v0.3.0 retains `n_jobs=1` and
+`constant_liar=False`.
