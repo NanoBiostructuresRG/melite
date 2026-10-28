@@ -239,7 +239,9 @@ Here, `family` is optional **dataset metadata** used to describe the feature
 representation. It is unrelated to the classifier selected or evaluated by
 MELITE.
 
-Each dataset must define `path` and `label_path`. Optional metadata fields such
+Each dataset must define `path` and the label source required by its format:
+`label_column` for CSV datasets or `label_path` for NPZ datasets.
+Optional metadata fields such
 as `family`, `method`, `variant`, `level`, and `description` are preserved for
 traceability and do not trigger dataset-specific execution logic.
 
@@ -332,6 +334,9 @@ Use `--config` to supply a project-specific configuration:
 melite run --config my_config.toml
 melite export --config my_config.toml --row 0
 ```
+
+A complete configuration template is available at
+`examples/melite_run.toml`.
 
 Smoke mode can be requested independently from the configuration:
 

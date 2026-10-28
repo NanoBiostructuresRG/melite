@@ -141,6 +141,9 @@ defining individual grid values.
 MELITE reads its default settings from `melite/config_default.toml`. A user
 TOML file overrides only the settings that need to change.
 
+A complete configuration template for a normal run is available at
+`examples/melite_run.toml`.
+
 Relative dataset, label, and output paths are resolved from the working
 directory in which `melite` is executed, not from the location of the TOML
 file.

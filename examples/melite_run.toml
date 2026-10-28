@@ -1,0 +1,37 @@
+# MELITE configuration template
+#
+# Run evaluation:
+#   melite run --config examples/melite_run.toml
+#
+# Export the selected model:
+#   melite export --config examples/melite_run.toml --row 0
+#
+# Relative paths are resolved from the directory where MELITE is executed.
+
+# NPZ dataset example
+[datasets.my_dataset]
+path = "data/my_dataset.npz"
+label_path = "raw/labels.npy"
+
+# For CSV datasets, use instead:
+#
+# [datasets.my_dataset]
+# path = "data/my_dataset.csv"
+# label_column = "label"
+
+[classifiers]
+active = ["svc", "rf", "xgb"]
+
+[benchmark]
+random_state = 42
+
+[cv]
+n_splits = 5
+n_repeats = 3
+inner_n_splits = 3
+
+[optimization]
+n_trials = 100
+
+[paths]
+output = "output/"
