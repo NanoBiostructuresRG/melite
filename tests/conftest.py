@@ -6,6 +6,7 @@ import csv
 import joblib
 import numpy as np
 import pytest
+from melite.probability_calibration import ProbabilityCalibratedClassifier
 from sklearn.svm import SVC
 
 
@@ -173,7 +174,10 @@ def tmp_model(tmp_path):
     """Train a minimal SVC and save as .pkl. Returns the path."""
     X = np.random.rand(N_SAMPLES, N_FEATURES).astype(np.float32)
     y = LABELS.copy()
-    model = SVC(kernel="linear", C=1, probability=True, random_state=42)
+    model = ProbabilityCalibratedClassifier(
+        estimator=SVC(kernel="linear", C=1, random_state=42),
+        max_calibration_cv=5,
+    )
     model.fit(X, y)
     model_path = tmp_path / "test_model.pkl"
     joblib.dump(model, model_path)

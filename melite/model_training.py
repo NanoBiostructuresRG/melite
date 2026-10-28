@@ -24,6 +24,7 @@ from sklearn.svm import SVC
 from xgboost import XGBClassifier
 
 from melite.optimization import OptunaSearchClassifier, optimize_and_refit
+from melite.probability_calibration import ProbabilityCalibratedClassifier
 from melite.search_spaces import get_search_space
 
 __all__ = ["MultiModelTrainer"]
@@ -94,7 +95,7 @@ class MultiModelTrainer(ModelTrainer):
             "svc": lambda: SklearnPipeline(
                 [
                     ("scaler", StandardScaler()),
-                    ("svc", SVC(probability=False, random_state=rs)),
+                    ("svc", SVC(random_state=rs)),
                 ]
             ),
             "lr": lambda: SklearnPipeline(
@@ -135,7 +136,13 @@ class MultiModelTrainer(ModelTrainer):
                     SklearnPipeline(
                         [
                             ("scaler", StandardScaler()),
-                            ("svc", SVC(probability=True, random_state=random_state)),
+                            (
+                                "svc",
+                                ProbabilityCalibratedClassifier(
+                                    estimator=SVC(random_state=random_state),
+                                    max_calibration_cv=5,
+                                ),
+                            ),
                         ]
                     ),
                 ),

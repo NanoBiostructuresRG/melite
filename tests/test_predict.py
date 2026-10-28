@@ -88,11 +88,10 @@ def test_3d_input_raises_value_error(tmp_model):
 def test_predict_loads_exported_svc_pipeline(tmp_path):
     X_train = np.random.rand(20, 5).astype(np.float32)
     y_train = np.array([0, 1] * 10, dtype=np.int64)
-    model = SklearnPipeline(
-        [
-            ("scaler", StandardScaler()),
-            ("svc", SVC(kernel="linear", C=1, probability=True, random_state=42)),
-        ]
+    model = Finalizer._build_model(
+        "SVC",
+        "{'svc__kernel': 'linear', 'svc__C': 1}",
+        random_state=42,
     )
     model.fit(X_train, y_train)
     model_path = tmp_path / "Model_SVC_toy.pkl"
