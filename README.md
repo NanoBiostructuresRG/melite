@@ -195,8 +195,9 @@ CLI and a version-controlled TOML configuration.
 | `xgb` | XGBoost | Yes | Yes |
 | `stack` | Stacking classifier | No | No |
 
-MELITE supports this fixed set of six classifier keys and does not expose
-public registration of custom classifiers.
+The first five keys are base classifier families. `stack` is a non-tunable,
+opt-in composite classifier. MELITE supports this fixed set of six keys and
+does not expose public registration of custom classifiers.
 
 The default configuration is:
 
@@ -206,19 +207,22 @@ active = ["svc", "rf", "xgb"]
 ```
 
 The `[classifiers].active` list accepts any supported subset in evaluation
-order, including a single classifier. For example, use `active = ["lr"]` or
-`active = ["gnb"]` to evaluate only that opt-in classifier. The `lr`, `gnb`,
-and `stack` classifiers remain inactive unless explicitly selected; add
-`"stack"` to evaluate Stacking alongside other selected classifiers.
+order, including a single classifier. For example, `active = ["svc"]`,
+`active = ["lr"]`, `active = ["gnb"]`, and `active = ["stack"]` each select
+one supported classifier. The `lr`, `gnb`, and `stack` classifiers remain inactive
+unless explicitly selected.
 
-Standalone SVC is evaluated as a `StandardScaler` -> `SVC` pipeline, with
-probability fitting disabled during standalone evaluation. Exported SVC
-artifacts retain probability support for inference. Logistic Regression uses a
-`StandardScaler` -> `LogisticRegression` pipeline and is tunable in `C`.
-Gaussian Naive Bayes uses `GaussianNB` directly and is tunable in
-`var_smoothing`. Random Forest and XGBoost remain unscaled. The opt-in Stacking
-classifier combines a scaled probabilistic SVC with Random Forest and XGBoost
-base estimators and uses logistic regression as the final estimator.
+Every exported classifier artifact supports both `predict()` and
+`predict_proba()`. SVC remains one classifier family: MELITE preserves direct
+SVC class predictions and its decision function while supplying calibrated
+probabilities internally for exported inference. Logistic Regression,
+Gaussian Naive Bayes, Random Forest, and XGBoost use their native probability
+support. Logistic Regression uses a `StandardScaler` -> `LogisticRegression`
+pipeline and is tunable in `C`; Gaussian Naive Bayes uses `GaussianNB` directly
+and is tunable in `var_smoothing`. Random Forest and XGBoost remain unscaled.
+The opt-in stacking classifier combines SVC, Random Forest, and XGBoost as base
+estimators with Logistic Regression as the final estimator and uses
+probability-based base-estimator outputs.
 
 Tunable classifiers use Optuna with its TPE sampler for hyperparameter
 optimization. The public `n_trials` setting explicitly declares the budget per

@@ -115,7 +115,8 @@ MELITE currently supports six classifier keys:
 | `xgb` | XGBoost | Yes | Yes |
 | `stack` | Stacking classifier | No | No |
 
-The default active classifiers are:
+The first five keys are base classifier families. `stack` is a non-tunable,
+opt-in composite classifier. The default active classifiers are:
 
 ```toml
 [classifiers]
@@ -123,15 +124,12 @@ active = ["svc", "rf", "xgb"]
 ```
 
 The `[classifiers].active` list accepts any supported subset in evaluation
-order, including a single classifier. For example, `active = ["lr"]` evaluates
-only Logistic Regression, while `active = ["gnb"]` evaluates only Gaussian
-Naive Bayes. Logistic Regression, Gaussian Naive Bayes, and Stacking are
-opt-in; add `"stack"` to evaluate Stacking alongside other selected
-classifiers.
+order, including a single classifier. For example, `active = ["svc"]`,
+`active = ["lr"]`, and `active = ["stack"]` each select one supported classifier.
+Logistic Regression, Gaussian Naive Bayes, and Stacking are opt-in.
 
-Standalone SVC uses a `StandardScaler` → `SVC` pipeline. Probability fitting is
-disabled during standalone SVC evaluation and retained where required for
-exported inference artifacts.
+Standalone SVC evaluation uses a `StandardScaler` → `SVC` pipeline and retains
+its decision function without probability fitting during evaluation.
 
 Logistic Regression uses a `StandardScaler` → `LogisticRegression` pipeline
 and tunes only `C`. Gaussian Naive Bayes uses `GaussianNB` directly, without
@@ -141,7 +139,33 @@ Random Forest and XGBoost operate on the supplied numeric features without
 scaling.
 
 Stacking is stable but opt-in. It combines SVC, Random Forest, and XGBoost as
-base estimators with logistic regression as the final estimator.
+base estimators with Logistic Regression as the final estimator and uses
+probability-based base-estimator outputs.
+
+### Prediction and probabilities
+
+Classifier artifacts exported for all six supported keys provide both
+`predict()` and `predict_proba()`.
+
+For an exported SVC, class predictions and the decision function come directly
+from SVC, while MELITE supplies calibrated probabilities through an internal
+layer. SVC remains a single public classifier family and is selected normally:
+
+```toml
+[classifiers]
+active = ["svc"]
+```
+
+Logistic Regression, Gaussian Naive Bayes, Random Forest, and XGBoost provide
+their native probabilities. The exported stacking classifier also provides
+predictions and probabilities; internally, it uses probability-based outputs
+from its SVC, Random Forest, and XGBoost base estimators before the final
+Logistic Regression estimator. It can be selected by itself:
+
+```toml
+[classifiers]
+active = ["stack"]
+```
 
 Hyperparameter search spaces for tunable classifiers are defined by MELITE. User
 configuration determines which supported classifiers are active rather than
@@ -680,8 +704,10 @@ print(result["probabilities"])
 `X_new` must use the same feature representation expected by the exported
 model.
 
-The returned `probabilities` value is `None` when the loaded estimator does not
-provide probability estimates.
+All classifier artifacts exported by MELITE for the six supported keys provide
+probability estimates. The returned `probabilities` value is `None` only when
+`return_proba=False` or when this API is used with another compatible artifact
+that does not provide `predict_proba()`.
 
 For the complete public Python interface, see the [API Reference](api.md).
 
