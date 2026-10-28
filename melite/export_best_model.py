@@ -24,6 +24,7 @@ from melite.load_dataset import _load_one_dataset, load_datasets
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
+from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -34,6 +35,7 @@ __all__ = ["Finalizer"]
 logger = logging.getLogger(__name__)
 
 MODEL_MAP = {
+    "GaussianNB": GaussianNB,
     "RandomForestClassifier": RandomForestClassifier,
     "XGBClassifier": XGBClassifier,
 }

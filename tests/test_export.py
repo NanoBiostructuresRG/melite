@@ -14,6 +14,7 @@ from melite.export_best_model import DatasetLoader, Finalizer
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
+from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -405,6 +406,20 @@ def test_export_reconstructs_lr_pipeline_with_exact_persisted_c():
     assert model.named_steps["lr"].solver == "lbfgs"
     assert model.named_steps["lr"].max_iter == 1000
     assert model.named_steps["lr"].random_state == 17
+
+
+def test_export_rebuilds_gnb_with_exact_persisted_var_smoothing():
+    persisted_var_smoothing = 1.23456789012345e-9
+
+    model = Finalizer._build_model(
+        "GaussianNB",
+        str({"var_smoothing": persisted_var_smoothing}),
+        random_state=17,
+    )
+
+    assert isinstance(model, GaussianNB)
+    assert not isinstance(model, SklearnPipeline)
+    assert model.var_smoothing == persisted_var_smoothing
 
 
 def test_export_reconstructs_exact_persisted_continuous_parameters(tmp_path):

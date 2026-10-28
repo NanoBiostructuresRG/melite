@@ -616,6 +616,17 @@ _LR_SEARCH_SPACE = ClassifierSearchSpace(
     common_parameters=(ParameterSpec("C", "lr__C", FloatDomain(1e-4, 1e4, log=True)),),
 )
 
+_GNB_SEARCH_SPACE = ClassifierSearchSpace(
+    classifier="gnb",
+    common_parameters=(
+        ParameterSpec(
+            "var_smoothing",
+            "var_smoothing",
+            FloatDomain(1e-12, 1e-6, log=True),
+        ),
+    ),
+)
+
 _RF_SEARCH_SPACE = ClassifierSearchSpace(
     classifier="rf",
     common_parameters=(
@@ -726,6 +737,7 @@ SEARCH_SPACE_POLICY: Mapping[str, ClassifierSearchSpace | None] = MappingProxyTy
     {
         "svc": _SVC_SEARCH_SPACE,
         "lr": _LR_SEARCH_SPACE,
+        "gnb": _GNB_SEARCH_SPACE,
         "rf": _RF_SEARCH_SPACE,
         "xgb": _XGB_SEARCH_SPACE,
         "stack": None,

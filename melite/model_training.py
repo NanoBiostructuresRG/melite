@@ -17,6 +17,7 @@ from sklearn.model_selection import (
     StratifiedKFold,
     cross_validate,
 )
+from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -109,6 +110,7 @@ class MultiModelTrainer(ModelTrainer):
                     ),
                 ]
             ),
+            "gnb": lambda: GaussianNB(),
             "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=1),
             "xgb": lambda: XGBClassifier(
                 eval_metric="logloss", random_state=rs, n_jobs=1

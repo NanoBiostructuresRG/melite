@@ -9,6 +9,7 @@ from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
+from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -124,16 +125,19 @@ def test_lr_is_accepted_and_uses_the_canonical_pipeline_contract():
     assert model.named_steps["lr"].random_state == 17
 
 
-def test_lr_can_be_explicitly_selected_from_user_config(tmp_path):
+@pytest.mark.parametrize("classifier_key", ["lr", "gnb"])
+def test_non_default_classifier_can_be_explicitly_selected_from_user_config(
+    tmp_path, classifier_key
+):
     config_path = tmp_path / "config.toml"
     config_path.write_text(
-        '[classifiers]\nactive = ["lr"]\n',
+        f'[classifiers]\nactive = ["{classifier_key}"]\n',
         encoding="utf-8",
     )
 
     trainer = MultiModelTrainer(Config(user_config=config_path))
 
-    assert trainer.active_classifiers == ["lr"]
+    assert trainer.active_classifiers == [classifier_key]
 
 
 def test_lr_evaluation_uses_optuna_search_classifier(monkeypatch):
@@ -153,6 +157,39 @@ def test_lr_evaluation_uses_optuna_search_classifier(monkeypatch):
     wrapper = captured["estimator"]
     assert isinstance(wrapper, OptunaSearchClassifier)
     assert wrapper.search_space == get_search_space("lr")
+    assert wrapper.inner_n_splits == 2
+    assert wrapper.n_trials == 9
+    assert wrapper.random_state == 17
+
+
+def test_gnb_is_accepted_and_builder_returns_direct_estimator():
+    trainer = MultiModelTrainer(_config(["gnb"]))
+
+    model = trainer.model_builders["gnb"]()
+
+    assert trainer.active_classifiers == ["gnb"]
+    assert isinstance(model, GaussianNB)
+    assert not isinstance(model, SklearnPipeline)
+
+
+def test_gnb_evaluation_uses_optuna_search_classifier(monkeypatch):
+    trainer = MultiModelTrainer(_config(["gnb"], random_state=17, n_trials=9))
+    captured = {}
+
+    def fake_cross_validate(estimator, *_args):
+        captured["estimator"] = estimator
+        return _rich_evaluation(0.8)
+
+    monkeypatch.setattr(
+        trainer, "_cross_validate_model_with_scores", fake_cross_validate
+    )
+
+    trainer._evaluate_classifier("gnb", X, Y)
+
+    wrapper = captured["estimator"]
+    assert isinstance(wrapper, OptunaSearchClassifier)
+    assert isinstance(wrapper.estimator, GaussianNB)
+    assert wrapper.search_space == get_search_space("gnb")
     assert wrapper.inner_n_splits == 2
     assert wrapper.n_trials == 9
     assert wrapper.random_state == 17
@@ -370,6 +407,35 @@ def test_winning_lr_runs_final_full_data_search_and_preserves_pipeline_parameter
     assert evaluations[0]["final_optimization_search"] is result
 
 
+def test_winning_gnb_runs_final_full_data_search_and_preserves_parameter(monkeypatch):
+    trainer = MultiModelTrainer(_config(["gnb"]))
+    monkeypatch.setattr(
+        trainer,
+        "_evaluate_classifier",
+        lambda name, *_args: _classifier_evaluation(name, 0.8),
+    )
+    calls = []
+    fitted = GaussianNB(var_smoothing=1.23456789e-9)
+    result = _optimization_result({"var_smoothing": 1.23456789e-9})
+
+    def fake_optimize(model, space, X_train, y_train, **kwargs):
+        calls.append((model, space, X_train, y_train, kwargs))
+        return fitted, result
+
+    monkeypatch.setattr(model_training, "optimize_and_refit", fake_optimize)
+
+    selected, evaluations = trainer.evaluate_and_select_models(X, Y, "dataset", None)
+
+    assert len(calls) == 1
+    assert isinstance(calls[0][0], GaussianNB)
+    assert calls[0][1] == get_search_space("gnb")
+    assert calls[0][2] is X
+    assert calls[0][3] is Y
+    assert selected[0] is fitted
+    assert selected[1] == {"var_smoothing": 1.23456789e-9}
+    assert evaluations[0]["final_optimization_search"] is result
+
+
 def test_final_non_tunable_winner_direct_fits_once_without_search(monkeypatch):
     trainer = MultiModelTrainer(_config(["stack"]))
     monkeypatch.setattr(
@@ -462,6 +528,28 @@ def test_real_tunable_lr_evaluation_produces_optimization_evidence():
     assert len(evaluation["optimization_searches"]) == 2
     assert all(
         set(search["best_params"]) == {"lr__C"}
+        for search in evaluation["optimization_searches"]
+    )
+
+
+def test_real_tunable_gnb_evaluation_produces_optimization_evidence():
+    X_gnb, y_gnb = make_classification(
+        n_samples=24,
+        n_features=4,
+        n_informative=3,
+        n_redundant=0,
+        random_state=42,
+    )
+    config = _config(["gnb"], n_trials=1)
+    config.CV_CONFIG["n_repeats"] = 1
+    trainer = MultiModelTrainer(config)
+
+    evaluation = trainer._evaluate_classifier("gnb", X_gnb, y_gnb)
+
+    assert np.isfinite(evaluation["auc_roc"])
+    assert len(evaluation["optimization_searches"]) == 2
+    assert all(
+        set(search["best_params"]) == {"var_smoothing"}
         for search in evaluation["optimization_searches"]
     )
 
