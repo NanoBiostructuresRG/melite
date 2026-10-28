@@ -21,6 +21,9 @@ label_path = "raw/labels.npy"
 
 [classifiers]
 active = ["svc", "rf", "xgb"]
+# Replace the list above with any supported subset, for example:
+# active = ["lr"]
+# active = ["gnb"]
 
 [benchmark]
 random_state = 42

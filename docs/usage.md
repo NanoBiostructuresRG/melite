@@ -104,11 +104,13 @@ Relative paths for both formats are resolved from the directory in which
 
 ## Supported Classifiers
 
-MELITE currently supports four classifier keys:
+MELITE currently supports six classifier keys:
 
 | Key | Classifier | Tunable | Active by default |
 |---|---|---|---|
 | `svc` | Support Vector Classifier | Yes | Yes |
+| `lr` | Logistic Regression | Yes | No |
+| `gnb` | Gaussian Naive Bayes | Yes | No |
 | `rf` | Random Forest | Yes | Yes |
 | `xgb` | XGBoost | Yes | Yes |
 | `stack` | Stacking classifier | No | No |
@@ -120,11 +122,20 @@ The default active classifiers are:
 active = ["svc", "rf", "xgb"]
 ```
 
-Add `"stack"` to evaluate Stacking alongside the default classifiers.
+The `[classifiers].active` list accepts any supported subset in evaluation
+order, including a single classifier. For example, `active = ["lr"]` evaluates
+only Logistic Regression, while `active = ["gnb"]` evaluates only Gaussian
+Naive Bayes. Logistic Regression, Gaussian Naive Bayes, and Stacking are
+opt-in; add `"stack"` to evaluate Stacking alongside other selected
+classifiers.
 
 Standalone SVC uses a `StandardScaler` → `SVC` pipeline. Probability fitting is
 disabled during standalone SVC evaluation and retained where required for
 exported inference artifacts.
+
+Logistic Regression uses a `StandardScaler` → `LogisticRegression` pipeline
+and tunes only `C`. Gaussian Naive Bayes uses `GaussianNB` directly, without
+preprocessing, and tunes only `var_smoothing`.
 
 Random Forest and XGBoost operate on the supplied numeric features without
 scaling.
@@ -132,9 +143,9 @@ scaling.
 Stacking is stable but opt-in. It combines SVC, Random Forest, and XGBoost as
 base estimators with logistic regression as the final estimator.
 
-Hyperparameter grids for tunable classifiers are defined by MELITE. User
+Hyperparameter search spaces for tunable classifiers are defined by MELITE. User
 configuration determines which supported classifiers are active rather than
-defining individual grid values.
+defining individual hyperparameter search spaces.
 
 ## Configuration
 
