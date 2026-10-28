@@ -397,7 +397,7 @@ def test_branch_for_rejects_a_space_without_a_selector():
         space.branch_for("a")
 
 
-@pytest.mark.parametrize("classifier_key", ["svc", "rf", "xgb"])
+@pytest.mark.parametrize("classifier_key", ["svc", "lr", "rf", "xgb"])
 def test_search_space_canonical_json_round_trip_is_stable(classifier_key):
     original = get_search_space(classifier_key)
     assert original is not None
@@ -408,6 +408,23 @@ def test_search_space_canonical_json_round_trip_is_stable(classifier_key):
 
     assert restored == original
     assert second_json == first_json
+
+
+def test_lr_search_space_has_exactly_the_locked_c_parameter_contract():
+    space = get_search_space("lr")
+
+    assert isinstance(space, ClassifierSearchSpace)
+    assert space.classifier == "lr"
+    assert space.selector is None
+    assert space.branches == ()
+    assert len(space.common_parameters) == 1
+    parameter = space.common_parameters[0]
+    assert parameter.name == "C"
+    assert parameter.target == "lr__C"
+    assert isinstance(parameter.domain, FloatDomain)
+    assert parameter.domain.low == 1e-4
+    assert parameter.domain.high == 1e4
+    assert parameter.domain.log is True
 
 
 def test_builtin_search_space_contracts_are_exactly_preserved():
@@ -427,7 +444,7 @@ def test_builtin_search_space_contracts_are_exactly_preserved():
 
 def test_builtin_classifier_rosters_are_exactly_consistent():
     trainer = MultiModelTrainer(Config())
-    expected = {"svc", "rf", "xgb", "stack"}
+    expected = {"svc", "lr", "rf", "xgb", "stack"}
 
     assert (
         set(trainer.model_builders)

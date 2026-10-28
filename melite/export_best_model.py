@@ -417,6 +417,21 @@ class Finalizer:
             }
             svc_params.setdefault("svc__probability", True)
             return model.set_params(**svc_params)
+        if name == "LogisticRegression":
+            model = SklearnPipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    (
+                        "lr",
+                        LogisticRegression(
+                            solver="lbfgs",
+                            max_iter=1000,
+                            random_state=random_state,
+                        ),
+                    ),
+                ]
+            )
+            return model.set_params(**params)
         if name == "StackingClassifier":
             model = _build_stacking_classifier(
                 random_state=random_state,

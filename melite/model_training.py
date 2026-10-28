@@ -96,6 +96,19 @@ class MultiModelTrainer(ModelTrainer):
                     ("svc", SVC(probability=False, random_state=rs)),
                 ]
             ),
+            "lr": lambda: SklearnPipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    (
+                        "lr",
+                        LogisticRegression(
+                            solver="lbfgs",
+                            max_iter=1000,
+                            random_state=rs,
+                        ),
+                    ),
+                ]
+            ),
             "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=1),
             "xgb": lambda: XGBClassifier(
                 eval_metric="logloss", random_state=rs, n_jobs=1

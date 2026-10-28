@@ -12,6 +12,7 @@ import pytest
 from melite.config import Config
 from melite.export_best_model import DatasetLoader, Finalizer
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
@@ -385,6 +386,25 @@ def test_export_svc_accepts_legacy_unprefixed_parameters():
     assert isinstance(model, SklearnPipeline)
     assert model.named_steps["svc"].kernel == "linear"
     assert model.named_steps["svc"].C == 1
+
+
+def test_export_reconstructs_lr_pipeline_with_exact_persisted_c():
+    persisted_c = 0.0123456789012345
+
+    model = Finalizer._build_model(
+        "LogisticRegression",
+        str({"lr__C": persisted_c}),
+        random_state=17,
+    )
+
+    assert isinstance(model, SklearnPipeline)
+    assert list(model.named_steps) == ["scaler", "lr"]
+    assert isinstance(model.named_steps["scaler"], StandardScaler)
+    assert isinstance(model.named_steps["lr"], LogisticRegression)
+    assert model.named_steps["lr"].C == persisted_c
+    assert model.named_steps["lr"].solver == "lbfgs"
+    assert model.named_steps["lr"].max_iter == 1000
+    assert model.named_steps["lr"].random_state == 17
 
 
 def test_export_reconstructs_exact_persisted_continuous_parameters(tmp_path):
