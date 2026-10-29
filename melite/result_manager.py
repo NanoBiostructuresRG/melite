@@ -69,7 +69,7 @@ class ResultManager:
                        {_REPORT_PROJECT_NAME}
             Multi-Model Classifier Evaluator
 -----------------------------------------------------
-Classifiers: SVC, RandomForest, XGBoost, Stacking (opt-in)
+Classifiers: SVC, Logistic Regression (opt-in), Gaussian Naive Bayes (opt-in), Random Forest, XGBoost, Stacking (opt-in)
 CLI: melite run | melite export
 Package: melite
 Version: {__version__}

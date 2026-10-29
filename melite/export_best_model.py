@@ -21,9 +21,11 @@ import numpy as np
 import pandas as pd
 from melite.config import Config
 from melite.load_dataset import _load_one_dataset, load_datasets
+from melite.probability_calibration import ProbabilityCalibratedClassifier
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
+from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -34,6 +36,7 @@ __all__ = ["Finalizer"]
 logger = logging.getLogger(__name__)
 
 MODEL_MAP = {
+    "GaussianNB": GaussianNB,
     "RandomForestClassifier": RandomForestClassifier,
     "XGBClassifier": XGBClassifier,
 }
@@ -91,7 +94,13 @@ def _build_stacking_classifier(
                 SklearnPipeline(
                     [
                         ("scaler", StandardScaler()),
-                        ("svc", SVC(probability=True, random_state=random_state)),
+                        (
+                            "svc",
+                            ProbabilityCalibratedClassifier(
+                                estimator=SVC(random_state=random_state),
+                                max_calibration_cv=5,
+                            ),
+                        ),
                     ]
                 ),
             ),
@@ -408,15 +417,35 @@ class Finalizer:
             model = SklearnPipeline(
                 [
                     ("scaler", StandardScaler()),
-                    ("svc", SVC()),
+                    (
+                        "svc",
+                        ProbabilityCalibratedClassifier(
+                            estimator=SVC(),
+                            max_calibration_cv=5,
+                        ),
+                    ),
                 ]
             )
             svc_params = {
-                key if "__" in key else f"svc__{key}": value
+                f"svc__estimator__{key.removeprefix('svc__')}": value
                 for key, value in params.items()
             }
-            svc_params.setdefault("svc__probability", True)
             return model.set_params(**svc_params)
+        if name == "LogisticRegression":
+            model = SklearnPipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    (
+                        "lr",
+                        LogisticRegression(
+                            solver="lbfgs",
+                            max_iter=1000,
+                            random_state=random_state,
+                        ),
+                    ),
+                ]
+            )
+            return model.set_params(**params)
         if name == "StackingClassifier":
             model = _build_stacking_classifier(
                 random_state=random_state,

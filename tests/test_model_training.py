@@ -1,21 +1,26 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Tests for MELITE nested classifier optimization and selection behavior."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
+from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 
 import melite.model_training as model_training
+from melite.config import Config
 from melite.model_training import MultiModelTrainer
 from melite.optimization import OptimizationResult, OptunaSearchClassifier
+from melite.probability_calibration import ProbabilityCalibratedClassifier
 from melite.search_spaces import get_search_space
 
 
@@ -72,15 +77,18 @@ def test_outer_cv_uses_configured_repeated_stratified_folds():
 
 
 def test_canonical_seed_propagates_to_classifiers_and_stacking():
-    trainer = MultiModelTrainer(_config(["svc", "stack"], random_state=17))
+    trainer = MultiModelTrainer(_config(["svc", "lr", "stack"], random_state=17))
     stack = trainer.model_builders["stack"]()
     stack_estimators = dict(stack.estimators)
     assert trainer._build_outer_cv().random_state == 17
     assert trainer.model_builders["svc"]().named_steps["svc"].random_state == 17
+    assert trainer.model_builders["lr"]().named_steps["lr"].random_state == 17
     assert trainer.model_builders["rf"]().random_state == 17
     assert trainer.model_builders["xgb"]().random_state == 17
     assert stack.cv.random_state == 17
-    assert stack_estimators["svc"].named_steps["svc"].random_state == 17
+    calibrated_svc = stack_estimators["svc"].named_steps["svc"]
+    assert isinstance(calibrated_svc, ProbabilityCalibratedClassifier)
+    assert calibrated_svc.estimator.random_state == 17
     assert stack_estimators["rf"].random_state == 17
     assert stack_estimators["xgb"].random_state == 17
     assert stack.final_estimator.random_state == 17
@@ -101,6 +109,91 @@ def test_tunable_classifier_is_wrapped_from_search_space_presence(monkeypatch):
     wrapper = captured["estimator"]
     assert isinstance(wrapper, OptunaSearchClassifier)
     assert wrapper.search_space == get_search_space("svc")
+    assert wrapper.inner_n_splits == 2
+    assert wrapper.n_trials == 9
+    assert wrapper.random_state == 17
+
+
+def test_lr_is_accepted_and_uses_the_canonical_pipeline_contract():
+    trainer = MultiModelTrainer(_config(["lr"], random_state=17))
+
+    model = trainer.model_builders["lr"]()
+
+    assert trainer.active_classifiers == ["lr"]
+    assert isinstance(model, SklearnPipeline)
+    assert list(model.named_steps) == ["scaler", "lr"]
+    assert isinstance(model.named_steps["scaler"], StandardScaler)
+    assert isinstance(model.named_steps["lr"], LogisticRegression)
+    assert model.named_steps["lr"].solver == "lbfgs"
+    assert model.named_steps["lr"].max_iter == 1000
+    assert model.named_steps["lr"].random_state == 17
+
+
+@pytest.mark.parametrize("classifier_key", ["lr", "gnb"])
+def test_non_default_classifier_can_be_explicitly_selected_from_user_config(
+    tmp_path, classifier_key
+):
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        f'[classifiers]\nactive = ["{classifier_key}"]\n',
+        encoding="utf-8",
+    )
+
+    trainer = MultiModelTrainer(Config(user_config=config_path))
+
+    assert trainer.active_classifiers == [classifier_key]
+
+
+def test_lr_evaluation_uses_optuna_search_classifier(monkeypatch):
+    trainer = MultiModelTrainer(_config(["lr"], random_state=17, n_trials=9))
+    captured = {}
+
+    def fake_cross_validate(estimator, *_args):
+        captured["estimator"] = estimator
+        return _rich_evaluation(0.8)
+
+    monkeypatch.setattr(
+        trainer, "_cross_validate_model_with_scores", fake_cross_validate
+    )
+
+    trainer._evaluate_classifier("lr", X, Y)
+
+    wrapper = captured["estimator"]
+    assert isinstance(wrapper, OptunaSearchClassifier)
+    assert wrapper.search_space == get_search_space("lr")
+    assert wrapper.inner_n_splits == 2
+    assert wrapper.n_trials == 9
+    assert wrapper.random_state == 17
+
+
+def test_gnb_is_accepted_and_builder_returns_direct_estimator():
+    trainer = MultiModelTrainer(_config(["gnb"]))
+
+    model = trainer.model_builders["gnb"]()
+
+    assert trainer.active_classifiers == ["gnb"]
+    assert isinstance(model, GaussianNB)
+    assert not isinstance(model, SklearnPipeline)
+
+
+def test_gnb_evaluation_uses_optuna_search_classifier(monkeypatch):
+    trainer = MultiModelTrainer(_config(["gnb"], random_state=17, n_trials=9))
+    captured = {}
+
+    def fake_cross_validate(estimator, *_args):
+        captured["estimator"] = estimator
+        return _rich_evaluation(0.8)
+
+    monkeypatch.setattr(
+        trainer, "_cross_validate_model_with_scores", fake_cross_validate
+    )
+
+    trainer._evaluate_classifier("gnb", X, Y)
+
+    wrapper = captured["estimator"]
+    assert isinstance(wrapper, OptunaSearchClassifier)
+    assert isinstance(wrapper.estimator, GaussianNB)
+    assert wrapper.search_space == get_search_space("gnb")
     assert wrapper.inner_n_splits == 2
     assert wrapper.n_trials == 9
     assert wrapper.random_state == 17
@@ -287,6 +380,66 @@ def test_final_tunable_winner_runs_one_fresh_search_and_uses_effective_params(
     assert evaluations[0]["final_optimization_search"].best_params == selected[1]
 
 
+def test_winning_lr_runs_final_full_data_search_and_preserves_pipeline_parameter(
+    monkeypatch,
+):
+    trainer = MultiModelTrainer(_config(["lr"]))
+    monkeypatch.setattr(
+        trainer,
+        "_evaluate_classifier",
+        lambda name, *_args: _classifier_evaluation(name, 0.8),
+    )
+    calls = []
+    fitted = trainer.model_builders["lr"]()
+    result = _optimization_result({"lr__C": 0.0123456789})
+
+    def fake_optimize(model, space, X_train, y_train, **kwargs):
+        calls.append((model, space, X_train, y_train, kwargs))
+        return fitted, result
+
+    monkeypatch.setattr(model_training, "optimize_and_refit", fake_optimize)
+
+    selected, evaluations = trainer.evaluate_and_select_models(X, Y, "dataset", None)
+
+    assert len(calls) == 1
+    assert isinstance(calls[0][0], SklearnPipeline)
+    assert calls[0][1] == get_search_space("lr")
+    assert calls[0][2] is X
+    assert calls[0][3] is Y
+    assert selected[0] is fitted
+    assert selected[1] == {"lr__C": 0.0123456789}
+    assert evaluations[0]["final_optimization_search"] is result
+
+
+def test_winning_gnb_runs_final_full_data_search_and_preserves_parameter(monkeypatch):
+    trainer = MultiModelTrainer(_config(["gnb"]))
+    monkeypatch.setattr(
+        trainer,
+        "_evaluate_classifier",
+        lambda name, *_args: _classifier_evaluation(name, 0.8),
+    )
+    calls = []
+    fitted = GaussianNB(var_smoothing=1.23456789e-9)
+    result = _optimization_result({"var_smoothing": 1.23456789e-9})
+
+    def fake_optimize(model, space, X_train, y_train, **kwargs):
+        calls.append((model, space, X_train, y_train, kwargs))
+        return fitted, result
+
+    monkeypatch.setattr(model_training, "optimize_and_refit", fake_optimize)
+
+    selected, evaluations = trainer.evaluate_and_select_models(X, Y, "dataset", None)
+
+    assert len(calls) == 1
+    assert isinstance(calls[0][0], GaussianNB)
+    assert calls[0][1] == get_search_space("gnb")
+    assert calls[0][2] is X
+    assert calls[0][3] is Y
+    assert selected[0] is fitted
+    assert selected[1] == {"var_smoothing": 1.23456789e-9}
+    assert evaluations[0]["final_optimization_search"] is result
+
+
 def test_final_non_tunable_winner_direct_fits_once_without_search(monkeypatch):
     trainer = MultiModelTrainer(_config(["stack"]))
     monkeypatch.setattr(
@@ -338,9 +491,24 @@ def test_svc_builder_preserves_scaler_and_decision_function_auc_path():
     assert list(model.named_steps) == ["scaler", "svc"]
     assert isinstance(model.named_steps["scaler"], StandardScaler)
     assert isinstance(model.named_steps["svc"], SVC)
-    assert model.named_steps["svc"].probability is False
     assert hasattr(model, "decision_function")
     assert not hasattr(model, "predict_proba")
+
+
+def test_production_code_does_not_use_deprecated_svc_probability_mode():
+    melite_dir = Path(model_training.__file__).parent
+    deprecated_arguments = ("probability" + "=True", "probability" + "=False")
+
+    occurrences = [
+        path
+        for path in melite_dir.glob("*.py")
+        if any(
+            argument in path.read_text(encoding="utf-8")
+            for argument in deprecated_arguments
+        )
+    ]
+
+    assert occurrences == []
 
 
 def test_real_tunable_svc_outer_auc_uses_decision_function():
@@ -361,6 +529,50 @@ def test_real_tunable_svc_outer_auc_uses_decision_function():
     assert len(evaluation["optimization_searches"]) == 2
 
 
+def test_real_tunable_lr_evaluation_produces_optimization_evidence():
+    X_lr, y_lr = make_classification(
+        n_samples=24,
+        n_features=4,
+        n_informative=3,
+        n_redundant=0,
+        random_state=42,
+    )
+    config = _config(["lr"], n_trials=1)
+    config.CV_CONFIG["n_repeats"] = 1
+    trainer = MultiModelTrainer(config)
+
+    evaluation = trainer._evaluate_classifier("lr", X_lr, y_lr)
+
+    assert np.isfinite(evaluation["auc_roc"])
+    assert len(evaluation["optimization_searches"]) == 2
+    assert all(
+        set(search["best_params"]) == {"lr__C"}
+        for search in evaluation["optimization_searches"]
+    )
+
+
+def test_real_tunable_gnb_evaluation_produces_optimization_evidence():
+    X_gnb, y_gnb = make_classification(
+        n_samples=24,
+        n_features=4,
+        n_informative=3,
+        n_redundant=0,
+        random_state=42,
+    )
+    config = _config(["gnb"], n_trials=1)
+    config.CV_CONFIG["n_repeats"] = 1
+    trainer = MultiModelTrainer(config)
+
+    evaluation = trainer._evaluate_classifier("gnb", X_gnb, y_gnb)
+
+    assert np.isfinite(evaluation["auc_roc"])
+    assert len(evaluation["optimization_searches"]) == 2
+    assert all(
+        set(search["best_params"]) == {"var_smoothing"}
+        for search in evaluation["optimization_searches"]
+    )
+
+
 def test_rf_and_xgb_builders_remain_sequential_direct_estimators():
     trainer = MultiModelTrainer(_config(["rf", "xgb"]))
     rf = trainer.model_builders["rf"]()
@@ -371,7 +583,29 @@ def test_rf_and_xgb_builders_remain_sequential_direct_estimators():
     assert xgb.n_jobs == 1
 
 
-def test_stacking_builder_contract_remains_unchanged():
+def test_native_probability_classifiers_remain_unwrapped():
+    trainer = MultiModelTrainer(_config(["lr", "gnb", "rf", "xgb"]))
+    models = {
+        classifier_key: trainer.model_builders[classifier_key]()
+        for classifier_key in ("lr", "gnb", "rf", "xgb")
+    }
+
+    assert isinstance(models["lr"], SklearnPipeline)
+    assert isinstance(models["lr"].named_steps["lr"], LogisticRegression)
+    assert isinstance(models["gnb"], GaussianNB)
+    assert isinstance(models["rf"], RandomForestClassifier)
+    assert isinstance(models["xgb"], XGBClassifier)
+    assert all(hasattr(model, "predict_proba") for model in models.values())
+    assert all(
+        not isinstance(model, ProbabilityCalibratedClassifier)
+        for model in models.values()
+    )
+    assert not isinstance(
+        models["lr"].named_steps["lr"], ProbabilityCalibratedClassifier
+    )
+
+
+def test_stacking_builder_uses_general_probability_adapter():
     model = MultiModelTrainer(_config(["stack"])).model_builders["stack"]()
     estimators = dict(model.estimators)
     assert isinstance(model, StackingClassifier)
@@ -383,7 +617,11 @@ def test_stacking_builder_contract_remains_unchanged():
     assert model.passthrough is False
     assert model.n_jobs == -1
     assert isinstance(estimators["svc"], SklearnPipeline)
-    assert estimators["svc"].named_steps["svc"].probability is True
+    calibrated_svc = estimators["svc"].named_steps["svc"]
+    assert isinstance(calibrated_svc, ProbabilityCalibratedClassifier)
+    assert calibrated_svc.max_calibration_cv == 5
+    assert isinstance(calibrated_svc.estimator, SVC)
+    assert calibrated_svc.estimator.random_state == 42
     assert isinstance(estimators["rf"], RandomForestClassifier)
     assert isinstance(estimators["xgb"], XGBClassifier)
 

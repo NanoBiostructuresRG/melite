@@ -11,8 +11,12 @@ import pytest
 
 from melite.config import Config
 from melite.export_best_model import DatasetLoader, Finalizer
+from melite.probability_calibration import ProbabilityCalibratedClassifier
+from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
+from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -373,8 +377,43 @@ def test_export_svc_saves_scaler_pipeline(monkeypatch, tmp_path):
     assert isinstance(model, SklearnPipeline)
     assert list(model.named_steps) == ["scaler", "svc"]
     assert isinstance(model.named_steps["scaler"], StandardScaler)
-    assert isinstance(model.named_steps["svc"], SVC)
-    assert model.named_steps["svc"].kernel == "linear"
+    calibrated_svc = model.named_steps["svc"]
+    assert isinstance(calibrated_svc, ProbabilityCalibratedClassifier)
+    assert calibrated_svc.max_calibration_cv == 5
+    assert isinstance(calibrated_svc.estimator, SVC)
+    assert calibrated_svc.estimator.kernel == "linear"
+    assert calibrated_svc.estimator.C == 1
+    assert model.predict(np.ones((2, 5))).shape == (2,)
+    probabilities = model.predict_proba(np.ones((2, 5)))
+    assert probabilities.shape == (2, 2)
+    assert np.allclose(probabilities.sum(axis=1), 1.0)
+    assert model.decision_function(np.ones((2, 5))).shape == (2,)
+
+
+def test_export_svc_transfers_all_persisted_parameters_to_wrapped_estimator():
+    persisted_params = {
+        "svc__C": 1.2,
+        "svc__kernel": "rbf",
+        "svc__gamma": 0.05,
+        "svc__coef0": 0.25,
+        "svc__degree": 4,
+    }
+
+    model = Finalizer._build_model("SVC", str(persisted_params), random_state=42)
+    calibrated_svc = model.named_steps["svc"]
+
+    assert isinstance(calibrated_svc, ProbabilityCalibratedClassifier)
+    assert isinstance(calibrated_svc.estimator, SVC)
+    assert {
+        key: getattr(calibrated_svc.estimator, key)
+        for key in ("C", "kernel", "gamma", "coef0", "degree")
+    } == {
+        "C": 1.2,
+        "kernel": "rbf",
+        "gamma": 0.05,
+        "coef0": 0.25,
+        "degree": 4,
+    }
 
 
 def test_export_svc_accepts_legacy_unprefixed_parameters():
@@ -383,8 +422,86 @@ def test_export_svc_accepts_legacy_unprefixed_parameters():
     )
 
     assert isinstance(model, SklearnPipeline)
-    assert model.named_steps["svc"].kernel == "linear"
-    assert model.named_steps["svc"].C == 1
+    calibrated_svc = model.named_steps["svc"]
+    assert isinstance(calibrated_svc, ProbabilityCalibratedClassifier)
+    assert calibrated_svc.estimator.kernel == "linear"
+    assert calibrated_svc.estimator.C == 1
+
+
+def test_exported_svc_preserves_direct_predictions_and_decision_values():
+    X, y = make_classification(
+        n_samples=60,
+        n_features=6,
+        n_informative=4,
+        n_redundant=0,
+        random_state=42,
+    )
+    selected_params = {
+        "svc__C": 1.2,
+        "svc__kernel": "rbf",
+        "svc__gamma": 0.05,
+        "svc__coef0": 0.25,
+        "svc__degree": 4,
+    }
+    exported = Finalizer._build_model("SVC", str(selected_params), random_state=42)
+    reference = SklearnPipeline(
+        [
+            ("scaler", StandardScaler()),
+            (
+                "svc",
+                SVC(
+                    C=1.2,
+                    kernel="rbf",
+                    gamma=0.05,
+                    coef0=0.25,
+                    degree=4,
+                ),
+            ),
+        ]
+    )
+
+    exported.fit(X, y)
+    reference.fit(X, y)
+
+    assert np.array_equal(exported.predict(X), reference.predict(X))
+    assert np.allclose(
+        exported.decision_function(X),
+        reference.decision_function(X),
+    )
+    assert exported.predict_proba(X).shape == (60, 2)
+
+
+def test_export_reconstructs_lr_pipeline_with_exact_persisted_c():
+    persisted_c = 0.0123456789012345
+
+    model = Finalizer._build_model(
+        "LogisticRegression",
+        str({"lr__C": persisted_c}),
+        random_state=17,
+    )
+
+    assert isinstance(model, SklearnPipeline)
+    assert list(model.named_steps) == ["scaler", "lr"]
+    assert isinstance(model.named_steps["scaler"], StandardScaler)
+    assert isinstance(model.named_steps["lr"], LogisticRegression)
+    assert model.named_steps["lr"].C == persisted_c
+    assert model.named_steps["lr"].solver == "lbfgs"
+    assert model.named_steps["lr"].max_iter == 1000
+    assert model.named_steps["lr"].random_state == 17
+
+
+def test_export_rebuilds_gnb_with_exact_persisted_var_smoothing():
+    persisted_var_smoothing = 1.23456789012345e-9
+
+    model = Finalizer._build_model(
+        "GaussianNB",
+        str({"var_smoothing": persisted_var_smoothing}),
+        random_state=17,
+    )
+
+    assert isinstance(model, GaussianNB)
+    assert not isinstance(model, SklearnPipeline)
+    assert model.var_smoothing == persisted_var_smoothing
 
 
 def test_export_reconstructs_exact_persisted_continuous_parameters(tmp_path):
@@ -453,8 +570,11 @@ def test_export_builds_stacking_classifier_with_expected_contract():
     assert isinstance(svc, SklearnPipeline)
     assert list(svc.named_steps) == ["scaler", "svc"]
     assert isinstance(svc.named_steps["scaler"], StandardScaler)
-    assert isinstance(svc.named_steps["svc"], SVC)
-    assert svc.named_steps["svc"].probability is True
+    calibrated_svc = svc.named_steps["svc"]
+    assert isinstance(calibrated_svc, ProbabilityCalibratedClassifier)
+    assert calibrated_svc.max_calibration_cv == 5
+    assert isinstance(calibrated_svc.estimator, SVC)
+    assert calibrated_svc.estimator.random_state == 17
 
     assert isinstance(rf, RandomForestClassifier)
     assert rf.n_jobs == 1

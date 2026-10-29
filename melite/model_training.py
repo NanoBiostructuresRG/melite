@@ -3,8 +3,8 @@
 
 This module implements the multi-classifier evaluation core. It defines an
 abstract base class :class:`ModelTrainer` and the concrete implementation
-:class:`MultiModelTrainer`, which evaluates SVC, Random Forest, and XGBoost
-classifiers with nested cross-validation and supports opt-in stacking.
+:class:`MultiModelTrainer`, which evaluates the configured subset of MELITE's
+supported classifiers with nested cross-validation.
 """
 
 from abc import ABC, abstractmethod
@@ -17,12 +17,14 @@ from sklearn.model_selection import (
     StratifiedKFold,
     cross_validate,
 )
+from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 
 from melite.optimization import OptunaSearchClassifier, optimize_and_refit
+from melite.probability_calibration import ProbabilityCalibratedClassifier
 from melite.search_spaces import get_search_space
 
 __all__ = ["MultiModelTrainer"]
@@ -64,7 +66,7 @@ class ModelTrainer(ABC):
 
 
 class MultiModelTrainer(ModelTrainer):
-    """Train and select the best classifier across SVC, Random Forest and XGBoost.
+    """Train and select the best classifier from the configured supported subset.
 
     Uses nested cross-validation for tunable classifiers: an inner Optuna
     search selects hyperparameters independently within each outer
@@ -93,9 +95,23 @@ class MultiModelTrainer(ModelTrainer):
             "svc": lambda: SklearnPipeline(
                 [
                     ("scaler", StandardScaler()),
-                    ("svc", SVC(probability=False, random_state=rs)),
+                    ("svc", SVC(random_state=rs)),
                 ]
             ),
+            "lr": lambda: SklearnPipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    (
+                        "lr",
+                        LogisticRegression(
+                            solver="lbfgs",
+                            max_iter=1000,
+                            random_state=rs,
+                        ),
+                    ),
+                ]
+            ),
+            "gnb": lambda: GaussianNB(),
             "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=1),
             "xgb": lambda: XGBClassifier(
                 eval_metric="logloss", random_state=rs, n_jobs=1
@@ -120,7 +136,13 @@ class MultiModelTrainer(ModelTrainer):
                     SklearnPipeline(
                         [
                             ("scaler", StandardScaler()),
-                            ("svc", SVC(probability=True, random_state=random_state)),
+                            (
+                                "svc",
+                                ProbabilityCalibratedClassifier(
+                                    estimator=SVC(random_state=random_state),
+                                    max_calibration_cv=5,
+                                ),
+                            ),
                         ]
                     ),
                 ),

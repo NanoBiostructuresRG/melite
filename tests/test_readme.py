@@ -95,6 +95,18 @@ def test_readme_toml_examples_use_current_classifier_section():
     assert all("[models]" not in block for block in toml_blocks)
 
 
+def test_supported_classifier_documentation_matches_public_policy():
+    supported = _section("Supported Classifiers")
+
+    assert "six classifier keys" in supported
+    for classifier_key in ("svc", "lr", "gnb", "rf", "xgb", "stack"):
+        assert f"| `{classifier_key}` |" in supported
+    assert 'active = ["svc", "rf", "xgb"]' in supported
+    assert 'active = ["lr"]' in supported
+    assert 'active = ["gnb"]' in supported
+    assert "any supported subset" in supported
+
+
 def test_readme_local_links_reference_existing_files():
     without_code_blocks = re.sub(
         r"```.*?```",

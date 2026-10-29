@@ -321,7 +321,11 @@ level = 85
 
     rows = _rows(output_dir / "results.csv")
     report = (output_dir / "results.txt").read_text(encoding="utf-8")
-    assert "Classifiers: SVC, RandomForest, XGBoost, Stacking (opt-in)" in report
+    assert (
+        "Classifiers: SVC, Logistic Regression (opt-in), "
+        "Gaussian Naive Bayes (opt-in), Random Forest, XGBoost, "
+        "Stacking (opt-in)" in report
+    )
     assert "Classifier selected: SVC" in report
     assert "Best classifier parameters:" in report
     assert "Model Selected:" not in report

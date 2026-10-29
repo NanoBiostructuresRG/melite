@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "MELITE — Multi-Model Classifier Evaluator"
-version: "0.3.0"
-date-released: "2026-08-28"
+version: "0.3.1"
+date-released: "2026-10-28"
 authors:
   - family-names: "Contreras-Torres"
     given-names: "Flavio F."

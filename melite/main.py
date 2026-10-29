@@ -33,6 +33,8 @@ _SMOKE_WARNING = (
 
 _CLASSIFIER_NAMES = {
     "svc": "SVC",
+    "lr": "LogisticRegression",
+    "gnb": "GaussianNB",
     "rf": "RandomForestClassifier",
     "xgb": "XGBClassifier",
     "stack": "StackingClassifier",

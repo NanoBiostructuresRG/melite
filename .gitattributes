@@ -1,3 +1,0 @@
-# Byte-exact characterization artifacts: never convert line endings.
-scripts/b5_characterization_dataset.csv -text
-B5_calibration.json                     -text

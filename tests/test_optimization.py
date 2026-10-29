@@ -212,7 +212,7 @@ def test_wrapper_fit_stores_result_classes_and_delegates_prediction():
 
 def test_wrapper_conditionally_exposes_classifier_response_methods():
     svc = OptunaSearchClassifier(
-        Pipeline([("scaler", StandardScaler()), ("svc", SVC(probability=False))]),
+        Pipeline([("scaler", StandardScaler()), ("svc", SVC())]),
         get_search_space("svc"),
         2,
         1,

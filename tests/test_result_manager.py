@@ -187,7 +187,7 @@ def test_write_results_header_is_exactly_preserved(monkeypatch, tmp_path):
                        MELITE
             Multi-Model Classifier Evaluator
 -----------------------------------------------------
-Classifiers: SVC, RandomForest, XGBoost, Stacking (opt-in)
+Classifiers: SVC, Logistic Regression (opt-in), Gaussian Naive Bayes (opt-in), Random Forest, XGBoost, Stacking (opt-in)
 CLI: melite run | melite export
 Package: melite
 Version: {__version__}

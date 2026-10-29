@@ -1,7 +1,7 @@
 # MELITE — Multi-Model Classifier Evaluator
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.3.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.3.1-blue.svg)]()
 [![PyPI](https://img.shields.io/pypi/v/melite.svg)](https://pypi.org/project/melite/)
 [![Python](https://img.shields.io/pypi/pyversions/melite.svg)](https://pypi.org/project/melite/)
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
@@ -184,17 +184,20 @@ CLI and a version-controlled TOML configuration.
 
 ## Supported Classifiers
 
-**MELITE** currently supports four classifier keys:
+**MELITE** currently supports six classifier keys:
 
-| Key | Classifier | Active by default |
-|---|---|---|
-| `svc` | Support Vector Classifier | Yes |
-| `rf` | Random Forest | Yes |
-| `xgb` | XGBoost | Yes |
-| `stack` | Stacking classifier | No |
+| Key | Classifier | Tunable | Active by default |
+|---|---|---|---|
+| `svc` | Support Vector Classifier | Yes | Yes |
+| `lr` | Logistic Regression | Yes | No |
+| `gnb` | Gaussian Naive Bayes | Yes | No |
+| `rf` | Random Forest | Yes | Yes |
+| `xgb` | XGBoost | Yes | Yes |
+| `stack` | Stacking classifier | No | No |
 
-MELITE v0.3.0 supports this fixed set of four classifier keys and does not
-expose public registration of custom classifiers.
+The first five keys are base classifier families. `stack` is a non-tunable,
+opt-in composite classifier. MELITE supports this fixed set of six keys and
+does not expose public registration of custom classifiers.
 
 The default configuration is:
 
@@ -203,14 +206,23 @@ The default configuration is:
 active = ["svc", "rf", "xgb"]
 ```
 
-Add `"stack"` to evaluate Stacking alongside the default classifiers.
+The `[classifiers].active` list accepts any supported subset in evaluation
+order, including a single classifier. For example, `active = ["svc"]`,
+`active = ["lr"]`, `active = ["gnb"]`, and `active = ["stack"]` each select
+one supported classifier. The `lr`, `gnb`, and `stack` classifiers remain inactive
+unless explicitly selected.
 
-Standalone SVC is evaluated as a `StandardScaler` -> `SVC` pipeline, with
-probability fitting disabled during standalone evaluation. Exported SVC
-artifacts retain probability support for inference. Random Forest and XGBoost
-remain unscaled. The opt-in Stacking classifier combines a scaled probabilistic SVC
-with Random Forest and XGBoost base estimators and uses logistic regression as
-the final estimator.
+Every exported classifier artifact supports both `predict()` and
+`predict_proba()`. SVC remains one classifier family: MELITE preserves direct
+SVC class predictions and its decision function while supplying calibrated
+probabilities internally for exported inference. Logistic Regression,
+Gaussian Naive Bayes, Random Forest, and XGBoost use their native probability
+support. Logistic Regression uses a `StandardScaler` -> `LogisticRegression`
+pipeline and is tunable in `C`; Gaussian Naive Bayes uses `GaussianNB` directly
+and is tunable in `var_smoothing`. Random Forest and XGBoost remain unscaled.
+The opt-in stacking classifier combines SVC, Random Forest, and XGBoost as base
+estimators with Logistic Regression as the final estimator and uses
+probability-based base-estimator outputs.
 
 Tunable classifiers use Optuna with its TPE sampler for hyperparameter
 optimization. The public `n_trials` setting explicitly declares the budget per
@@ -239,7 +251,9 @@ Here, `family` is optional **dataset metadata** used to describe the feature
 representation. It is unrelated to the classifier selected or evaluated by
 MELITE.
 
-Each dataset must define `path` and `label_path`. Optional metadata fields such
+Each dataset must define `path` and the label source required by its format:
+`label_column` for CSV datasets or `label_path` for NPZ datasets.
+Optional metadata fields such
 as `family`, `method`, `variant`, `level`, and `description` are preserved for
 traceability and do not trigger dataset-specific execution logic.
 
@@ -332,6 +346,9 @@ Use `--config` to supply a project-specific configuration:
 melite run --config my_config.toml
 melite export --config my_config.toml --row 0
 ```
+
+A complete configuration template is available at
+`examples/melite_run.toml`.
 
 Smoke mode can be requested independently from the configuration:
 

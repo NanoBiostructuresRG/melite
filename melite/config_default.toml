@@ -3,7 +3,8 @@
 # default values it wants to override.
 
 [classifiers]
-# Active classifiers to evaluate. Add "stack" to opt in to stacking.
+# Active classifiers to evaluate. Any supported subset may be selected; lr, gnb,
+# and stack are available as opt-in classifiers.
 active = ["svc", "rf", "xgb"]
 
 [cv]
