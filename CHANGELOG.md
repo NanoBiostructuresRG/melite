@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.1] - 2026-10-28
+
+### Added
+- Added tunable Logistic Regression (`lr`) as an opt-in base classifier using a
+  `StandardScaler` → `LogisticRegression` pipeline with Optuna tuning of `C`.
+- Added tunable Gaussian Naive Bayes (`gnb`) as an opt-in base classifier with
+  Optuna tuning of `var_smoothing`.
+- Added `examples/melite_run.toml` as a public configuration template for normal
+  runs, including NPZ and CSV dataset examples and classifier subset selection.
+- Added internal probability calibration support for classifiers that require
+  calibrated probability estimates.
+
+### Changed
+- Expanded the supported classifier set to six public keys: `svc`, `lr`, `gnb`,
+  `rf`, `xgb`, and opt-in `stack`. The default active classifiers remain
+  `["svc", "rf", "xgb"]`.
+- Exported artifacts for all six supported classifiers now provide both class
+  predictions and probability estimates.
+- SVC remains a single public classifier family: direct class predictions and
+  decision values are preserved while calibrated probabilities are supplied
+  internally for exported inference.
+- Updated the SVC component used by Stacking to obtain probability estimates
+  through MELITE's calibration infrastructure while retaining probability-based
+  stacking.
+- Removed explicit use of the deprecated scikit-learn
+  `SVC(probability=True/False)` interface while preserving standalone SVC
+  evaluation through its decision function.
+- Updated classifier, configuration, export, and inference documentation for
+  the v0.3.1 classifier and probability contracts.
+
+---
+
 ## [0.3.0] - 2026-08-28
 
 ### Added
@@ -589,6 +621,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.3.1]: https://github.com/NanoBiostructuresRG/melite/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.5...v0.3.0
 [0.2.5]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.3...v0.2.4
