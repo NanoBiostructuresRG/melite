@@ -12,11 +12,10 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from sklearn.pipeline import Pipeline as SklearnPipeline
-from sklearn.svm import SVC
 
 from melite.config import Config
 from melite.load_dataset import load_datasets
+from melite.model_catalog import MODEL_CATALOG
 from melite.model_training import MultiModelTrainer
 from melite.optimization import get_optimization_backend_info, optuna_logging_scope
 from melite.optimization_policy import OPTIMIZATION_POLICY
@@ -32,12 +31,10 @@ _SMOKE_WARNING = (
 )
 
 _CLASSIFIER_NAMES = {
-    "svc": "SVC",
-    "lr": "LogisticRegression",
-    "gnb": "GaussianNB",
-    "rf": "RandomForestClassifier",
-    "xgb": "XGBClassifier",
-    "stack": "StackingClassifier",
+    model.key: model.public_name
+    for model in MODEL_CATALOG
+    if model.prediction_task == "classification"
+    and model.availability == "implemented"
 }
 
 
@@ -132,12 +129,6 @@ class Main:
         ):
             return method
         return None
-
-    @staticmethod
-    def _classifier_name(model):
-        if isinstance(model, SklearnPipeline) and isinstance(model.steps[-1][1], SVC):
-            return "SVC"
-        return model.__class__.__name__
 
     @staticmethod
     def _selected_evaluation(evaluations):
