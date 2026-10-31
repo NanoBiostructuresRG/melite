@@ -444,6 +444,107 @@ def test_gnb_search_space_has_exactly_the_locked_var_smoothing_contract():
     assert parameter.domain.log is True
 
 
+@pytest.mark.parametrize(
+    ("classifier_key", "expected_parameters", "compatible_params"),
+    [
+        (
+            "knn",
+            {
+                "n_neighbors": ("knn__n_neighbors", IntDomain(1, 15)),
+                "weights": (
+                    "knn__weights",
+                    CategoricalDomain(("uniform", "distance")),
+                ),
+                "p": ("knn__p", CategoricalDomain((1, 2))),
+            },
+            {
+                "knn__n_neighbors": 7,
+                "knn__weights": "distance",
+                "knn__p": 1,
+            },
+        ),
+        (
+            "dt",
+            {
+                "max_depth": (
+                    "max_depth",
+                    CategoricalDomain((None, 3, 5, 10, 20)),
+                ),
+                "min_samples_leaf": ("min_samples_leaf", IntDomain(1, 5)),
+            },
+            {"max_depth": 5, "min_samples_leaf": 2},
+        ),
+        (
+            "ada",
+            {
+                "n_estimators": ("n_estimators", IntDomain(50, 200)),
+                "learning_rate": (
+                    "learning_rate",
+                    FloatDomain(0.01, 1.0, log=True),
+                ),
+            },
+            {"n_estimators": 75, "learning_rate": 0.2},
+        ),
+        (
+            "lgbm",
+            {
+                "n_estimators": ("n_estimators", IntDomain(100, 300)),
+                "learning_rate": (
+                    "learning_rate",
+                    FloatDomain(0.01, 0.15, log=True),
+                ),
+                "num_leaves": ("num_leaves", CategoricalDomain((7, 15, 31))),
+                "min_child_samples": ("min_child_samples", IntDomain(5, 20)),
+            },
+            {
+                "n_estimators": 125,
+                "learning_rate": 0.05,
+                "num_leaves": 15,
+                "min_child_samples": 10,
+            },
+        ),
+        (
+            "catboost",
+            {
+                "iterations": ("iterations", IntDomain(100, 300)),
+                "learning_rate": (
+                    "learning_rate",
+                    FloatDomain(0.01, 0.15, log=True),
+                ),
+                "depth": ("depth", IntDomain(3, 7)),
+                "l2_leaf_reg": (
+                    "l2_leaf_reg",
+                    FloatDomain(1.0, 10.0, log=False),
+                ),
+            },
+            {
+                "iterations": 125,
+                "learning_rate": 0.05,
+                "depth": 5,
+                "l2_leaf_reg": 3.0,
+            },
+        ),
+    ],
+)
+def test_new_classifier_search_spaces_match_estimator_parameters(
+    classifier_key, expected_parameters, compatible_params
+):
+    space = get_search_space(classifier_key)
+    trainer = MultiModelTrainer(Config())
+    model = trainer.model_builders[classifier_key]()
+
+    assert isinstance(space, ClassifierSearchSpace)
+    assert space.selector is None
+    assert {
+        parameter.name: (parameter.target, parameter.domain)
+        for parameter in space.common_parameters
+    } == expected_parameters
+    assert set(compatible_params) == {
+        parameter.target for parameter in space.common_parameters
+    }
+    assert model.set_params(**compatible_params) is model
+
+
 def test_builtin_search_space_contracts_are_exactly_preserved():
     """Protect MELITE's built-in methodological search-space contract.
 
@@ -461,7 +562,19 @@ def test_builtin_search_space_contracts_are_exactly_preserved():
 
 def test_builtin_classifier_rosters_are_exactly_consistent():
     trainer = MultiModelTrainer(Config())
-    expected = {"svc", "lr", "gnb", "rf", "xgb", "stack"}
+    expected = {
+        "svc",
+        "lr",
+        "gnb",
+        "knn",
+        "dt",
+        "rf",
+        "ada",
+        "xgb",
+        "lgbm",
+        "catboost",
+        "stack",
+    }
 
     assert (
         set(trainer.model_builders)

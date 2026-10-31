@@ -4,7 +4,9 @@
 import ast
 import csv
 
+from catboost import CatBoostClassifier
 import joblib
+from lightgbm import LGBMClassifier
 import numpy as np
 import pandas as pd
 import pytest
@@ -13,13 +15,19 @@ from melite.config import Config
 from melite.export_best_model import DatasetLoader, Finalizer
 from melite.probability_calibration import ProbabilityCalibratedClassifier
 from sklearn.datasets import make_classification
-from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from sklearn.ensemble import (
+    AdaBoostClassifier,
+    RandomForestClassifier,
+    StackingClassifier,
+)
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
 
@@ -502,6 +510,78 @@ def test_export_rebuilds_gnb_with_exact_persisted_var_smoothing():
     assert isinstance(model, GaussianNB)
     assert not isinstance(model, SklearnPipeline)
     assert model.var_smoothing == persisted_var_smoothing
+
+
+@pytest.mark.parametrize(
+    ("public_name", "params", "expected_type", "fixed_settings"),
+    [
+        (
+            "KNeighborsClassifier",
+            {
+                "knn__n_neighbors": 7,
+                "knn__weights": "distance",
+                "knn__p": 1,
+            },
+            KNeighborsClassifier,
+            {"knn__metric": "minkowski"},
+        ),
+        (
+            "DecisionTreeClassifier",
+            {"max_depth": 5, "min_samples_leaf": 2},
+            DecisionTreeClassifier,
+            {"random_state": 17},
+        ),
+        (
+            "AdaBoostClassifier",
+            {"n_estimators": 75, "learning_rate": 0.2},
+            AdaBoostClassifier,
+            {"random_state": 17},
+        ),
+        (
+            "LGBMClassifier",
+            {
+                "n_estimators": 125,
+                "learning_rate": 0.05,
+                "num_leaves": 15,
+                "min_child_samples": 10,
+            },
+            LGBMClassifier,
+            {"random_state": 17, "n_jobs": 1, "verbosity": -1},
+        ),
+        (
+            "CatBoostClassifier",
+            {
+                "iterations": 125,
+                "learning_rate": 0.05,
+                "depth": 5,
+                "l2_leaf_reg": 3.0,
+            },
+            CatBoostClassifier,
+            {
+                "random_seed": 17,
+                "thread_count": 1,
+                "verbose": False,
+                "allow_writing_files": False,
+                "task_type": "CPU",
+            },
+        ),
+    ],
+)
+def test_export_reconstructs_new_classifiers_with_persisted_parameters(
+    public_name, params, expected_type, fixed_settings
+):
+    model = Finalizer._build_model(public_name, str(params), random_state=17)
+    estimator = (
+        model.named_steps["knn"]
+        if public_name == "KNeighborsClassifier"
+        else model
+    )
+
+    assert isinstance(estimator, expected_type)
+    assert {key: model.get_params()[key] for key in params} == params
+    assert {
+        key: model.get_params()[key] for key in fixed_settings
+    } == fixed_settings
 
 
 def test_export_reconstructs_exact_persisted_continuous_parameters(tmp_path):

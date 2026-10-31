@@ -10,6 +10,9 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline as SklearnPipeline
+from sklearn.preprocessing import StandardScaler
 
 import melite.main as main_module
 from melite.config import Config
@@ -264,6 +267,83 @@ def test_selected_evaluation_requires_exactly_one(evaluations, count):
         match=rf"Expected exactly one selected classifier evaluation; found {count}",
     ):
         Main._selected_evaluation(evaluations)
+
+
+def test_selected_lr_pipeline_persists_logistic_regression_identity(
+    monkeypatch, tmp_path
+):
+    selected_pipeline = SklearnPipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("lr", LogisticRegression()),
+        ]
+    )
+
+    class SelectedLrPipeline:
+        def run_with_evaluations(self, *args):
+            selected_result = (
+                selected_pipeline,
+                {"lr__C": 1.0},
+                0.8,
+                0.01,
+                0.82,
+                0.02,
+                0.9,
+                0.03,
+            )
+            evaluation = {
+                "classifier_key": "lr",
+                "f1_macro": 0.8,
+                "f1_std": 0.01,
+                "accuracy": 0.82,
+                "acc_std": 0.02,
+                "auc_roc": 0.9,
+                "auc_std": 0.03,
+                "outer_scores": [],
+                "optimization_searches": [],
+                "final_optimization_search": None,
+                "selected": True,
+            }
+            return selected_result, [evaluation]
+
+    main = Main.__new__(Main)
+    main.config = SimpleNamespace(
+        SMOKE=False,
+        N_TRIALS=100,
+        ACTIVE_CLASSIFIERS=["lr"],
+        RANDOM_STATE=42,
+        CV_CONFIG={"n_splits": 2, "n_repeats": 1, "inner_n_splits": 2},
+        PATHS={"OUTPUT": str(tmp_path)},
+        RESULTS_FILE=str(tmp_path / "results.txt"),
+    )
+    main.pipeline = SelectedLrPipeline()
+    main.result_manager = main_module.ResultManager(main.config.RESULTS_FILE)
+    main.final_results = []
+    main.csv_rows = []
+    main.evaluations_by_dataset = {}
+    main.evaluation_rows = []
+    main.evaluation_fold_rows = []
+    main.optimization_rows = []
+    monkeypatch.setattr(
+        main_module,
+        "load_datasets",
+        lambda config: {
+            "sample": {
+                "X": np.ones((4, 2)),
+                "y": np.array([0, 1, 0, 1]),
+                "metadata": {},
+            }
+        },
+    )
+
+    main._run_evaluation()
+
+    row = _rows(tmp_path / "results.csv")[0]
+    report = (tmp_path / "results.txt").read_text(encoding="utf-8")
+    assert selected_pipeline.__class__.__name__ == "Pipeline"
+    assert row["classifier_name"] == "LogisticRegression"
+    assert "Classifier selected: LogisticRegression" in report
+    assert "Classifier selected: Pipeline" not in report
 
 
 def test_main_run_uses_arbitrary_dataset_ids(monkeypatch, tmp_path):
