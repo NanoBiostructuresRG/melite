@@ -94,7 +94,7 @@ MODEL_CATALOG: tuple[ModelMetadata, ...] = (
         "classification",
         "ensemble_learning",
         "gradient_boosting",
-        "planned",
+        "implemented",
     ),
     ModelMetadata(
         "catboost",
@@ -102,7 +102,7 @@ MODEL_CATALOG: tuple[ModelMetadata, ...] = (
         "classification",
         "ensemble_learning",
         "gradient_boosting",
-        "planned",
+        "implemented",
     ),
     ModelMetadata(
         "stack",

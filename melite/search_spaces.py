@@ -785,6 +785,58 @@ _XGB_SEARCH_SPACE = ClassifierSearchSpace(
     ),
 )
 
+_LGBM_SEARCH_SPACE = ClassifierSearchSpace(
+    classifier="lgbm",
+    common_parameters=(
+        ParameterSpec(
+            "n_estimators",
+            "n_estimators",
+            IntDomain(100, 300, step=1),
+        ),
+        ParameterSpec(
+            "learning_rate",
+            "learning_rate",
+            FloatDomain(0.01, 0.15, log=True),
+        ),
+        ParameterSpec(
+            "num_leaves",
+            "num_leaves",
+            CategoricalDomain((7, 15, 31)),
+        ),
+        ParameterSpec(
+            "min_child_samples",
+            "min_child_samples",
+            IntDomain(5, 20, step=1),
+        ),
+    ),
+)
+
+_CATBOOST_SEARCH_SPACE = ClassifierSearchSpace(
+    classifier="catboost",
+    common_parameters=(
+        ParameterSpec(
+            "iterations",
+            "iterations",
+            IntDomain(100, 300, step=1),
+        ),
+        ParameterSpec(
+            "learning_rate",
+            "learning_rate",
+            FloatDomain(0.01, 0.15, log=True),
+        ),
+        ParameterSpec(
+            "depth",
+            "depth",
+            IntDomain(3, 7, step=1),
+        ),
+        ParameterSpec(
+            "l2_leaf_reg",
+            "l2_leaf_reg",
+            FloatDomain(1.0, 10.0, log=False),
+        ),
+    ),
+)
+
 
 SEARCH_SPACE_POLICY: Mapping[str, ClassifierSearchSpace | None] = MappingProxyType(
     {
@@ -796,6 +848,8 @@ SEARCH_SPACE_POLICY: Mapping[str, ClassifierSearchSpace | None] = MappingProxyTy
         "rf": _RF_SEARCH_SPACE,
         "ada": _ADA_SEARCH_SPACE,
         "xgb": _XGB_SEARCH_SPACE,
+        "lgbm": _LGBM_SEARCH_SPACE,
+        "catboost": _CATBOOST_SEARCH_SPACE,
         "stack": None,
     }
 )

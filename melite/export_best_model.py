@@ -16,7 +16,9 @@ import sys
 from pathlib import Path
 from typing import Any, Tuple
 
+from catboost import CatBoostClassifier
 import joblib
+from lightgbm import LGBMClassifier
 import numpy as np
 import pandas as pd
 from melite.config import Config
@@ -465,6 +467,22 @@ class Finalizer:
             return model.set_params(**params)
         if name == "AdaBoostClassifier":
             model = AdaBoostClassifier(random_state=random_state)
+            return model.set_params(**params)
+        if name == "LGBMClassifier":
+            model = LGBMClassifier(
+                random_state=random_state,
+                n_jobs=1,
+                verbosity=-1,
+            )
+            return model.set_params(**params)
+        if name == "CatBoostClassifier":
+            model = CatBoostClassifier(
+                random_seed=random_state,
+                thread_count=1,
+                verbose=False,
+                allow_writing_files=False,
+                task_type="CPU",
+            )
             return model.set_params(**params)
         if name == "StackingClassifier":
             model = _build_stacking_classifier(
