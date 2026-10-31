@@ -54,7 +54,7 @@ MODEL_CATALOG: tuple[ModelMetadata, ...] = (
         "classification",
         "supervised_learning",
         "nearest_neighbors",
-        "planned",
+        "implemented",
     ),
     ModelMetadata(
         "dt",
@@ -62,7 +62,7 @@ MODEL_CATALOG: tuple[ModelMetadata, ...] = (
         "classification",
         "supervised_learning",
         "decision_tree",
-        "planned",
+        "implemented",
     ),
     ModelMetadata(
         "rf",
@@ -78,7 +78,7 @@ MODEL_CATALOG: tuple[ModelMetadata, ...] = (
         "classification",
         "ensemble_learning",
         "adaptive_boosting",
-        "planned",
+        "implemented",
     ),
     ModelMetadata(
         "xgb",

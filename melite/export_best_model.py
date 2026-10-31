@@ -22,13 +22,19 @@ import pandas as pd
 from melite.config import Config
 from melite.load_dataset import _load_one_dataset, load_datasets
 from melite.probability_calibration import ProbabilityCalibratedClassifier
-from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from sklearn.ensemble import (
+    AdaBoostClassifier,
+    RandomForestClassifier,
+    StackingClassifier,
+)
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
 __all__ = ["Finalizer"]
@@ -445,6 +451,20 @@ class Finalizer:
                     ),
                 ]
             )
+            return model.set_params(**params)
+        if name == "KNeighborsClassifier":
+            model = SklearnPipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    ("knn", KNeighborsClassifier(metric="minkowski")),
+                ]
+            )
+            return model.set_params(**params)
+        if name == "DecisionTreeClassifier":
+            model = DecisionTreeClassifier(random_state=random_state)
+            return model.set_params(**params)
+        if name == "AdaBoostClassifier":
+            model = AdaBoostClassifier(random_state=random_state)
             return model.set_params(**params)
         if name == "StackingClassifier":
             model = _build_stacking_classifier(
