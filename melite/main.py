@@ -323,7 +323,9 @@ class Main:
             ) = selected_result
 
             params = self._clean_params(best_params)
-            classifier_name = self._classifier_name(best_model)
+            classifier_name = _CLASSIFIER_NAMES[
+                selected_evaluation["classifier_key"]
+            ]
 
             metadata_lines = [
                 f"Family: {family}" if family is not None else None,
