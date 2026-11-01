@@ -210,6 +210,17 @@ class Main:
 
         self._warn_for_low_optimization_budget()
 
+        regression_datasets = [
+            dataset_id
+            for dataset_id, spec in self.config.DATASETS.items()
+            if spec.get("task", "classification") == "regression"
+        ]
+        if regression_datasets:
+            raise NotImplementedError(
+                "Regression dataset execution is not yet supported: "
+                f"{', '.join(regression_datasets)}."
+            )
+
         datasets = load_datasets(self.config)
 
         for dataset_id, dataset in datasets.items():

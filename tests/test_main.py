@@ -269,6 +269,34 @@ def test_selected_evaluation_requires_exactly_one(evaluations, count):
         Main._selected_evaluation(evaluations)
 
 
+def test_main_rejects_regression_dataset_before_classifier_pipeline(
+    monkeypatch,
+):
+    class ClassificationPipeline:
+        def run_with_evaluations(self, *args):
+            pytest.fail("Regression data must not reach the classification pipeline")
+
+    main = Main.__new__(Main)
+    main.config = SimpleNamespace(
+        SMOKE=False,
+        N_TRIALS=100,
+        ACTIVE_CLASSIFIERS=["svc"],
+        DATASETS={"solubility": {"task": "regression"}},
+    )
+    main.pipeline = ClassificationPipeline()
+    monkeypatch.setattr(
+        main_module,
+        "load_datasets",
+        lambda config: pytest.fail("Unsupported regression data must not be loaded"),
+    )
+
+    with pytest.raises(
+        NotImplementedError,
+        match=r"Regression dataset execution is not yet supported: solubility",
+    ):
+        main.run()
+
+
 def test_selected_lr_pipeline_persists_logistic_regression_identity(
     monkeypatch, tmp_path
 ):
@@ -313,6 +341,7 @@ def test_selected_lr_pipeline_persists_logistic_regression_identity(
         ACTIVE_CLASSIFIERS=["lr"],
         RANDOM_STATE=42,
         CV_CONFIG={"n_splits": 2, "n_repeats": 1, "inner_n_splits": 2},
+        DATASETS={"sample": {"task": "classification"}},
         PATHS={"OUTPUT": str(tmp_path)},
         RESULTS_FILE=str(tmp_path / "results.txt"),
     )

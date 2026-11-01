@@ -16,12 +16,16 @@ from pathlib import Path
 
 import numpy as np
 
+from melite.model_catalog import MODEL_CATALOG
 from melite.optimization_policy import OPTIMIZATION_POLICY
 
 __all__ = ["Config"]
 
 # Path to the default configuration file bundled with the package
 _DEFAULT_CONFIG = Path(__file__).parent / "config_default.toml"
+_REGRESSION_MODEL_KEYS = frozenset(
+    model.key for model in MODEL_CATALOG if model.prediction_task == "regression"
+)
 
 
 def _load_toml(path: Path) -> dict:
@@ -177,7 +181,21 @@ class Config:
             )
         self.N_TRIALS = OPTIMIZATION_POLICY.smoke_n_trials if smoke else normal_n_trials
         self.ACTIVE_CLASSIFIERS = cfg["classifiers"]["active"]
+        self.ACTIVE_REGRESSORS = self._validate_active_regressors(
+            cfg["regressors"]["active"]
+        )
         self.DATASETS = self._build_dataset_registry(cfg)
+        regression_datasets = [
+            dataset_id
+            for dataset_id, spec in self.DATASETS.items()
+            if spec["task"] == "regression"
+        ]
+        if regression_datasets and not self.ACTIVE_REGRESSORS:
+            raise ValueError(
+                "Regression dataset(s) require at least one selected regressor in "
+                "[regressors].active: "
+                f"{', '.join(regression_datasets)}."
+            )
 
         # Cross-validation
         cv_section = cfg["cv_smoke"] if smoke else cfg["cv"]
@@ -186,6 +204,22 @@ class Config:
             "n_repeats": cv_section["n_repeats"],
             "inner_n_splits": cv_section["inner_n_splits"],
         }
+
+    @staticmethod
+    def _validate_active_regressors(active_regressors) -> list[str]:
+        if not isinstance(active_regressors, list) or not all(
+            isinstance(key, str) for key in active_regressors
+        ):
+            raise ValueError("[regressors].active must be a list of model keys.")
+
+        unknown = sorted(set(active_regressors) - _REGRESSION_MODEL_KEYS)
+        if unknown:
+            valid = ", ".join(sorted(_REGRESSION_MODEL_KEYS))
+            raise ValueError(
+                "Unknown active regressor(s): "
+                f"{', '.join(unknown)}. Valid regressor keys are: {valid}."
+            )
+        return list(active_regressors)
 
     def _build_dataset_registry(self, cfg: dict) -> dict:
         datasets = cfg.get("datasets")
@@ -203,6 +237,7 @@ class Config:
             "path",
             "label_path",
             "label_column",
+            "task",
             *metadata_keys,
         )
         normalized = {}
@@ -218,6 +253,16 @@ class Config:
             if "path" not in entry:
                 raise ValueError(
                     f"Dataset '{dataset_id}' is missing required field: path."
+                )
+
+            task = entry.get("task", "classification")
+            if not isinstance(task, str) or task not in {
+                "classification",
+                "regression",
+            }:
+                raise ValueError(
+                    f"Dataset '{dataset_id}' task must be exactly "
+                    "'classification' or 'regression'."
                 )
 
             has_label_path = "label_path" in entry
@@ -272,6 +317,7 @@ class Config:
             normalized[dataset_id] = {
                 "path": entry["path"],
                 **label_spec,
+                "task": task,
                 "metadata": metadata,
             }
         return normalized
@@ -284,6 +330,7 @@ class Config:
                 datasets[dataset_id] = {
                     "path": os.path.join(self.PATHS["DATASET"], f"{dataset_id}.npz"),
                     "label_path": os.path.join(self.PATHS["INPUT"], "labels.npy"),
+                    "task": "classification",
                     "metadata": {
                         "family": "dimensionality",
                         "method": reduction_type,

@@ -36,6 +36,7 @@ def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
     data_path = Path(spec["path"])
     label_path = Path(spec["label_path"])
     metadata = dict(spec.get("metadata", {}))
+    task = spec.get("task", "classification")
 
     if not data_path.exists():
         raise FileNotFoundError(f"Dataset '{dataset_id}' file not found: {data_path}")
@@ -94,13 +95,14 @@ def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
                 f"           Differing elements: {n_diff}/{y.shape[0]}."
             )
 
-    return {"X": X, "y": y, "metadata": metadata}
+    return {"X": X, "y": y, "task": task, "metadata": metadata}
 
 
 def _load_csv_dataset(dataset_id: str, spec: dict) -> dict:
     data_path = Path(spec["path"])
     label_column = spec["label_column"]
     metadata = dict(spec.get("metadata", {}))
+    task = spec.get("task", "classification")
 
     if not data_path.exists():
         raise FileNotFoundError(f"Dataset '{dataset_id}' file not found: {data_path}")
@@ -158,7 +160,7 @@ def _load_csv_dataset(dataset_id: str, spec: dict) -> dict:
             f"X has {X.shape[0]} rows, y has {len(y)} labels."
         )
 
-    return {"X": X, "y": y, "metadata": metadata}
+    return {"X": X, "y": y, "task": task, "metadata": metadata}
 
 
 def load_datasets(config: Config) -> dict[str, dict[str, Any]]:

@@ -156,12 +156,33 @@ def test_load_datasets_loads_arbitrary_dataset_ids_and_metadata(tmp_path):
         "umap90",
     ]
     assert result["maccs"]["X"].shape == (20, 4)
+    assert result["maccs"]["task"] == "classification"
     assert np.array_equal(result["rdkit_descriptors"]["y"], y)
     assert result["pca85"]["metadata"] == {
         "family": "dimensionality",
         "method": "PCA",
         "level": 85,
     }
+
+
+def test_load_datasets_preserves_explicit_regression_task(tmp_path):
+    label_path, y = _write_labels(tmp_path, n_samples=20)
+    path = _write_dataset(tmp_path, "solubility", np.ones((20, 2)), y=y)
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "solubility": {
+                "path": str(path),
+                "label_path": str(label_path),
+                "task": "regression",
+                "metadata": {},
+            }
+        },
+    )
+
+    result = load_datasets(cfg)
+
+    assert result["solubility"]["task"] == "regression"
 
 
 def test_load_datasets_arbitrary_id_is_not_treated_as_method_name(tmp_path):
@@ -497,6 +518,39 @@ def test_load_datasets_csv_preserves_features_labels_and_column_order(tmp_path):
     )
     assert np.array_equal(result["y"], np.array(["class_a", "class_b", "class_a"]))
     assert result["metadata"] == {"family": "tabular"}
+
+
+def test_load_datasets_csv_preserves_regression_task_and_continuous_target(tmp_path):
+    X = np.array([[0.5, 1.0], [1.5, 2.0], [2.5, 3.0]])
+    y = np.array([0.25, 1.75, 3.5])
+    path = _write_csv(
+        tmp_path,
+        "solubility",
+        pd.DataFrame(
+            {
+                "feature_a": X[:, 0],
+                "feature_b": X[:, 1],
+                "solubility": y,
+            }
+        ),
+    )
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "solubility": {
+                "path": str(path),
+                "label_column": "solubility",
+                "task": "regression",
+                "metadata": {},
+            }
+        },
+    )
+
+    loaded = load_datasets(cfg)["solubility"]
+
+    assert loaded["task"] == "regression"
+    assert np.array_equal(loaded["X"], X)
+    assert np.array_equal(loaded["y"], y)
 
 
 def test_load_datasets_csv_missing_label_column_fails_clearly(tmp_path):
