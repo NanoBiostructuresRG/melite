@@ -512,7 +512,7 @@ def test_optimization_result_is_data_only_and_immutable():
         setattr(result, "n_trials_complete", 99)
 
 
-def test_only_optimization_module_imports_optuna_and_grid_search_is_absent():
+def test_only_task_specific_optimization_modules_import_optuna_and_grid_is_absent():
     optuna_importers = []
     grid_search_references = []
     for path in (_REPOSITORY_ROOT / "melite").glob("*.py"):
@@ -530,7 +530,10 @@ def test_only_optimization_module_imports_optuna_and_grid_search_is_absent():
             if isinstance(node, ast.Name) and node.id == "GridSearchCV":
                 grid_search_references.append(path.name)
 
-    assert set(optuna_importers) == {"optimization.py"}
+    assert set(optuna_importers) == {
+        "optimization.py",
+        "regression_optimization.py",
+    }
     assert grid_search_references == []
 
 
