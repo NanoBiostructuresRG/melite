@@ -286,8 +286,8 @@ def test_main_dispatches_regression_dataset_without_classifier_pipeline(monkeypa
     )
     main.pipeline = ClassificationPipeline()
     main.regression_model_trainer = object()
-    main._run_regression_dataset = (
-        lambda dataset_id, dataset, metadata: calls.append(dataset_id)
+    main._run_regression_dataset = lambda dataset_id, dataset, metadata: calls.append(
+        dataset_id
     )
     main._write_regression_artifacts = lambda: calls.append("write_regression")
     main._write_classification_artifacts = lambda: pytest.fail(

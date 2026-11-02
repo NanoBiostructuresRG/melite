@@ -572,16 +572,12 @@ def test_export_reconstructs_new_classifiers_with_persisted_parameters(
 ):
     model = Finalizer._build_model(public_name, str(params), random_state=17)
     estimator = (
-        model.named_steps["knn"]
-        if public_name == "KNeighborsClassifier"
-        else model
+        model.named_steps["knn"] if public_name == "KNeighborsClassifier" else model
     )
 
     assert isinstance(estimator, expected_type)
     assert {key: model.get_params()[key] for key in params} == params
-    assert {
-        key: model.get_params()[key] for key in fixed_settings
-    } == fixed_settings
+    assert {key: model.get_params()[key] for key in fixed_settings} == fixed_settings
 
 
 def test_export_reconstructs_exact_persisted_continuous_parameters(tmp_path):

@@ -381,15 +381,10 @@ class Finalizer:
         columns = list(self._metrics.columns)
         if "classifier_name" in columns:
             if any(
-                column in columns
-                for column in ("regressor_key", "regressor_name")
+                column in columns for column in ("regressor_key", "regressor_name")
             ) or (
                 "task" in columns
-                and self._metrics["task"]
-                .astype(str)
-                .str.strip()
-                .eq("regression")
-                .any()
+                and self._metrics["task"].astype(str).str.strip().eq("regression").any()
             ):
                 raise ValueError(
                     "Results CSV mixes classification and regression task schemas."
@@ -524,9 +519,7 @@ class Finalizer:
 
     def _validate_regression_row(self, row: pd.Series) -> None:
         if str(row.get("task", "")).strip() != "regression":
-            raise ValueError(
-                "Regression result row must declare task = 'regression'."
-            )
+            raise ValueError("Regression result row must declare task = 'regression'.")
 
         regressor_key = str(row.get("regressor_key", "")).strip()
         try:
@@ -550,9 +543,7 @@ class Finalizer:
                 f"Dataset {dataset_id!r} from regression results is not "
                 "registered in cfg.DATASETS."
             )
-        configured_task = self._cfg.DATASETS[dataset_id].get(
-            "task", "classification"
-        )
+        configured_task = self._cfg.DATASETS[dataset_id].get("task", "classification")
         if configured_task != "regression":
             raise ValueError(
                 f"Dataset {dataset_id!r} is configured for task "
@@ -626,7 +617,7 @@ class Finalizer:
                 isinstance(alpha, bool)
                 or not isinstance(alpha, Real)
                 or not math.isfinite(float(alpha))
-                or not 1e-4 <= alpha <= 1e2
+                or not 1e-4 <= float(alpha) <= 1e2
             ):
                 raise ValueError(
                     f"Regression parameter {alpha_name!r} must be a finite "

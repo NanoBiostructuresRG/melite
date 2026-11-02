@@ -161,9 +161,7 @@ active = ["linear", "poly"]
     evaluation_fields, evaluation_rows = _read_csv(
         output_dir / "regression_evaluations.csv"
     )
-    fold_fields, fold_rows = _read_csv(
-        output_dir / "regression_evaluation_folds.csv"
-    )
+    fold_fields, fold_rows = _read_csv(output_dir / "regression_evaluation_folds.csv")
     optimization_fields, optimization_rows = _read_csv(
         output_dir / "regression_optimization_searches.csv"
     )
@@ -244,10 +242,7 @@ active = ["linear"]
     _, rows = _read_csv(output_dir / "regression_results.csv")
     assert rows[0]["dataset"] == "quantitative"
     assert rows[0]["regressor_key"] == "linear"
-    assert (
-        main.regression_evaluations_by_dataset["quantitative"][0]["selected"]
-        is True
-    )
+    assert main.regression_evaluations_by_dataset["quantitative"][0]["selected"] is True
 
 
 def test_real_ridge_run_persists_outer_and_fresh_final_searches(tmp_path):

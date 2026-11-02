@@ -9,9 +9,7 @@ def test_model_catalog_has_unique_identities_and_expected_availability():
         model for model in MODEL_CATALOG if model.availability == "implemented"
     ]
     implemented_regressors = {
-        model.key
-        for model in implemented
-        if model.prediction_task == "regression"
+        model.key for model in implemented if model.prediction_task == "regression"
     }
     planned = {model.key for model in MODEL_CATALOG if model.availability == "planned"}
 

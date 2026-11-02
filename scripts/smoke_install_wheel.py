@@ -309,7 +309,7 @@ def _write_regression_workspace(work_dir: Path) -> tuple[Path, Path, Path]:
 
     config_path = regression_dir / "config.toml"
     config_path.write_text(
-        '''[paths]
+        """[paths]
 input = "melite_regression_smoke/data/"
 dataset = "melite_regression_smoke/data/"
 output = "melite_regression_smoke/output/"
@@ -342,7 +342,7 @@ active = ["ridge"]
 
 [optimization]
 n_trials = 1
-''',
+""",
         encoding="utf-8",
     )
     return regression_dir, config_path, output_dir
@@ -368,9 +368,7 @@ def _verify_regression_outputs(output_dir: Path) -> None:
     for filename, expected_schema in REGRESSION_CSV_SCHEMAS.items():
         actual_schema, rows = _read_regression_csv(output_dir / filename)
         if actual_schema != expected_schema:
-            raise AssertionError(
-                f"Unexpected schema for {filename}: {actual_schema}"
-            )
+            raise AssertionError(f"Unexpected schema for {filename}: {actual_schema}")
         csv_rows[filename] = rows
         if not rows:
             raise AssertionError(f"Expected evidence rows in {filename}")
@@ -402,7 +400,9 @@ def _verify_regression_outputs(output_dir: Path) -> None:
         raise AssertionError(f"Ridge alpha is outside its search domain: {parameters}")
     for metric in ("rmse", "mae", "r2"):
         if not math.isfinite(float(result[metric])):
-            raise AssertionError(f"Expected finite regression {metric}: {result[metric]}")
+            raise AssertionError(
+                f"Expected finite regression {metric}: {result[metric]}"
+            )
     if float(result["rmse"]) < 0.0 or float(result["mae"]) < 0.0:
         raise AssertionError(f"Expected nonnegative regression errors: {result}")
 

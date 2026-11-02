@@ -240,16 +240,13 @@ def test_regularized_regression_real_nested_search_and_final_refit(
     assert len(evaluation["outer_scores"]) == 2
     for outer_score in evaluation["outer_scores"]:
         assert np.all(
-            np.isfinite(
-                [outer_score["rmse"], outer_score["mae"], outer_score["r2"]]
-            )
+            np.isfinite([outer_score["rmse"], outer_score["mae"], outer_score["r2"]])
         )
 
     outer_searches = evaluation["optimization_searches"]
     assert [search["outer_split"] for search in outer_searches] == [0, 1]
     assert [
-        (search["outer_repeat"], search["outer_fold"])
-        for search in outer_searches
+        (search["outer_repeat"], search["outer_fold"]) for search in outer_searches
     ] == [(0, 0), (0, 1)]
     assert len(outer_searches) == 2
     for search in outer_searches:

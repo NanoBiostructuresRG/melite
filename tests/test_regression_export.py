@@ -193,7 +193,13 @@ def test_classification_schema_cannot_declare_regression_task(tmp_path):
         ("classification", "linear", "LinearRegression", "regression", "declare task"),
         ("regression", "unknown", "Unknown", "regression", "Unsupported"),
         ("regression", "linear", "Ridge", "regression", "identity mismatch"),
-        ("regression", "linear", "LinearRegression", "classification", "not 'regression'"),
+        (
+            "regression",
+            "linear",
+            "LinearRegression",
+            "classification",
+            "not 'regression'",
+        ),
     ],
 )
 def test_regression_row_rejects_inconsistent_task_and_model_identity(
@@ -288,9 +294,7 @@ def test_npz_external_npy_regression_export_preserves_pipeline_and_alpha(
     linear_row.loc[0, "regressor_key"] = "linear"
     linear_row.loc[0, "regressor_name"] = "LinearRegression"
     linear_row.loc[0, "parameters"] = "{}"
-    pd.concat([linear_row, ridge_row], ignore_index=True).to_csv(
-        csv_path, index=False
-    )
+    pd.concat([linear_row, ridge_row], ignore_index=True).to_csv(csv_path, index=False)
     output_dir = tmp_path / "models"
     captured = {}
     dump_model = joblib.dump
@@ -305,9 +309,7 @@ def test_npz_external_npy_regression_export_preserves_pipeline_and_alpha(
 
     artifact = output_dir / "Model_Ridge_quantitative.pkl"
     exported = joblib.load(artifact)
-    expected = build_regression_model("ridge").set_params(
-        ridge__alpha=alpha
-    ).fit(X, y)
+    expected = build_regression_model("ridge").set_params(ridge__alpha=alpha).fit(X, y)
     assert isinstance(exported, SklearnPipeline)
     assert exported.get_params()["ridge__alpha"] == alpha
     assert np.allclose(exported.predict(X), captured["model"].predict(X))

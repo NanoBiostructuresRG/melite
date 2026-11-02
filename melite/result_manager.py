@@ -192,9 +192,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
 
 """
 
-    def write_regression_results(
-        self, content: str, path: Path | str
-    ) -> None:
+    def write_regression_results(self, content: str, path: Path | str) -> None:
         """Write the regression-specific human-readable report."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -476,9 +474,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         self, rows: list[dict], path: Path | str, smoke: bool = False
     ) -> None:
         """Write aggregate regression evidence for every evaluated model."""
-        self._write_regression_csv(
-            rows, path, _REGRESSION_EVALUATION_FIELDS, smoke
-        )
+        self._write_regression_csv(rows, path, _REGRESSION_EVALUATION_FIELDS, smoke)
 
     def write_regression_evaluation_folds_csv(
         self, rows: list[dict], path: Path | str, smoke: bool = False

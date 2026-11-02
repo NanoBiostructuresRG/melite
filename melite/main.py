@@ -40,8 +40,7 @@ _TASK_SMOKE_WARNING = (
 _CLASSIFIER_NAMES = {
     model.key: model.public_name
     for model in MODEL_CATALOG
-    if model.prediction_task == "classification"
-    and model.availability == "implemented"
+    if model.prediction_task == "classification" and model.availability == "implemented"
 }
 _REGRESSOR_NAMES = {
     model.key: model.public_name
@@ -114,8 +113,7 @@ class Main:
         self.config = Config(smoke=smoke, user_config=user_config)
         self.config._setup()
         dataset_tasks = {
-            spec.get("task", "classification")
-            for spec in self.config.DATASETS.values()
+            spec.get("task", "classification") for spec in self.config.DATASETS.values()
         }
         self.pipeline = (
             Pipeline(self.config) if "classification" in dataset_tasks else None
@@ -134,9 +132,7 @@ class Main:
         self.optimization_rows: list[dict[str, Any]] = []
         self.regression_final_results: list[str] = []
         self.regression_csv_rows: list[dict[str, Any]] = []
-        self.regression_evaluations_by_dataset: dict[
-            str, list[dict[str, Any]]
-        ] = {}
+        self.regression_evaluations_by_dataset: dict[str, list[dict[str, Any]]] = {}
         self.regression_evaluation_rows: list[dict[str, Any]] = []
         self.regression_evaluation_fold_rows: list[dict[str, Any]] = []
         self.regression_optimization_rows: list[dict[str, Any]] = []
@@ -218,8 +214,7 @@ class Main:
                 {
                     "regressor": search_space.regressor,
                     "parameters": [
-                        parameter.to_dict()
-                        for parameter in search_space.parameters
+                        parameter.to_dict() for parameter in search_space.parameters
                     ],
                 }
                 if search_space is not None
@@ -371,9 +366,7 @@ class Main:
                 )
 
         selected_evaluation = self._selected_evaluation(evaluations)
-        final_optimization_search = selected_evaluation.get(
-            "final_optimization_search"
-        )
+        final_optimization_search = selected_evaluation.get("final_optimization_search")
         if final_optimization_search is not None:
             selected_metadata = {
                 **dataset_metadata,
@@ -515,9 +508,7 @@ class Main:
             "regressor_key": selected_key,
             "regressor_name": _REGRESSOR_NAMES[selected_key],
         }
-        final_optimization_search = selected_evaluation.get(
-            "final_optimization_search"
-        )
+        final_optimization_search = selected_evaluation.get("final_optimization_search")
         if final_optimization_search is not None:
             self.regression_optimization_rows.append(
                 {
@@ -695,9 +686,7 @@ class Main:
             )
             logger.info("Training with %s dataset %s.", task, dataset_id)
             if task == "classification":
-                self._run_classification_dataset(
-                    dataset_id, dataset, dataset_metadata
-                )
+                self._run_classification_dataset(dataset_id, dataset, dataset_metadata)
                 classification_executed = True
             elif task == "regression":
                 self._run_regression_dataset(dataset_id, dataset, dataset_metadata)

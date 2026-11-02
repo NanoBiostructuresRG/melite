@@ -459,7 +459,9 @@ task = "{task}"
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match=r"task must be exactly.*classification.*regression"):
+    with pytest.raises(
+        ValueError, match=r"task must be exactly.*classification.*regression"
+    ):
         Config(user_config=user_toml)
 
 

@@ -26,6 +26,7 @@ __all__ = [
     "expected_polynomial_feature_count",
 ]
 
+
 class RegressionModelTrainer:
     """Evaluate and select configured regressors with nested regression CV."""
 

@@ -208,9 +208,7 @@ def test_regression_prediction_is_quantitative_without_probability_warning(
         (np.array([["a", "b", "c"]], dtype=object), "real numeric"),
     ],
 )
-def test_regression_prediction_rejects_invalid_numerical_inputs(
-    tmp_path, X, message
-):
+def test_regression_prediction_rejects_invalid_numerical_inputs(tmp_path, X, message):
     model_path, _ = _regression_artifact(tmp_path)
 
     with pytest.raises(ValueError, match=message):
