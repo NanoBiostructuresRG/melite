@@ -118,7 +118,7 @@ MODEL_CATALOG: tuple[ModelMetadata, ...] = (
         "regression",
         "supervised_learning",
         "linear_regression",
-        "planned",
+        "implemented",
     ),
     ModelMetadata(
         "poly",
@@ -126,7 +126,7 @@ MODEL_CATALOG: tuple[ModelMetadata, ...] = (
         "regression",
         "supervised_learning",
         "polynomial_regression",
-        "planned",
+        "implemented",
     ),
     ModelMetadata(
         "ridge",
@@ -134,7 +134,7 @@ MODEL_CATALOG: tuple[ModelMetadata, ...] = (
         "regression",
         "supervised_learning",
         "ridge_lasso_regression_l2_regularization",
-        "planned",
+        "implemented",
     ),
     ModelMetadata(
         "lasso",
@@ -142,6 +142,6 @@ MODEL_CATALOG: tuple[ModelMetadata, ...] = (
         "regression",
         "supervised_learning",
         "ridge_lasso_regression_l1_regularization",
-        "planned",
+        "implemented",
     ),
 )
