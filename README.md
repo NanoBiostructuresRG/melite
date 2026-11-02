@@ -1,4 +1,4 @@
-# MELITE — Multi-Model Classifier Evaluator
+# MELITE
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v0.3.1-blue.svg)]()
@@ -10,47 +10,48 @@
 
 ## Description
 
-**MELITE** is a Python package and command-line tool for evaluating and
-comparing classifiers on numeric tabular datasets. It separates hyperparameter
-tuning from classifier evaluation, preserves the evidence used for selection, and
-exports the selected model as a reusable artifact for downstream inference.
+**MELITE** is a Python package and command-line application for evaluating and
+comparing supervised classification and regression models on numeric tabular
+datasets. It separates hyperparameter tuning from model evaluation, preserves
+the evidence used for selection, and exports the selected model as a reusable
+artifact for downstream inference.
 
 MELITE operates at the tabular modeling level. Its learning algorithms consume
-numeric feature matrices (`X`) and target labels (`y`), regardless of how those
+numeric feature matrices (`X`) and targets (`y`), regardless of how those
 features were produced. Inputs may therefore originate from fingerprints,
 descriptors, dimensionality-reduction methods, clinical variables, experimental
 measurements, industrial features, or other numeric representations.
 
 ## Purpose
 
-MELITE is designed to make classifier comparison and selection explicit,
-reproducible, and auditable. Its workflow separates stages
-that are often mixed together in small classification workflows:
+MELITE is designed to make supervised-model comparison and selection explicit,
+reproducible, and auditable. Its workflow separates stages that are often mixed
+together in machine-learning workflows:
 
 - hyperparameter tuning;
-- classifier evaluation;
+- model evaluation;
 - comparison and selection;
 - final fitting on all available data;
 - model export and inference.
 
 This separation ensures that, within each outer cross-validation split, the
-data used to evaluate a tuned classifier are held out from the hyperparameter
+data used to evaluate a tuned model are held out from the hyperparameter
 search that produced it, while preserving the evidence needed to understand
-how the competing classifiers performed.
+how the competing models performed.
 
 
 ## Why Use MELITE?
 
 - **Controlled evaluation.** Hyperparameter tuning is kept separate from the
-  evidence used to compare classifiers.
+  evidence used to compare models.
 - **Evidence preservation.** Aggregate and fold-level evaluation results are
-  retained for every evaluated classifier, not only for the selected one.
-- **Explicit selection.** Classifier selection follows a predefined criterion
-  based on cross-validation evidence rather than an informal choice after
-  training.
+  retained for every evaluated model, not only for the selected one.
+- **Explicit selection.** Model selection follows a predefined, task-specific
+  criterion based on cross-validation evidence rather than an informal choice
+  after training.
 - **Domain-agnostic inputs.** MELITE works with numeric tabular data without
   assuming how the features were generated.
-- **Reusable artifacts.** After selection, the chosen classifier can be fitted
+- **Reusable artifacts.** After selection, the chosen model can be fitted
   on all available data and saved as a model artifact for prediction.
 - **CLI and Python interfaces.** MELITE can be used through its command-line
   workflow and through a focused public Python API.
@@ -61,12 +62,16 @@ how the competing classifiers performed.
 
 | MELITE does | MELITE does not |
 |---|---|
-| Evaluate multiple classifiers on prepared numeric `X` and `y`. | Generate domain-specific features or descriptors. |
-| Tune supported classifiers within the evaluation design. | Act as a general AutoML framework. |
+| Evaluate supported classification and regression models on prepared numeric `X` and `y`. | Generate domain-specific features or descriptors. |
+| Tune supported models within the evaluation design. | Act as a general AutoML framework. |
 | Preserve aggregate and fold-level evaluation evidence. | Generate PCA, UMAP, fingerprints, or other feature representations. |
-| Select the best active classifier by mean outer-CV F1-macro. | Process raw domain-specific inputs. |
+| Select the best active model using the task-specific primary metric. | Process raw domain-specific inputs. |
 | Fit and export the selected model as a `.pkl` artifact. | Perform automatic feature engineering or feature selection. |
 | Run inference from exported model artifacts. | Guarantee a stable 1.0 API yet. |
+
+MELITE records model-evaluation evidence and supports reproducible execution;
+it does not by itself establish external scientific validity or predictive
+generalizability.
 
 
 ## Evaluation Contract
@@ -134,9 +139,10 @@ mkdocs serve
 
 ## Quick Start
 
-The bundled example creates a ready-to-run synthetic numeric CSV dataset and
-example configuration for a short evaluation workflow, so you can verify that
-MELITE is installed and working. Cloning the repository is **not** required.
+The bundled example creates a ready-to-run synthetic numeric CSV classification
+dataset and example configuration for a short classification workflow, so you
+can verify that MELITE is installed and working. Cloning the repository is
+**not** required.
 
 ```bash
 melite example
@@ -184,20 +190,26 @@ CLI and a version-controlled TOML configuration.
 
 ## Supported Classifiers
 
-**MELITE** currently supports six classifier keys:
+MELITE supports the following 11 classifier keys. The public names and model
+families follow the canonical model catalog.
 
-| Key | Classifier | Tunable | Active by default |
-|---|---|---|---|
-| `svc` | Support Vector Classifier | Yes | Yes |
-| `lr` | Logistic Regression | Yes | No |
-| `gnb` | Gaussian Naive Bayes | Yes | No |
-| `rf` | Random Forest | Yes | Yes |
-| `xgb` | XGBoost | Yes | Yes |
-| `stack` | Stacking classifier | No | No |
+| Key | Public name | Model family | Tunable | Active by default |
+|---|---|---|---|---|
+| `svc` | SVC | Individual — support-vector machine | Yes | Yes |
+| `lr` | LogisticRegression | Individual — logistic regression | Yes | No |
+| `gnb` | GaussianNB | Individual — Gaussian naive Bayes | Yes | No |
+| `knn` | KNeighborsClassifier | Individual — nearest neighbors | Yes | No |
+| `dt` | DecisionTreeClassifier | Individual — decision tree | Yes | No |
+| `rf` | RandomForestClassifier | Ensemble — bagging-derived | Yes | Yes |
+| `ada` | AdaBoostClassifier | Ensemble — adaptive boosting | Yes | No |
+| `xgb` | XGBClassifier | Ensemble — gradient boosting | Yes | Yes |
+| `lgbm` | LGBMClassifier | Ensemble — gradient boosting | Yes | No |
+| `catboost` | CatBoostClassifier | Ensemble — gradient boosting | Yes | No |
+| `stack` | StackingClassifier | Ensemble — stacking | No | No |
 
-The first five keys are base classifier families. `stack` is a non-tunable,
-opt-in composite classifier. MELITE supports this fixed set of six keys and
-does not expose public registration of custom classifiers.
+The ten individual and ensemble classifiers other than `stack` have
+model-specific Optuna search spaces. `stack` is a fixed, opt-in composite and
+is fitted without a separate Optuna search.
 
 The default configuration is:
 
@@ -207,21 +219,19 @@ active = ["svc", "rf", "xgb"]
 ```
 
 The `[classifiers].active` list accepts any supported subset in evaluation
-order, including a single classifier. For example, `active = ["svc"]`,
-`active = ["lr"]`, `active = ["gnb"]`, and `active = ["stack"]` each select
-one supported classifier. The `lr`, `gnb`, and `stack` classifiers remain inactive
-unless explicitly selected.
+order, including a single classifier. Classifiers other than `svc`, `rf`, and
+`xgb` remain inactive unless explicitly selected.
 
 Every exported classifier artifact supports both `predict()` and
 `predict_proba()`. SVC remains one classifier family: MELITE preserves direct
 SVC class predictions and its decision function while supplying calibrated
-probabilities internally for exported inference. Logistic Regression,
-Gaussian Naive Bayes, Random Forest, and XGBoost use their native probability
-support. Logistic Regression uses a `StandardScaler` -> `LogisticRegression`
-pipeline and is tunable in `C`; Gaussian Naive Bayes uses `GaussianNB` directly
-and is tunable in `var_smoothing`. Random Forest and XGBoost remain unscaled.
-The opt-in stacking classifier combines SVC, Random Forest, and XGBoost as base
-estimators with Logistic Regression as the final estimator and uses
+probabilities internally for exported inference. The other supported
+classifiers provide their estimator-native probability outputs. SVC,
+LogisticRegression, and KNeighborsClassifier use scaling pipelines;
+GaussianNB, DecisionTreeClassifier, and the standalone bagging and boosting
+classifiers operate directly on the supplied numeric features. The opt-in
+StackingClassifier combines SVC, RandomForestClassifier, and XGBClassifier as
+base estimators with LogisticRegression as the final estimator and uses
 probability-based base-estimator outputs.
 
 Tunable classifiers use Optuna with its TPE sampler for hyperparameter
@@ -229,6 +239,22 @@ optimization. The public `n_trials` setting explicitly declares the budget per
 search, with a normal default of 100 trials. Searches are sequential and seeded
 from the canonical `RANDOM_STATE`, supporting reproducible optimization under
 the same configuration and software environment.
+
+## Supported Regressors
+
+MELITE supports the following four regressor keys:
+
+| Key | Public name | Estimator pipeline | Parameter optimization |
+|---|---|---|---|
+| `linear` | LinearRegression | `LinearRegression` | No |
+| `poly` | PolynomialRegression | `StandardScaler` → `PolynomialFeatures(degree=2, include_bias=False)` → `LinearRegression` | No |
+| `ridge` | Ridge | `StandardScaler` → `Ridge` | Yes — `alpha` |
+| `lasso` | Lasso | `StandardScaler` → `Lasso(max_iter=10000)` | Yes — `alpha` |
+
+Ridge and Lasso optimize `alpha` over the continuous logarithmic range from
+`1e-4` to `1e2`. PolynomialRegression has a fixed degree of two. Before fitting,
+MELITE calculates the resulting feature count and rejects an expansion above
+10,000 features, reporting both the original and expanded dimensions.
 
 ## Input Format
 

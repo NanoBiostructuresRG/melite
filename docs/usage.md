@@ -1,5 +1,9 @@
 # Usage
 
+MELITE supports supervised classification and regression on prepared numeric
+tabular datasets. The bundled quick-start project remains a classification
+example.
+
 ## Installation
 
 Install MELITE in a supported Python environment:
@@ -16,9 +20,9 @@ melite --version
 
 ## Quick Start
 
-MELITE includes a bundled synthetic numeric CSV dataset and example
-configuration for verifying the installed workflow without cloning the
-repository or preparing input files.
+MELITE includes a bundled synthetic numeric CSV classification dataset and
+example configuration for verifying the installed classification workflow
+without cloning the repository or preparing input files.
 
 Create the example project in the current directory:
 
@@ -56,7 +60,7 @@ intended for final classifier selection or model export.
 
 MELITE evaluates prepared numeric tabular feature representations. Users are
 responsible for supplying analysis-ready numeric features compatible with the
-classifiers they evaluate.
+models they evaluate.
 
 ### CSV
 
@@ -104,19 +108,26 @@ Relative paths for both formats are resolved from the directory in which
 
 ## Supported Classifiers
 
-MELITE currently supports six classifier keys:
+MELITE supports the following 11 classifier keys. The public names and model
+families follow the canonical model catalog.
 
-| Key | Classifier | Tunable | Active by default |
-|---|---|---|---|
-| `svc` | Support Vector Classifier | Yes | Yes |
-| `lr` | Logistic Regression | Yes | No |
-| `gnb` | Gaussian Naive Bayes | Yes | No |
-| `rf` | Random Forest | Yes | Yes |
-| `xgb` | XGBoost | Yes | Yes |
-| `stack` | Stacking classifier | No | No |
+| Key | Public name | Model family | Tunable | Active by default |
+|---|---|---|---|---|
+| `svc` | SVC | Individual — support-vector machine | Yes | Yes |
+| `lr` | LogisticRegression | Individual — logistic regression | Yes | No |
+| `gnb` | GaussianNB | Individual — Gaussian naive Bayes | Yes | No |
+| `knn` | KNeighborsClassifier | Individual — nearest neighbors | Yes | No |
+| `dt` | DecisionTreeClassifier | Individual — decision tree | Yes | No |
+| `rf` | RandomForestClassifier | Ensemble — bagging-derived | Yes | Yes |
+| `ada` | AdaBoostClassifier | Ensemble — adaptive boosting | Yes | No |
+| `xgb` | XGBClassifier | Ensemble — gradient boosting | Yes | Yes |
+| `lgbm` | LGBMClassifier | Ensemble — gradient boosting | Yes | No |
+| `catboost` | CatBoostClassifier | Ensemble — gradient boosting | Yes | No |
+| `stack` | StackingClassifier | Ensemble — stacking | No | No |
 
-The first five keys are base classifier families. `stack` is a non-tunable,
-opt-in composite classifier. The default active classifiers are:
+The ten individual and ensemble classifiers other than `stack` have
+model-specific Optuna search spaces. `stack` is a fixed, opt-in composite and
+is fitted without a separate Optuna search. The default active classifiers are:
 
 ```toml
 [classifiers]
@@ -124,27 +135,24 @@ active = ["svc", "rf", "xgb"]
 ```
 
 The `[classifiers].active` list accepts any supported subset in evaluation
-order, including a single classifier. For example, `active = ["svc"]`,
-`active = ["lr"]`, and `active = ["stack"]` each select one supported classifier.
-Logistic Regression, Gaussian Naive Bayes, and Stacking are opt-in.
+order, including a single classifier. Classifiers other than `svc`, `rf`, and
+`xgb` are opt-in.
 
 Standalone SVC evaluation uses a `StandardScaler` → `SVC` pipeline and retains
 its decision function without probability fitting during evaluation.
 
-Logistic Regression uses a `StandardScaler` → `LogisticRegression` pipeline
-and tunes only `C`. Gaussian Naive Bayes uses `GaussianNB` directly, without
-preprocessing, and tunes only `var_smoothing`.
+LogisticRegression and KNeighborsClassifier also use `StandardScaler`
+pipelines. GaussianNB, DecisionTreeClassifier, and the boosting and
+bagging-derived classifiers operate directly on the supplied numeric features.
 
-Random Forest and XGBoost operate on the supplied numeric features without
-scaling.
-
-Stacking is stable but opt-in. It combines SVC, Random Forest, and XGBoost as
-base estimators with Logistic Regression as the final estimator and uses
-probability-based base-estimator outputs.
+StackingClassifier is stable but opt-in. It combines SVC,
+RandomForestClassifier, and XGBClassifier as base estimators with
+LogisticRegression as the final estimator and uses probability-based
+base-estimator outputs.
 
 ### Prediction and probabilities
 
-Classifier artifacts exported for all six supported keys provide both
+Classifier artifacts exported for all 11 supported keys provide both
 `predict()` and `predict_proba()`.
 
 For an exported SVC, class predictions and the decision function come directly
@@ -156,11 +164,11 @@ layer. SVC remains a single public classifier family and is selected normally:
 active = ["svc"]
 ```
 
-Logistic Regression, Gaussian Naive Bayes, Random Forest, and XGBoost provide
-their native probabilities. The exported stacking classifier also provides
-predictions and probabilities; internally, it uses probability-based outputs
-from its SVC, Random Forest, and XGBoost base estimators before the final
-Logistic Regression estimator. It can be selected by itself:
+The other supported classifiers provide their estimator-native probabilities.
+The exported StackingClassifier also provides predictions and probabilities;
+internally, it uses probability-based outputs from its SVC,
+RandomForestClassifier, and XGBClassifier base estimators before the final
+LogisticRegression estimator. It can be selected by itself:
 
 ```toml
 [classifiers]
@@ -170,6 +178,22 @@ active = ["stack"]
 Hyperparameter search spaces for tunable classifiers are defined by MELITE. User
 configuration determines which supported classifiers are active rather than
 defining individual hyperparameter search spaces.
+
+## Supported Regressors
+
+MELITE supports the following four regressor keys:
+
+| Key | Public name | Estimator pipeline | Parameter optimization |
+|---|---|---|---|
+| `linear` | LinearRegression | `LinearRegression` | No |
+| `poly` | PolynomialRegression | `StandardScaler` → `PolynomialFeatures(degree=2, include_bias=False)` → `LinearRegression` | No |
+| `ridge` | Ridge | `StandardScaler` → `Ridge` | Yes — `alpha` |
+| `lasso` | Lasso | `StandardScaler` → `Lasso(max_iter=10000)` | Yes — `alpha` |
+
+Ridge and Lasso optimize `alpha` over the continuous logarithmic range from
+`1e-4` to `1e2`. PolynomialRegression has a fixed degree of two. Before fitting,
+MELITE calculates the resulting feature count and rejects an expansion above
+10,000 features, reporting both the original and expanded dimensions.
 
 ## Configuration
 
@@ -704,10 +728,10 @@ print(result["probabilities"])
 `X_new` must use the same feature representation expected by the exported
 model.
 
-All classifier artifacts exported by MELITE for the six supported keys provide
-probability estimates. The returned `probabilities` value is `None` only when
-`return_proba=False` or when this API is used with another compatible artifact
-that does not provide `predict_proba()`.
+All classifier artifacts exported by MELITE for the 11 supported keys provide
+probability estimates. Exported regression artifacts return `probabilities` as
+`None`. For classifier artifacts, that value is also `None` when
+`return_proba=False`.
 
 For the complete public Python interface, see the [API Reference](api.md).
 
