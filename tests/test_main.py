@@ -269,9 +269,9 @@ def test_selected_evaluation_requires_exactly_one(evaluations, count):
         Main._selected_evaluation(evaluations)
 
 
-def test_main_rejects_regression_dataset_before_classifier_pipeline(
-    monkeypatch,
-):
+def test_main_dispatches_regression_dataset_without_classifier_pipeline(monkeypatch):
+    calls = []
+
     class ClassificationPipeline:
         def run_with_evaluations(self, *args):
             pytest.fail("Regression data must not reach the classification pipeline")
@@ -281,20 +281,34 @@ def test_main_rejects_regression_dataset_before_classifier_pipeline(
         SMOKE=False,
         N_TRIALS=100,
         ACTIVE_CLASSIFIERS=["svc"],
+        ACTIVE_REGRESSORS=["linear"],
         DATASETS={"solubility": {"task": "regression"}},
     )
     main.pipeline = ClassificationPipeline()
+    main.regression_model_trainer = object()
+    main._run_regression_dataset = (
+        lambda dataset_id, dataset, metadata: calls.append(dataset_id)
+    )
+    main._write_regression_artifacts = lambda: calls.append("write_regression")
+    main._write_classification_artifacts = lambda: pytest.fail(
+        "Regression-only execution must not write classification artifacts"
+    )
     monkeypatch.setattr(
         main_module,
         "load_datasets",
-        lambda config: pytest.fail("Unsupported regression data must not be loaded"),
+        lambda config: {
+            "solubility": {
+                "X": np.ones((4, 2)),
+                "y": np.arange(4, dtype=float),
+                "task": "regression",
+                "metadata": {},
+            }
+        },
     )
 
-    with pytest.raises(
-        NotImplementedError,
-        match=r"Regression dataset execution is not yet supported: solubility",
-    ):
-        main.run()
+    main._run_evaluation()
+
+    assert calls == ["solubility", "write_regression"]
 
 
 def test_selected_lr_pipeline_persists_logistic_regression_identity(
@@ -557,6 +571,7 @@ level = 85
     assert len(figure_calls) == 1
     assert figure_calls[0]["rows"] is main.evaluation_fold_rows
     assert figure_calls[0]["smoke"] is False
+    assert not list(output_dir.glob("regression_*"))
 
 
 def test_main_persists_exact_final_parameters(monkeypatch, tmp_path):
