@@ -10,9 +10,12 @@ A smoke-mode guard prevents accidental export of smoke-mode results.
 """
 
 import ast
+import json
 import logging
+import math
 import re
 import sys
+from numbers import Real
 from pathlib import Path
 from typing import Any, Tuple
 
@@ -23,7 +26,13 @@ import numpy as np
 import pandas as pd
 from melite.config import Config
 from melite.load_dataset import _load_one_dataset, load_datasets
+from melite.model_catalog import MODEL_CATALOG
 from melite.probability_calibration import ProbabilityCalibratedClassifier
+from melite.regression_models import (
+    build_regression_model,
+    validate_polynomial_expansion,
+    validate_regression_inputs,
+)
 from sklearn.ensemble import (
     AdaBoostClassifier,
     RandomForestClassifier,
@@ -62,6 +71,52 @@ METRIC_COLUMNS = [
     "accuracy",
     "auc_roc",
 ]
+REGRESSION_METRIC_COLUMNS = [
+    "dataset",
+    "task",
+    "family",
+    "method",
+    "variant",
+    "level",
+    "description",
+    "reduction_type",
+    "regressor_key",
+    "regressor_name",
+    "rmse",
+    "mae",
+    "r2",
+]
+REGRESSION_RESULT_COLUMNS = [
+    "dataset",
+    "task",
+    "family",
+    "method",
+    "variant",
+    "level",
+    "description",
+    "reduction_type",
+    "regressor_key",
+    "regressor_name",
+    "parameters",
+    "rmse",
+    "rmse_std",
+    "mae",
+    "mae_std",
+    "r2",
+    "r2_std",
+    "smoke",
+]
+_REGRESSOR_NAMES = {
+    model.key: model.public_name
+    for model in MODEL_CATALOG
+    if model.prediction_task == "regression"
+}
+_REGRESSION_PARAMETER_NAMES = {
+    "linear": frozenset(),
+    "poly": frozenset(),
+    "ridge": frozenset({"ridge__alpha"}),
+    "lasso": frozenset({"lasso__alpha"}),
+}
 
 
 def _has_value(value: Any) -> bool:
@@ -319,7 +374,41 @@ class Finalizer:
                 "'classifier_name' in MELITE v0.2.4. Regenerate results.csv "
                 "with the current MELITE version before exporting."
             )
+        self._result_task = self._identify_result_schema()
         self._loader = DatasetLoader(cfg)
+
+    def _identify_result_schema(self) -> str:
+        columns = list(self._metrics.columns)
+        if "classifier_name" in columns:
+            if any(
+                column in columns
+                for column in ("regressor_key", "regressor_name")
+            ) or (
+                "task" in columns
+                and self._metrics["task"]
+                .astype(str)
+                .str.strip()
+                .eq("regression")
+                .any()
+            ):
+                raise ValueError(
+                    "Results CSV mixes classification and regression task schemas."
+                )
+            return "classification"
+
+        regression_markers = {"task", "regressor_key", "regressor_name"}
+        if regression_markers.intersection(columns):
+            if columns != REGRESSION_RESULT_COLUMNS:
+                raise ValueError(
+                    "Regression results CSV must use the exact regression_results.csv "
+                    f"schema: {REGRESSION_RESULT_COLUMNS}."
+                )
+            return "regression"
+
+        raise ValueError(
+            "Unsupported results CSV schema: expected 'classifier_name' for "
+            "classification or the explicit regression_results.csv schema."
+        )
 
     def _check_smoke_guard(self, row: pd.Series) -> None:
         """Block export of smoke-mode results unless ``--force`` is active.
@@ -370,21 +459,36 @@ class Finalizer:
         self._show_metrics()
         row = self._get_selected_row()
         self._check_smoke_guard(row)
-        X, y = self._loader.load_row(row)
-        model = self._build_model(
-            row.classifier_name,
-            row.parameters,
-            cv_config=self._cfg.CV_CONFIG,
-            random_state=self._cfg.RANDOM_STATE,
-        )
+        if self._result_task == "regression":
+            self._validate_regression_row(row)
+            X, y = self._loader.load_row(row)
+            X, y = validate_regression_inputs(X, y)
+            regressor_key = str(row.regressor_key)
+            if regressor_key == "poly":
+                validate_polynomial_expansion(X.shape[1])
+            model = self._build_regression_model(
+                regressor_key,
+                str(row.regressor_name),
+                row.parameters,
+            )
+            model_name = str(row.regressor_name)
+        else:
+            X, y = self._loader.load_row(row)
+            model = self._build_model(
+                row.classifier_name,
+                row.parameters,
+                cv_config=self._cfg.CV_CONFIG,
+                random_state=self._cfg.RANDOM_STATE,
+            )
+            model_name = row.classifier_name
 
         logger.info(
             "Training %s on %s using all available data...",
-            row.classifier_name,
+            model_name,
             self._row_dataset_label(row),
         )
         print(
-            f"\nTraining {row.classifier_name} on {self._row_dataset_label(row)} "
+            f"\nTraining {model_name} on {self._row_dataset_label(row)} "
             "using all available data..."
         )
         model.fit(X, y)
@@ -393,7 +497,12 @@ class Finalizer:
         print(f"\nModel saved to: {artefact_path.resolve()}")
 
     def _show_metrics(self) -> None:
-        cols = [c for c in METRIC_COLUMNS if c in self._metrics.columns]
+        metric_columns = (
+            REGRESSION_METRIC_COLUMNS
+            if self._result_task == "regression"
+            else METRIC_COLUMNS
+        )
+        cols = [c for c in metric_columns if c in self._metrics.columns]
         print(self._metrics[cols].to_string(index=True, float_format="%.4f"))
 
     def _get_selected_row(self) -> pd.Series:
@@ -412,6 +521,120 @@ class Finalizer:
             if reply.isdigit() and 0 <= int(reply) < len(self._metrics):
                 return self._metrics.iloc[int(reply)]
             print("[ERR] Invalid row number; please try again.")
+
+    def _validate_regression_row(self, row: pd.Series) -> None:
+        if str(row.get("task", "")).strip() != "regression":
+            raise ValueError(
+                "Regression result row must declare task = 'regression'."
+            )
+
+        regressor_key = str(row.get("regressor_key", "")).strip()
+        try:
+            expected_name = _REGRESSOR_NAMES[regressor_key]
+        except KeyError as exc:
+            valid = ", ".join(_REGRESSOR_NAMES)
+            raise ValueError(
+                f"Unsupported regression model key: {regressor_key!r}. "
+                f"Valid keys are: {valid}."
+            ) from exc
+        regressor_name = str(row.get("regressor_name", "")).strip()
+        if regressor_name != expected_name:
+            raise ValueError(
+                f"Regression model identity mismatch for {regressor_key!r}: "
+                f"expected {expected_name!r}, got {regressor_name!r}."
+            )
+
+        dataset_id = str(row.get("dataset", "")).strip()
+        if not dataset_id or dataset_id not in self._cfg.DATASETS:
+            raise KeyError(
+                f"Dataset {dataset_id!r} from regression results is not "
+                "registered in cfg.DATASETS."
+            )
+        configured_task = self._cfg.DATASETS[dataset_id].get(
+            "task", "classification"
+        )
+        if configured_task != "regression":
+            raise ValueError(
+                f"Dataset {dataset_id!r} is configured for task "
+                f"{configured_task!r}, not 'regression'."
+            )
+
+    @staticmethod
+    def _parse_regression_parameters(serialised_params: str) -> dict[str, Any]:
+        if not isinstance(serialised_params, str):
+            raise ValueError("Regression parameters must be a JSON object string.")
+
+        def reject_constant(value):
+            raise ValueError(
+                f"Regression parameters contain non-finite JSON value {value!r}."
+            )
+
+        def unique_object(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError(
+                        f"Regression parameters contain duplicate key {key!r}."
+                    )
+                result[key] = value
+            return result
+
+        try:
+            params = json.loads(
+                serialised_params,
+                parse_constant=reject_constant,
+                object_pairs_hook=unique_object,
+            )
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise ValueError(
+                "Regression parameters must be valid strict JSON."
+            ) from exc
+        if not isinstance(params, dict):
+            raise ValueError("Regression parameters JSON must contain an object.")
+        return params
+
+    @staticmethod
+    def _build_regression_model(
+        regressor_key: str,
+        regressor_name: str,
+        serialised_params: str,
+    ) -> Any:
+        try:
+            expected_name = _REGRESSOR_NAMES[regressor_key]
+            expected_parameters = _REGRESSION_PARAMETER_NAMES[regressor_key]
+        except KeyError as exc:
+            raise ValueError(
+                f"Unsupported regression model key: {regressor_key!r}."
+            ) from exc
+        if regressor_name != expected_name:
+            raise ValueError(
+                f"Regression model identity mismatch for {regressor_key!r}: "
+                f"expected {expected_name!r}, got {regressor_name!r}."
+            )
+
+        params = Finalizer._parse_regression_parameters(serialised_params)
+        actual_parameters = set(params)
+        if actual_parameters != expected_parameters:
+            raise ValueError(
+                f"Invalid parameters for regressor {regressor_key!r}: expected "
+                f"{sorted(expected_parameters)}, got {sorted(actual_parameters)}."
+            )
+        if expected_parameters:
+            alpha_name = next(iter(expected_parameters))
+            alpha = params[alpha_name]
+            if (
+                isinstance(alpha, bool)
+                or not isinstance(alpha, Real)
+                or not math.isfinite(float(alpha))
+                or not 1e-4 <= alpha <= 1e2
+            ):
+                raise ValueError(
+                    f"Regression parameter {alpha_name!r} must be a finite "
+                    "number in the approved domain [0.0001, 100.0]."
+                )
+
+        model = build_regression_model(regressor_key)
+        return model.set_params(**params)
 
     @staticmethod
     def _build_model(
@@ -503,7 +726,12 @@ class Finalizer:
 
     def _save_model(self, model: Any, row: pd.Series) -> Path:
         self._output_dir.mkdir(exist_ok=True)
-        filename = f"Model_{row.classifier_name}_{self._row_dataset_label(row)}.pkl"
+        model_name = (
+            row.regressor_name
+            if self._result_task == "regression"
+            else row.classifier_name
+        )
+        filename = f"Model_{model_name}_{self._row_dataset_label(row)}.pkl"
         path = self._output_dir / filename
         joblib.dump(model, path)
         return path

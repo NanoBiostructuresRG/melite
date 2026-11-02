@@ -2,14 +2,18 @@
 """Task-specific training and evaluation for MELITE regression models."""
 
 from dataclasses import asdict
-from math import comb
 
 import numpy as np
-from sklearn.linear_model import Lasso, LinearRegression, Ridge
 from sklearn.model_selection import RepeatedKFold, cross_validate
-from sklearn.pipeline import Pipeline as SklearnPipeline
-from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
+from melite.regression_models import (
+    MAX_POLYNOMIAL_FEATURES,
+    REGRESSION_MODEL_KEYS,
+    build_regression_model,
+    expected_polynomial_feature_count,
+    validate_polynomial_expansion,
+    validate_regression_inputs,
+)
 from melite.regression_optimization import (
     OptunaSearchRegressor,
     optimize_and_refit_regressor,
@@ -22,53 +26,14 @@ __all__ = [
     "expected_polynomial_feature_count",
 ]
 
-MAX_POLYNOMIAL_FEATURES = 10_000
-_POLYNOMIAL_DEGREE = 2
-
-
-def expected_polynomial_feature_count(
-    n_features: int, degree: int = _POLYNOMIAL_DEGREE
-) -> int:
-    """Return the number of polynomial terms through ``degree``, sans bias."""
-    if n_features < 1:
-        raise ValueError("n_features must be at least 1.")
-    if degree < 1:
-        raise ValueError("degree must be at least 1.")
-    return comb(n_features + degree, degree) - 1
-
-
 class RegressionModelTrainer:
     """Evaluate and select configured regressors with nested regression CV."""
 
     def __init__(self, config):
         self.config = config
         self.model_builders = {
-            "linear": lambda: LinearRegression(),
-            "poly": lambda: SklearnPipeline(
-                [
-                    ("scaler", StandardScaler()),
-                    (
-                        "poly",
-                        PolynomialFeatures(
-                            degree=_POLYNOMIAL_DEGREE,
-                            include_bias=False,
-                        ),
-                    ),
-                    ("linear", LinearRegression()),
-                ]
-            ),
-            "ridge": lambda: SklearnPipeline(
-                [
-                    ("scaler", StandardScaler()),
-                    ("ridge", Ridge()),
-                ]
-            ),
-            "lasso": lambda: SklearnPipeline(
-                [
-                    ("scaler", StandardScaler()),
-                    ("lasso", Lasso(max_iter=10_000)),
-                ]
-            ),
+            key: lambda key=key: build_regression_model(key)
+            for key in REGRESSION_MODEL_KEYS
         }
         self.active_regressors = self._validate_active_regressors()
 
@@ -107,36 +72,10 @@ class RegressionModelTrainer:
 
     @staticmethod
     def _validate_inputs(X, y) -> tuple[np.ndarray, np.ndarray]:
-        X_array = np.asarray(X)
-        y_array = np.asarray(y)
-        if X_array.ndim != 2:
-            raise ValueError("Regression features must be a two-dimensional matrix.")
-        if y_array.ndim != 1:
-            raise ValueError("Regression targets must be a one-dimensional vector.")
-        if X_array.shape[0] != y_array.shape[0]:
-            raise ValueError(
-                "Regression features and targets must have equal row counts."
-            )
-        if X_array.shape[1] < 1:
-            raise ValueError("Regression features must contain at least one column.")
-        for name, values in (("features", X_array), ("targets", y_array)):
-            if not np.issubdtype(values.dtype, np.number) or np.issubdtype(
-                values.dtype, np.complexfloating
-            ):
-                raise ValueError(f"Regression {name} must be real numeric values.")
-            if not np.all(np.isfinite(values)):
-                raise ValueError(f"Regression {name} must contain only finite values.")
-        return X_array, y_array
+        return validate_regression_inputs(X, y)
 
     def _validate_polynomial_expansion(self, n_features: int) -> int:
-        expanded_features = expected_polynomial_feature_count(n_features)
-        if expanded_features > MAX_POLYNOMIAL_FEATURES:
-            raise ValueError(
-                "PolynomialRegression expansion exceeds 10,000 features: "
-                f"original dimensions={n_features}, "
-                f"expanded dimensions={expanded_features}."
-            )
-        return expanded_features
+        return validate_polynomial_expansion(n_features)
 
     def cross_validate_model(self, model, X_train, y_train):
         """Return RMSE, MAE, and R-squared aggregate metrics and deviations."""

@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 """Tests for melite.predict."""
 
+import inspect
+import logging
+
 import numpy as np
 import pytest
 import joblib
 from melite.export_best_model import Finalizer
 from melite.predict import predict
+from melite.regression_models import build_regression_model
+from sklearn.datasets import make_regression
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -147,3 +152,66 @@ def test_predict_loads_exported_stacking_classifier(tmp_path):
 
     assert result["predictions"].shape == (4,)
     assert result["probabilities"].shape == (4, 2)
+
+
+def _regression_artifact(tmp_path):
+    X, y = make_regression(n_samples=20, n_features=3, random_state=42)
+    model = build_regression_model("ridge").set_params(ridge__alpha=0.25)
+    model.fit(X, y)
+    model_path = tmp_path / "Model_Ridge_quantitative.pkl"
+    joblib.dump(model, model_path)
+    return model_path, X
+
+
+def test_predict_public_signature_and_return_keys_remain_unchanged(tmp_path):
+    assert list(inspect.signature(predict).parameters) == [
+        "model_path",
+        "X",
+        "return_proba",
+    ]
+    model_path, X = _regression_artifact(tmp_path)
+
+    result = predict(model_path, X[:4])
+
+    assert set(result) == {
+        "predictions",
+        "probabilities",
+        "model_path",
+        "n_samples",
+    }
+
+
+def test_regression_prediction_is_quantitative_without_probability_warning(
+    caplog, tmp_path
+):
+    model_path, X = _regression_artifact(tmp_path)
+
+    with caplog.at_level(logging.WARNING, logger="melite.predict"):
+        result = predict(model_path, X[:4])
+
+    assert result["predictions"].shape == (4,)
+    assert np.issubdtype(result["predictions"].dtype, np.number)
+    assert np.all(np.isfinite(result["predictions"]))
+    assert result["probabilities"] is None
+    assert result["n_samples"] == 4
+    assert result["model_path"] == str(model_path.resolve())
+    assert not [
+        record for record in caplog.records if "predict_proba" in record.message
+    ]
+
+
+@pytest.mark.parametrize(
+    ("X", "message"),
+    [
+        (np.ones((4, 2)), "feature count mismatch"),
+        (np.array([[1.0, 2.0, np.nan]]), "only finite"),
+        (np.array([["a", "b", "c"]], dtype=object), "real numeric"),
+    ],
+)
+def test_regression_prediction_rejects_invalid_numerical_inputs(
+    tmp_path, X, message
+):
+    model_path, _ = _regression_artifact(tmp_path)
+
+    with pytest.raises(ValueError, match=message):
+        predict(model_path, X)

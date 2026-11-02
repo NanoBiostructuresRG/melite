@@ -15,6 +15,7 @@ from typing import Any
 
 import joblib
 import numpy as np
+from sklearn.base import is_regressor
 
 __all__ = ["predict"]
 
@@ -94,15 +95,29 @@ def predict(
 
     logger.info("Loading model from %s", model_path.resolve())
     model = joblib.load(model_path)
+    regression_model = is_regressor(model)
+    if regression_model:
+        if not np.issubdtype(X.dtype, np.number) or np.issubdtype(
+            X.dtype, np.complexfloating
+        ):
+            raise ValueError("Regression inference X must contain real numeric values.")
+        if not np.all(np.isfinite(X)):
+            raise ValueError("Regression inference X must contain only finite values.")
+        expected_features = getattr(model, "n_features_in_", None)
+        if expected_features is not None and X.shape[1] != expected_features:
+            raise ValueError(
+                "Regression inference feature count mismatch: "
+                f"model expects {expected_features}, got {X.shape[1]}."
+            )
 
     predictions = model.predict(X)
     logger.info("Predictions computed: shape=%s", predictions.shape)
 
     probabilities = None
-    if return_proba and hasattr(model, "predict_proba"):
+    if return_proba and not regression_model and hasattr(model, "predict_proba"):
         probabilities = model.predict_proba(X)
         logger.info("Probabilities computed: shape=%s", probabilities.shape)
-    elif return_proba:
+    elif return_proba and not regression_model:
         logger.warning(
             "Model %s does not support predict_proba; probabilities set to None.",
             type(model).__name__,
