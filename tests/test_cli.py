@@ -147,6 +147,52 @@ def test_export_passes_config_to_config_loader(monkeypatch, tmp_path):
     assert calls["ran"] is True
 
 
+def test_export_explicit_csv_selects_regression_results(monkeypatch, tmp_path):
+    import melite.config as config_module
+    import melite.export_best_model as export_module
+
+    calls = {}
+    regression_csv = tmp_path / "output" / "regression_results.csv"
+    explicit_outdir = tmp_path / "models"
+
+    class DummyConfig:
+        def __init__(self, user_config=None):
+            self.PATHS = {"OUTPUT": str(tmp_path / "output")}
+
+    class DummyFinalizer:
+        def __init__(self, csv_path, outdir, config, row_index=None, force=False):
+            calls.update(
+                csv_path=csv_path,
+                outdir=outdir,
+                row_index=row_index,
+                force=force,
+            )
+
+        def run(self):
+            calls["ran"] = True
+
+    monkeypatch.setattr(config_module, "Config", DummyConfig)
+    monkeypatch.setattr(export_module, "Finalizer", DummyFinalizer)
+
+    cli._export(
+        SimpleNamespace(
+            config=tmp_path / "config.toml",
+            csv=regression_csv,
+            outdir=explicit_outdir,
+            row=0,
+            force=False,
+        )
+    )
+
+    assert calls == {
+        "csv_path": regression_csv,
+        "outdir": explicit_outdir,
+        "row_index": 0,
+        "force": False,
+        "ran": True,
+    }
+
+
 def test_example_dispatches(monkeypatch):
     calls = []
     monkeypatch.setattr(cli, "_example", lambda args: calls.append(args.command))

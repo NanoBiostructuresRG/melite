@@ -7,6 +7,9 @@
 # and stack are available as opt-in classifiers.
 active = ["svc", "rf", "xgb"]
 
+[regressors]
+active = []
+
 [cv]
 n_splits = 5
 n_repeats = 3

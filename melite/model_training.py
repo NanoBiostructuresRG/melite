@@ -10,7 +10,13 @@ supported classifiers with nested cross-validation.
 from abc import ABC, abstractmethod
 from dataclasses import asdict
 
-from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from catboost import CatBoostClassifier
+from lightgbm import LGBMClassifier
+from sklearn.ensemble import (
+    AdaBoostClassifier,
+    RandomForestClassifier,
+    StackingClassifier,
+)
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import (
     RepeatedStratifiedKFold,
@@ -18,9 +24,11 @@ from sklearn.model_selection import (
     cross_validate,
 )
 from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
 from melite.optimization import OptunaSearchClassifier, optimize_and_refit
@@ -112,9 +120,29 @@ class MultiModelTrainer(ModelTrainer):
                 ]
             ),
             "gnb": lambda: GaussianNB(),
+            "knn": lambda: SklearnPipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    ("knn", KNeighborsClassifier(metric="minkowski")),
+                ]
+            ),
+            "dt": lambda: DecisionTreeClassifier(random_state=rs),
             "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=1),
+            "ada": lambda: AdaBoostClassifier(random_state=rs),
             "xgb": lambda: XGBClassifier(
                 eval_metric="logloss", random_state=rs, n_jobs=1
+            ),
+            "lgbm": lambda: LGBMClassifier(
+                random_state=rs,
+                n_jobs=1,
+                verbosity=-1,
+            ),
+            "catboost": lambda: CatBoostClassifier(
+                random_seed=rs,
+                thread_count=1,
+                verbose=False,
+                allow_writing_files=False,
+                task_type="CPU",
             ),
             "stack": lambda: self._build_stacking_classifier(rs),
         }

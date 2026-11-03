@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -27,6 +28,72 @@ EXPECTED_API = [
     "predict",
     "__version__",
 ]
+REGRESSION_IDENTITY_FIELDS = [
+    "dataset",
+    "task",
+    "family",
+    "method",
+    "variant",
+    "level",
+    "description",
+    "reduction_type",
+    "regressor_key",
+    "regressor_name",
+]
+REGRESSION_CSV_SCHEMAS = {
+    "regression_results.csv": [
+        *REGRESSION_IDENTITY_FIELDS,
+        "parameters",
+        "rmse",
+        "rmse_std",
+        "mae",
+        "mae_std",
+        "r2",
+        "r2_std",
+        "smoke",
+    ],
+    "regression_evaluations.csv": [
+        *REGRESSION_IDENTITY_FIELDS,
+        "rmse",
+        "rmse_std",
+        "mae",
+        "mae_std",
+        "r2",
+        "r2_std",
+        "selected",
+        "smoke",
+    ],
+    "regression_evaluation_folds.csv": [
+        *REGRESSION_IDENTITY_FIELDS,
+        "outer_split",
+        "outer_repeat",
+        "outer_fold",
+        "rmse",
+        "mae",
+        "r2",
+        "selected",
+        "smoke",
+    ],
+    "regression_optimization_searches.csv": [
+        *REGRESSION_IDENTITY_FIELDS,
+        "search_scope",
+        "outer_split",
+        "outer_repeat",
+        "outer_fold",
+        "best_inner_rmse",
+        "best_params",
+        "n_trials_requested",
+        "n_trials_complete",
+        "n_trials_failed",
+        "selected",
+        "smoke",
+    ],
+}
+REGRESSION_ARTIFACTS = {
+    "regression_results.txt",
+    *REGRESSION_CSV_SCHEMAS,
+    "regression_optimization_provenance.json",
+}
 
 
 def _run(
@@ -35,6 +102,32 @@ def _run(
     display = " ".join(str(part) for part in cmd)
     print(f"[smoke] {display}")
     subprocess.run([str(part) for part in cmd], cwd=cwd, env=env, check=True)
+
+
+def _run_expect_smoke_block(cmd: list[str | Path], *, cwd: Path) -> None:
+    display = " ".join(str(part) for part in cmd)
+    print(f"[smoke] expecting failure: {display}")
+    completed = subprocess.run(
+        [str(part) for part in cmd],
+        cwd=cwd,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.stdout:
+        print(completed.stdout, end="")
+    if completed.stderr:
+        print(completed.stderr, end="", file=sys.stderr)
+    combined_output = f"{completed.stdout}\n{completed.stderr}".lower()
+    if completed.returncode != 1:
+        raise AssertionError(
+            "Expected regression smoke export to exit with code 1, "
+            f"got {completed.returncode}"
+        )
+    if "smoke mode" not in combined_output or "--force" not in combined_output:
+        raise AssertionError(
+            "Regression export failed without the expected smoke-mode guard message"
+        )
 
 
 def _venv_python(venv_dir: Path) -> Path:
@@ -192,6 +285,258 @@ def _verify_outputs(work_dir: Path) -> None:
         raise AssertionError("Expected Optuna optimization backend provenance")
 
 
+def _write_regression_workspace(work_dir: Path) -> tuple[Path, Path, Path]:
+    regression_dir = work_dir / "melite_regression_smoke"
+    data_dir = regression_dir / "data"
+    output_dir = regression_dir / "output"
+    data_dir.mkdir(parents=True)
+    dataset_path = data_dir / "ridge_smoke.csv"
+    with open(dataset_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["feature_1", "feature_2", "feature_3", "target"])
+        for index in range(12):
+            feature_1 = (index - 5.5) / 3.0
+            feature_2 = ((index * 3) % 7 - 3) / 2.0
+            feature_3 = ((index * index) % 11 - 5) / 4.0
+            target = (
+                4.5 * feature_1
+                - 2.0 * feature_2
+                + 0.75 * feature_3
+                + 1.2
+                + ((index % 3) - 1) * 0.05
+            )
+            writer.writerow([feature_1, feature_2, feature_3, target])
+
+    config_path = regression_dir / "config.toml"
+    config_path.write_text(
+        """[paths]
+input = "melite_regression_smoke/data/"
+dataset = "melite_regression_smoke/data/"
+output = "melite_regression_smoke/output/"
+
+[benchmark]
+random_state = 42
+
+[datasets.ridge_smoke]
+path = "melite_regression_smoke/data/ridge_smoke.csv"
+label_column = "target"
+task = "regression"
+family = "tabular"
+description = "Deterministic installed-wheel Ridge regression smoke dataset"
+
+[cv]
+n_splits = 2
+n_repeats = 1
+inner_n_splits = 2
+
+[cv_smoke]
+n_splits = 2
+n_repeats = 1
+inner_n_splits = 2
+
+[classifiers]
+active = []
+
+[regressors]
+active = ["ridge"]
+
+[optimization]
+n_trials = 1
+""",
+        encoding="utf-8",
+    )
+    return regression_dir, config_path, output_dir
+
+
+def _read_regression_csv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    return list(reader.fieldnames or []), rows
+
+
+def _verify_regression_outputs(output_dir: Path) -> None:
+    actual_artifacts = {path.name for path in output_dir.iterdir()}
+    if actual_artifacts != REGRESSION_ARTIFACTS:
+        raise AssertionError(
+            "Regression-only smoke run produced an unexpected artifact set: "
+            f"expected {sorted(REGRESSION_ARTIFACTS)}, "
+            f"got {sorted(actual_artifacts)}"
+        )
+
+    csv_rows = {}
+    for filename, expected_schema in REGRESSION_CSV_SCHEMAS.items():
+        actual_schema, rows = _read_regression_csv(output_dir / filename)
+        if actual_schema != expected_schema:
+            raise AssertionError(f"Unexpected schema for {filename}: {actual_schema}")
+        csv_rows[filename] = rows
+        if not rows:
+            raise AssertionError(f"Expected evidence rows in {filename}")
+        smoke_values = {row["smoke"] for row in rows}
+        if smoke_values != {"True"}:
+            raise AssertionError(
+                f"Expected smoke=True rows in {filename}, got {smoke_values}"
+            )
+
+    result_rows = csv_rows["regression_results.csv"]
+    if len(result_rows) != 1:
+        raise AssertionError(f"Expected one regression result row, got {result_rows}")
+    result = result_rows[0]
+    expected_identity = {
+        "dataset": "ridge_smoke",
+        "task": "regression",
+        "regressor_key": "ridge",
+        "regressor_name": "Ridge",
+    }
+    for field, expected in expected_identity.items():
+        if result[field] != expected:
+            raise AssertionError(
+                f"Expected regression {field}={expected!r}, got {result[field]!r}"
+            )
+    parameters = json.loads(result["parameters"])
+    if set(parameters) != {"ridge__alpha"}:
+        raise AssertionError(f"Unexpected Ridge parameters: {parameters}")
+    if not 1e-4 <= parameters["ridge__alpha"] <= 1e2:
+        raise AssertionError(f"Ridge alpha is outside its search domain: {parameters}")
+    for metric in ("rmse", "mae", "r2"):
+        if not math.isfinite(float(result[metric])):
+            raise AssertionError(
+                f"Expected finite regression {metric}: {result[metric]}"
+            )
+    if float(result["rmse"]) < 0.0 or float(result["mae"]) < 0.0:
+        raise AssertionError(f"Expected nonnegative regression errors: {result}")
+
+    evaluation_rows = csv_rows["regression_evaluations.csv"]
+    if len(evaluation_rows) != 1 or evaluation_rows[0]["selected"] != "True":
+        raise AssertionError(
+            f"Expected one selected Ridge evaluation, got {evaluation_rows}"
+        )
+    fold_rows = csv_rows["regression_evaluation_folds.csv"]
+    if len(fold_rows) != 2 or {row["outer_fold"] for row in fold_rows} != {"0", "1"}:
+        raise AssertionError(f"Expected two outer regression folds, got {fold_rows}")
+    for row in (*evaluation_rows, *fold_rows):
+        for metric in ("rmse", "mae", "r2"):
+            if not math.isfinite(float(row[metric])):
+                raise AssertionError(
+                    f"Expected finite {metric} in regression evidence: {row}"
+                )
+
+    optimization_rows = csv_rows["regression_optimization_searches.csv"]
+    if [row["search_scope"] for row in optimization_rows] != [
+        "outer",
+        "outer",
+        "final",
+    ]:
+        raise AssertionError(
+            f"Expected two outer and one final Ridge searches, got {optimization_rows}"
+        )
+    if any(row["n_trials_requested"] != "5" for row in optimization_rows):
+        raise AssertionError(
+            "Expected MELITE's five-trial smoke optimization budget for Ridge"
+        )
+    if json.loads(optimization_rows[-1]["best_params"]) != parameters:
+        raise AssertionError(
+            "Regression result parameters do not match the final Ridge search"
+        )
+
+    with open(
+        output_dir / "regression_optimization_provenance.json",
+        encoding="utf-8",
+    ) as f:
+        provenance = json.load(f)
+    expected_provenance_fields = {
+        "melite_version",
+        "task",
+        "optimization_backend",
+        "smoke",
+        "random_state",
+        "active_regressors",
+        "cv",
+        "optimization",
+        "search_spaces",
+    }
+    if set(provenance) != expected_provenance_fields:
+        raise AssertionError(
+            f"Unexpected regression provenance schema: {sorted(provenance)}"
+        )
+    if provenance["task"] != "regression" or provenance["smoke"] is not True:
+        raise AssertionError(f"Unexpected regression provenance: {provenance}")
+    if provenance["active_regressors"] != ["ridge"]:
+        raise AssertionError("Expected active_regressors=['ridge'] in provenance")
+    if provenance["optimization"]["direction"] != "minimize":
+        raise AssertionError("Expected regression optimization to minimize RMSE")
+    if provenance["optimization"]["effective_n_trials"] != 5:
+        raise AssertionError("Expected effective_n_trials=5 in smoke provenance")
+
+    report = (output_dir / "regression_results.txt").read_text(encoding="utf-8")
+    if "Regressor selected: Ridge" not in report:
+        raise AssertionError("Expected Ridge identity in regression_results.txt")
+    if "Classifier selected:" in report:
+        raise AssertionError("Regression report contains classification output")
+
+
+def _check_regression_prediction(python: Path, model_path: Path) -> None:
+    code = f"""
+import pathlib
+import joblib
+import numpy as np
+import melite
+
+repo = pathlib.Path({str(REPO_ROOT)!r}).resolve()
+module_path = pathlib.Path(melite.__file__).resolve()
+assert repo not in module_path.parents, module_path
+model_path = pathlib.Path({str(model_path)!r}).resolve()
+model = joblib.load(model_path)
+X_new = np.array([
+    [-1.0, 0.5, -0.25],
+    [0.75, -1.0, 1.25],
+], dtype=float)
+loaded_predictions = model.predict(X_new)
+result = melite.predict(model_path, X_new)
+assert loaded_predictions.shape == (2,), loaded_predictions.shape
+assert np.all(np.isfinite(loaded_predictions)), loaded_predictions
+assert result['predictions'].shape == (2,), result['predictions'].shape
+assert np.all(np.isfinite(result['predictions'])), result['predictions']
+assert np.allclose(result['predictions'], loaded_predictions)
+assert result['probabilities'] is None, result['probabilities']
+assert result['n_samples'] == 2, result['n_samples']
+assert result['model_path'] == str(model_path), result['model_path']
+print(type(model).__name__, result['predictions'])
+"""
+    _run([python, "-c", code], cwd=model_path.parent)
+
+
+def _run_regression_workflow(melite: Path, python: Path, work_dir: Path) -> None:
+    _, config_path, output_dir = _write_regression_workspace(work_dir)
+    results_path = output_dir / "regression_results.csv"
+    model_path = output_dir / "Model_Ridge_ridge_smoke.pkl"
+    _run(
+        [melite, "run", "--smoke", "--config", config_path],
+        cwd=work_dir,
+    )
+    _verify_regression_outputs(output_dir)
+
+    export_command = [
+        melite,
+        "export",
+        "--config",
+        config_path,
+        "--row",
+        "0",
+        "--csv",
+        results_path,
+        "--outdir",
+        output_dir,
+    ]
+    _run_expect_smoke_block(export_command, cwd=work_dir)
+    if model_path.exists():
+        raise AssertionError("Blocked regression smoke export created a model artifact")
+    _run([*export_command, "--force"], cwd=work_dir)
+    if not model_path.exists():
+        raise AssertionError(f"Expected exported Ridge artifact: {model_path}")
+    _check_regression_prediction(python, model_path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -249,6 +594,8 @@ def main() -> None:
         )
         _verify_outputs(work_dir)
         print("[smoke] installed-wheel public example workflow passed")
+        _run_regression_workflow(melite, python, work_dir)
+        print("[smoke] installed-wheel regression workflow passed")
     finally:
         if args.keep_temp:
             print(f"[smoke] kept temp root: {temp_root}")

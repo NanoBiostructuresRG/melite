@@ -627,6 +627,43 @@ _GNB_SEARCH_SPACE = ClassifierSearchSpace(
     ),
 )
 
+_KNN_SEARCH_SPACE = ClassifierSearchSpace(
+    classifier="knn",
+    common_parameters=(
+        ParameterSpec(
+            "n_neighbors",
+            "knn__n_neighbors",
+            IntDomain(1, 15, step=1),
+        ),
+        ParameterSpec(
+            "weights",
+            "knn__weights",
+            CategoricalDomain(("uniform", "distance")),
+        ),
+        ParameterSpec(
+            "p",
+            "knn__p",
+            CategoricalDomain((1, 2)),
+        ),
+    ),
+)
+
+_DT_SEARCH_SPACE = ClassifierSearchSpace(
+    classifier="dt",
+    common_parameters=(
+        ParameterSpec(
+            "max_depth",
+            "max_depth",
+            CategoricalDomain((None, 3, 5, 10, 20)),
+        ),
+        ParameterSpec(
+            "min_samples_leaf",
+            "min_samples_leaf",
+            IntDomain(1, 5, step=1),
+        ),
+    ),
+)
+
 _RF_SEARCH_SPACE = ClassifierSearchSpace(
     classifier="rf",
     common_parameters=(
@@ -670,6 +707,22 @@ _RF_SEARCH_SPACE = ClassifierSearchSpace(
                     IntDomain(10, 40, step=1),
                 ),
             ),
+        ),
+    ),
+)
+
+_ADA_SEARCH_SPACE = ClassifierSearchSpace(
+    classifier="ada",
+    common_parameters=(
+        ParameterSpec(
+            "n_estimators",
+            "n_estimators",
+            IntDomain(50, 200, step=1),
+        ),
+        ParameterSpec(
+            "learning_rate",
+            "learning_rate",
+            FloatDomain(0.01, 1.0, log=True),
         ),
     ),
 )
@@ -732,14 +785,71 @@ _XGB_SEARCH_SPACE = ClassifierSearchSpace(
     ),
 )
 
+_LGBM_SEARCH_SPACE = ClassifierSearchSpace(
+    classifier="lgbm",
+    common_parameters=(
+        ParameterSpec(
+            "n_estimators",
+            "n_estimators",
+            IntDomain(100, 300, step=1),
+        ),
+        ParameterSpec(
+            "learning_rate",
+            "learning_rate",
+            FloatDomain(0.01, 0.15, log=True),
+        ),
+        ParameterSpec(
+            "num_leaves",
+            "num_leaves",
+            CategoricalDomain((7, 15, 31)),
+        ),
+        ParameterSpec(
+            "min_child_samples",
+            "min_child_samples",
+            IntDomain(5, 20, step=1),
+        ),
+    ),
+)
+
+_CATBOOST_SEARCH_SPACE = ClassifierSearchSpace(
+    classifier="catboost",
+    common_parameters=(
+        ParameterSpec(
+            "iterations",
+            "iterations",
+            IntDomain(100, 300, step=1),
+        ),
+        ParameterSpec(
+            "learning_rate",
+            "learning_rate",
+            FloatDomain(0.01, 0.15, log=True),
+        ),
+        ParameterSpec(
+            "depth",
+            "depth",
+            IntDomain(3, 7, step=1),
+        ),
+        ParameterSpec(
+            "l2_leaf_reg",
+            "l2_leaf_reg",
+            FloatDomain(1.0, 10.0, log=False),
+        ),
+    ),
+)
+
 
 SEARCH_SPACE_POLICY: Mapping[str, ClassifierSearchSpace | None] = MappingProxyType(
     {
         "svc": _SVC_SEARCH_SPACE,
         "lr": _LR_SEARCH_SPACE,
         "gnb": _GNB_SEARCH_SPACE,
+        "knn": _KNN_SEARCH_SPACE,
+        "dt": _DT_SEARCH_SPACE,
         "rf": _RF_SEARCH_SPACE,
+        "ada": _ADA_SEARCH_SPACE,
         "xgb": _XGB_SEARCH_SPACE,
+        "lgbm": _LGBM_SEARCH_SPACE,
+        "catboost": _CATBOOST_SEARCH_SPACE,
         "stack": None,
     }
 )

@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Load registered NPZ and CSV datasets for MELITE.
+"""Load registered NPZ and CSV datasets for MELITE prediction tasks.
 
-For NPZ datasets, ``label_path`` supplies the authoritative labels and an
+For NPZ datasets, ``label_path`` supplies the authoritative target and an
 embedded ``y`` is checked only for consistency. For CSV datasets, the
-configured ``label_column`` inside the table supplies the labels and is
-removed from the numeric feature matrix.
+configured ``label_column`` inside the table supplies the target and is removed
+from the numeric feature matrix. Each loaded dataset preserves its normalized
+``classification`` or ``regression`` prediction task.
 """
 
 import logging
@@ -36,6 +37,7 @@ def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
     data_path = Path(spec["path"])
     label_path = Path(spec["label_path"])
     metadata = dict(spec.get("metadata", {}))
+    task = spec.get("task", "classification")
 
     if not data_path.exists():
         raise FileNotFoundError(f"Dataset '{dataset_id}' file not found: {data_path}")
@@ -94,13 +96,14 @@ def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
                 f"           Differing elements: {n_diff}/{y.shape[0]}."
             )
 
-    return {"X": X, "y": y, "metadata": metadata}
+    return {"X": X, "y": y, "task": task, "metadata": metadata}
 
 
 def _load_csv_dataset(dataset_id: str, spec: dict) -> dict:
     data_path = Path(spec["path"])
     label_column = spec["label_column"]
     metadata = dict(spec.get("metadata", {}))
+    task = spec.get("task", "classification")
 
     if not data_path.exists():
         raise FileNotFoundError(f"Dataset '{dataset_id}' file not found: {data_path}")
@@ -158,11 +161,11 @@ def _load_csv_dataset(dataset_id: str, spec: dict) -> dict:
             f"X has {X.shape[0]} rows, y has {len(y)} labels."
         )
 
-    return {"X": X, "y": y, "metadata": metadata}
+    return {"X": X, "y": y, "task": task, "metadata": metadata}
 
 
 def load_datasets(config: Config) -> dict[str, dict[str, Any]]:
-    """Load every normalized dataset in a MELITE configuration.
+    """Load every normalized classification or regression dataset.
 
     Parameters
     ----------
@@ -178,18 +181,27 @@ def load_datasets(config: Config) -> dict[str, dict[str, Any]]:
         - ``"X"`` : numpy.ndarray
           Two-dimensional numeric feature matrix.
         - ``"y"`` : numpy.ndarray
-          One-dimensional label vector loaded from ``label_path`` for NPZ or
-          from ``label_column`` for CSV.
+          One-dimensional target vector loaded from ``label_path`` for NPZ or
+          from ``label_column`` for CSV. Classification targets may contain
+          categorical class labels. Regression targets represent quantitative
+          values and are subject to the regression workflow's finite real
+          numerical validation.
+        - ``"task"`` : str
+          Normalized prediction task, exactly ``"classification"`` or
+          ``"regression"``. Configuration normalization supplies
+          ``"classification"`` when the dataset omits ``task``.
         - ``"metadata"`` : dict
           Shallow copy of the dataset metadata dictionary. Metadata keys are
           transported but not interpreted by ``load_datasets``; nested mutable
           values are not deep-copied.
 
         Dataset ids are not interpreted as method, representation, reduction,
-        or classifier names. For NPZ, the configured ``label_path`` is
+        or model names. For NPZ, the configured ``label_path`` is
         authoritative and an embedded ``y`` is used only as a consistency
         check. For CSV, the configured ``label_column`` supplies ``y`` and all
-        remaining columns supply ``X`` in their original order.
+        remaining columns supply ``X`` in their original order. Loading
+        preserves the target values and task identity; task-specific training
+        applies the corresponding target contract.
 
     Raises
     ------
@@ -229,8 +241,8 @@ def load_datasets(config: Config) -> dict[str, dict[str, Any]]:
     ...     _ = config_path.write_text(config_text, encoding="utf-8")
     ...     cfg = Config(user_config=config_path)
     ...     loaded = load_datasets(cfg)
-    ...     loaded["sample_tabular"]["X"].shape
-    (2, 2)
+    ...     loaded["sample_tabular"]["task"], loaded["sample_tabular"]["X"].shape
+    ('classification', (2, 2))
     """
     loaded = {}
     for dataset_id, spec in config.DATASETS.items():

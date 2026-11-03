@@ -8,6 +8,7 @@ from datetime import datetime
 import pytest
 
 import melite.result_manager as result_manager_module
+from melite.model_catalog import MODEL_CATALOG
 from melite.result_manager import ResultManager
 from melite.version import __version__
 
@@ -180,14 +181,20 @@ def test_write_results_header_is_exactly_preserved(monkeypatch, tmp_path):
     rm = ResultManager(str(output_file))
     rm.write_results("report body")
     content = output_file.read_text(encoding="utf-8")
+    classifier_names = ", ".join(
+        model.public_name
+        for model in MODEL_CATALOG
+        if model.prediction_task == "classification"
+        and model.availability == "implemented"
+    )
     assert (
         content
         == f"""
 =====================================================
                        MELITE
-            Multi-Model Classifier Evaluator
+          Supervised Classification Evaluator
 -----------------------------------------------------
-Classifiers: SVC, Logistic Regression (opt-in), Gaussian Naive Bayes (opt-in), Random Forest, XGBoost, Stacking (opt-in)
+Classifiers: {classifier_names}
 CLI: melite run | melite export
 Package: melite
 Version: {__version__}

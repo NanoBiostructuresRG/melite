@@ -98,12 +98,24 @@ def test_readme_toml_examples_use_current_classifier_section():
 def test_supported_classifier_documentation_matches_public_policy():
     supported = _section("Supported Classifiers")
 
-    assert "six classifier keys" in supported
-    for classifier_key in ("svc", "lr", "gnb", "rf", "xgb", "stack"):
+    assert "11 classifier keys" in supported
+
+    for classifier_key in (
+        "svc",
+        "lr",
+        "gnb",
+        "knn",
+        "dt",
+        "rf",
+        "ada",
+        "xgb",
+        "lgbm",
+        "catboost",
+        "stack",
+    ):
         assert f"| `{classifier_key}` |" in supported
+
     assert 'active = ["svc", "rf", "xgb"]' in supported
-    assert 'active = ["lr"]' in supported
-    assert 'active = ["gnb"]' in supported
     assert "any supported subset" in supported
 
 

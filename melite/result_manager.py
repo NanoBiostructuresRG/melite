@@ -15,6 +15,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+from melite.model_catalog import MODEL_CATALOG
 from melite.plot_metrics import plot_f1_macro_evidence
 from melite.version import __version__
 
@@ -22,6 +23,11 @@ __all__ = ["ResultManager"]
 
 _REPORT_PROJECT_NAME = "MELITE"
 _REPORT_LICENSE = "LGPL-3.0-or-later"
+_CLASSIFICATION_REPORT_NAMES = ", ".join(
+    model.public_name
+    for model in MODEL_CATALOG
+    if model.prediction_task == "classification" and model.availability == "implemented"
+)
 _OPTIMIZATION_PROVENANCE_KEYS = (
     "melite_version",
     "optimization_backend",
@@ -32,6 +38,76 @@ _OPTIMIZATION_PROVENANCE_KEYS = (
     "optimization",
     "search_spaces",
 )
+_REGRESSION_OPTIMIZATION_PROVENANCE_KEYS = (
+    "melite_version",
+    "task",
+    "optimization_backend",
+    "smoke",
+    "random_state",
+    "active_regressors",
+    "cv",
+    "optimization",
+    "search_spaces",
+)
+_REGRESSION_IDENTITY_FIELDS = [
+    "dataset",
+    "task",
+    "family",
+    "method",
+    "variant",
+    "level",
+    "description",
+    "reduction_type",
+    "regressor_key",
+    "regressor_name",
+]
+_REGRESSION_RESULT_FIELDS = [
+    *_REGRESSION_IDENTITY_FIELDS,
+    "parameters",
+    "rmse",
+    "rmse_std",
+    "mae",
+    "mae_std",
+    "r2",
+    "r2_std",
+    "smoke",
+]
+_REGRESSION_EVALUATION_FIELDS = [
+    *_REGRESSION_IDENTITY_FIELDS,
+    "rmse",
+    "rmse_std",
+    "mae",
+    "mae_std",
+    "r2",
+    "r2_std",
+    "selected",
+    "smoke",
+]
+_REGRESSION_FOLD_FIELDS = [
+    *_REGRESSION_IDENTITY_FIELDS,
+    "outer_split",
+    "outer_repeat",
+    "outer_fold",
+    "rmse",
+    "mae",
+    "r2",
+    "selected",
+    "smoke",
+]
+_REGRESSION_OPTIMIZATION_FIELDS = [
+    *_REGRESSION_IDENTITY_FIELDS,
+    "search_scope",
+    "outer_split",
+    "outer_repeat",
+    "outer_fold",
+    "best_inner_rmse",
+    "best_params",
+    "n_trials_requested",
+    "n_trials_complete",
+    "n_trials_failed",
+    "selected",
+    "smoke",
+]
 
 
 def _safe_filename_part(value: str) -> str:
@@ -67,9 +143,9 @@ class ResultManager:
         return f"""
 =====================================================
                        {_REPORT_PROJECT_NAME}
-            Multi-Model Classifier Evaluator
+          Supervised Classification Evaluator
 -----------------------------------------------------
-Classifiers: SVC, Logistic Regression (opt-in), Gaussian Naive Bayes (opt-in), Random Forest, XGBoost, Stacking (opt-in)
+Classifiers: {_CLASSIFICATION_REPORT_NAMES}
 CLI: melite run | melite export
 Package: melite
 Version: {__version__}
@@ -101,6 +177,33 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         """
         with open(self.output_file, "w", encoding="utf-8") as f:
             f.write(self._get_header())
+            f.write(content)
+
+    @staticmethod
+    def _get_regression_header() -> str:
+        return f"""
+=====================================================
+                       {_REPORT_PROJECT_NAME}
+             Supervised Regression Evaluator
+-----------------------------------------------------
+Regressors: LinearRegression, PolynomialRegression, Ridge, Lasso
+CLI: melite run
+Package: melite
+Version: {__version__}
+Licence: {_REPORT_LICENSE}
+Execution Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+-----------------------------------------------------
+Repository: https://github.com/NanoBiostructuresRG/melite
+=====================================================
+
+"""
+
+    def write_regression_results(self, content: str, path: Path | str) -> None:
+        """Write the regression-specific human-readable report."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(self._get_regression_header())
             f.write(content)
 
     def write_csv(
@@ -326,3 +429,97 @@ Repository: https://github.com/NanoBiostructuresRG/melite
                 smoke=smoke,
             )
             plt.close(fig)
+
+    @staticmethod
+    def _canonical_json(value) -> str:
+        return json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+
+    @classmethod
+    def _write_regression_csv(
+        cls,
+        rows: list[dict],
+        path: Path | str,
+        fieldnames: list[str],
+        smoke: bool,
+        json_fields: tuple[str, ...] = (),
+    ) -> None:
+        prepared_rows = []
+        for row in rows:
+            output_row = dict(row)
+            for field in json_fields:
+                if field in output_row:
+                    output_row[field] = cls._canonical_json(output_row[field])
+            prepared_rows.append({**output_row, "smoke": smoke})
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(prepared_rows)
+
+    def write_regression_results_csv(
+        self, rows: list[dict], path: Path | str, smoke: bool = False
+    ) -> None:
+        """Write one selected regression model per executed dataset."""
+        self._write_regression_csv(
+            rows,
+            path,
+            _REGRESSION_RESULT_FIELDS,
+            smoke,
+            json_fields=("parameters",),
+        )
+
+    def write_regression_evaluations_csv(
+        self, rows: list[dict], path: Path | str, smoke: bool = False
+    ) -> None:
+        """Write aggregate regression evidence for every evaluated model."""
+        self._write_regression_csv(rows, path, _REGRESSION_EVALUATION_FIELDS, smoke)
+
+    def write_regression_evaluation_folds_csv(
+        self, rows: list[dict], path: Path | str, smoke: bool = False
+    ) -> None:
+        """Write per-outer-fold regression evidence."""
+        self._write_regression_csv(rows, path, _REGRESSION_FOLD_FIELDS, smoke)
+
+    def write_regression_optimization_searches_csv(
+        self, rows: list[dict], path: Path | str, smoke: bool = False
+    ) -> None:
+        """Write all nested and final regression searches, or a header only."""
+        self._write_regression_csv(
+            rows,
+            path,
+            _REGRESSION_OPTIMIZATION_FIELDS,
+            smoke,
+            json_fields=("best_params",),
+        )
+
+    def write_regression_optimization_provenance_json(
+        self, provenance: dict, path: Path | str
+    ) -> None:
+        """Write the effective regression optimization contract as JSON."""
+        expected_keys = set(_REGRESSION_OPTIMIZATION_PROVENANCE_KEYS)
+        actual_keys = set(provenance)
+        if actual_keys != expected_keys:
+            raise ValueError(
+                "Regression optimization provenance must contain exactly "
+                f"{sorted(expected_keys)}; got {sorted(actual_keys)}."
+            )
+
+        payload = json.dumps(
+            provenance,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, mode="w", encoding="utf-8", newline="\n") as f:
+            f.write(f"{payload}\n")

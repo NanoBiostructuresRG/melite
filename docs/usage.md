@@ -1,5 +1,9 @@
 # Usage
 
+MELITE supports supervised classification and regression on prepared numeric
+tabular datasets. The bundled quick-start project remains a classification
+example.
+
 ## Installation
 
 Install MELITE in a supported Python environment:
@@ -16,9 +20,9 @@ melite --version
 
 ## Quick Start
 
-MELITE includes a bundled synthetic numeric CSV dataset and example
-configuration for verifying the installed workflow without cloning the
-repository or preparing input files.
+MELITE includes a bundled synthetic numeric CSV classification dataset and
+example configuration for verifying the installed classification workflow
+without cloning the repository or preparing input files.
 
 Create the example project in the current directory:
 
@@ -56,7 +60,7 @@ intended for final classifier selection or model export.
 
 MELITE evaluates prepared numeric tabular feature representations. Users are
 responsible for supplying analysis-ready numeric features compatible with the
-classifiers they evaluate.
+models they evaluate.
 
 ### CSV
 
@@ -104,19 +108,26 @@ Relative paths for both formats are resolved from the directory in which
 
 ## Supported Classifiers
 
-MELITE currently supports six classifier keys:
+MELITE supports the following 11 classifier keys. The public names and model
+families follow the canonical model catalog.
 
-| Key | Classifier | Tunable | Active by default |
-|---|---|---|---|
-| `svc` | Support Vector Classifier | Yes | Yes |
-| `lr` | Logistic Regression | Yes | No |
-| `gnb` | Gaussian Naive Bayes | Yes | No |
-| `rf` | Random Forest | Yes | Yes |
-| `xgb` | XGBoost | Yes | Yes |
-| `stack` | Stacking classifier | No | No |
+| Key | Public name | Model family | Tunable | Active by default |
+|---|---|---|---|---|
+| `svc` | SVC | Individual — support-vector machine | Yes | Yes |
+| `lr` | LogisticRegression | Individual — logistic regression | Yes | No |
+| `gnb` | GaussianNB | Individual — Gaussian naive Bayes | Yes | No |
+| `knn` | KNeighborsClassifier | Individual — nearest neighbors | Yes | No |
+| `dt` | DecisionTreeClassifier | Individual — decision tree | Yes | No |
+| `rf` | RandomForestClassifier | Ensemble — bagging-derived | Yes | Yes |
+| `ada` | AdaBoostClassifier | Ensemble — adaptive boosting | Yes | No |
+| `xgb` | XGBClassifier | Ensemble — gradient boosting | Yes | Yes |
+| `lgbm` | LGBMClassifier | Ensemble — gradient boosting | Yes | No |
+| `catboost` | CatBoostClassifier | Ensemble — gradient boosting | Yes | No |
+| `stack` | StackingClassifier | Ensemble — stacking | No | No |
 
-The first five keys are base classifier families. `stack` is a non-tunable,
-opt-in composite classifier. The default active classifiers are:
+The ten individual and ensemble classifiers other than `stack` have
+model-specific Optuna search spaces. `stack` is a fixed, opt-in composite and
+is fitted without a separate Optuna search. The default active classifiers are:
 
 ```toml
 [classifiers]
@@ -124,27 +135,24 @@ active = ["svc", "rf", "xgb"]
 ```
 
 The `[classifiers].active` list accepts any supported subset in evaluation
-order, including a single classifier. For example, `active = ["svc"]`,
-`active = ["lr"]`, and `active = ["stack"]` each select one supported classifier.
-Logistic Regression, Gaussian Naive Bayes, and Stacking are opt-in.
+order, including a single classifier. Classifiers other than `svc`, `rf`, and
+`xgb` are opt-in.
 
 Standalone SVC evaluation uses a `StandardScaler` → `SVC` pipeline and retains
 its decision function without probability fitting during evaluation.
 
-Logistic Regression uses a `StandardScaler` → `LogisticRegression` pipeline
-and tunes only `C`. Gaussian Naive Bayes uses `GaussianNB` directly, without
-preprocessing, and tunes only `var_smoothing`.
+LogisticRegression and KNeighborsClassifier also use `StandardScaler`
+pipelines. GaussianNB, DecisionTreeClassifier, and the boosting and
+bagging-derived classifiers operate directly on the supplied numeric features.
 
-Random Forest and XGBoost operate on the supplied numeric features without
-scaling.
-
-Stacking is stable but opt-in. It combines SVC, Random Forest, and XGBoost as
-base estimators with Logistic Regression as the final estimator and uses
-probability-based base-estimator outputs.
+StackingClassifier is stable but opt-in. It combines SVC,
+RandomForestClassifier, and XGBClassifier as base estimators with
+LogisticRegression as the final estimator and uses probability-based
+base-estimator outputs.
 
 ### Prediction and probabilities
 
-Classifier artifacts exported for all six supported keys provide both
+Classifier artifacts exported for all 11 supported keys provide both
 `predict()` and `predict_proba()`.
 
 For an exported SVC, class predictions and the decision function come directly
@@ -156,11 +164,11 @@ layer. SVC remains a single public classifier family and is selected normally:
 active = ["svc"]
 ```
 
-Logistic Regression, Gaussian Naive Bayes, Random Forest, and XGBoost provide
-their native probabilities. The exported stacking classifier also provides
-predictions and probabilities; internally, it uses probability-based outputs
-from its SVC, Random Forest, and XGBoost base estimators before the final
-Logistic Regression estimator. It can be selected by itself:
+The other supported classifiers provide their estimator-native probabilities.
+The exported StackingClassifier also provides predictions and probabilities;
+internally, it uses probability-based outputs from its SVC,
+RandomForestClassifier, and XGBClassifier base estimators before the final
+LogisticRegression estimator. It can be selected by itself:
 
 ```toml
 [classifiers]
@@ -170,6 +178,22 @@ active = ["stack"]
 Hyperparameter search spaces for tunable classifiers are defined by MELITE. User
 configuration determines which supported classifiers are active rather than
 defining individual hyperparameter search spaces.
+
+## Supported Regressors
+
+MELITE supports the following four regressor keys:
+
+| Key | Public name | Estimator pipeline | Parameter optimization |
+|---|---|---|---|
+| `linear` | LinearRegression | `LinearRegression` | No |
+| `poly` | PolynomialRegression | `StandardScaler` → `PolynomialFeatures(degree=2, include_bias=False)` → `LinearRegression` | No |
+| `ridge` | Ridge | `StandardScaler` → `Ridge` | Yes — `alpha` |
+| `lasso` | Lasso | `StandardScaler` → `Lasso(max_iter=10000)` | Yes — `alpha` |
+
+Ridge and Lasso optimize `alpha` over the continuous logarithmic range from
+`1e-4` to `1e2`. PolynomialRegression has a fixed degree of two. Before fitting,
+MELITE calculates the resulting feature count and rejects an expansion above
+10,000 features, reporting both the original and expanded dimensions.
 
 ## Configuration
 
@@ -191,7 +215,11 @@ example deliberately points both `input` and `dataset` to
 
 ### Minimal Configuration
 
-A minimal dataset configuration can be written as:
+Each registered dataset may set `task` to exactly `classification` or
+`regression`. When `task` is omitted, MELITE uses `classification`, preserving
+the historical behavior and the configuration produced by `melite example`.
+
+A minimal classification-only configuration is:
 
 ```toml
 [paths]
@@ -201,10 +229,59 @@ output = "output/"
 path = "data/features.csv"
 label_column = "label"
 description = "Prepared numeric feature matrix."
+# task is omitted, so this dataset is classified.
 
 [classifiers]
 active = ["svc", "rf", "xgb"]
 ```
+
+A minimal regression-only configuration is:
+
+```toml
+[paths]
+output = "output/"
+
+[datasets.quantitative_a]
+path = "data/quantitative.csv"
+label_column = "target"
+task = "regression"
+
+[regressors]
+active = ["ridge"]
+```
+
+The regression target must be a one-dimensional, finite, real numerical vector
+representing the quantitative response. A configuration containing any
+regression dataset must select at least one of `linear`, `poly`, `ridge`, or
+`lasso` in `[regressors].active`. The default active-regressor list is empty, so
+classification-only configurations remain backward compatible.
+
+A mixed-task configuration registers both kinds of dataset and activates both
+model groups:
+
+```toml
+[paths]
+output = "output/"
+
+[datasets.classification_a]
+path = "data/classification.csv"
+label_column = "class_label"
+
+[datasets.regression_a]
+path = "data/regression.csv"
+label_column = "quantitative_target"
+task = "regression"
+
+[classifiers]
+active = ["svc", "rf", "xgb"]
+
+[regressors]
+active = ["ridge", "lasso"]
+```
+
+Classification-only, regression-only, and mixed-task runs use the same
+`melite run` command. In a mixed run, each dataset is dispatched according to
+its own normalized `task` value.
 
 Run MELITE from the project directory expected by those paths:
 
@@ -223,6 +300,7 @@ CSV example:
 [datasets.my_dataset]
 path = "data/my_dataset.csv"
 label_column = "label"
+task = "classification"
 family = "tabular"
 ```
 
@@ -247,6 +325,7 @@ The accepted fields inside each `[datasets.*]` entry are exactly:
 - `path`;
 - `label_path`;
 - `label_column`;
+- `task`;
 - `family`;
 - `method`;
 - `variant`;
@@ -254,6 +333,10 @@ The accepted fields inside each `[datasets.*]` entry are exactly:
 - `description`.
 
 Unknown fields are rejected rather than silently ignored.
+
+`task` is optional and accepts only the lowercase values `classification` and
+`regression`. Omitting it selects classification. The label source is chosen by
+file format, not by task: CSV uses `label_column`, while NPZ uses `label_path`.
 
 Optional metadata fields:
 
@@ -268,7 +351,7 @@ Do not invent a semantic value merely
 to populate optional metadata.
 
 The `family` field describes the feature representation as dataset metadata. It
-is unrelated to the classifier selected or evaluated by MELITE.
+is unrelated to the model selected or evaluated by MELITE.
 
 Each `dataset_id` identifies one concrete numeric feature matrix evaluated as an
 independent dataset.
@@ -288,29 +371,40 @@ n_repeats = 3
 inner_n_splits = 3
 ```
 
-For each dataset and active classifier, the outer evaluation contains
-`n_splits × n_repeats` held-out splits. With the default settings, this produces
-15 outer evaluations per classifier. For tunable classifiers, each outer split
-contains its own inner hyperparameter search.
+For each dataset and active model, the outer evaluation contains
+`n_splits × n_repeats` held-out splits. With the defaults, this produces 15
+outer evaluations per model.
 
-- `n_splits` controls the number of folds in the outer repeated stratified
-  cross-validation.
-- `n_repeats` controls how many times the outer stratified cross-validation is
-  repeated.
-- `inner_n_splits` controls the stratified inner cross-validation used for
-  hyperparameter search. Stacking also uses this split count for its internal
-  out-of-fold predictions.
+Classification uses `RepeatedStratifiedKFold` for outer evaluation and shuffled
+`StratifiedKFold` for the inner searches of tunable classifiers. F1-macro is
+maximized during optimization and the highest mean outer F1-macro selects the
+classifier. Accuracy and ROC-AUC are additional reported metrics. Stacking is
+not optimized separately, but uses `inner_n_splits` for its internal
+out-of-fold predictions.
 
-The public optimization budget for tunable classifiers is configured as:
+Regression uses `RepeatedKFold` for outer evaluation and shuffled `KFold` for
+the inner searches of Ridge and Lasso. RMSE is minimized during optimization
+and the lowest mean outer RMSE selects the regressor. RMSE and MAE are reported
+as nonnegative errors; R² is also reported. LinearRegression and
+PolynomialRegression have no hyperparameter search and are fitted directly.
+
+For either task, `n_splits` and `n_repeats` control the outer strategy, while
+`inner_n_splits` controls inner optimization. Each tunable model receives a
+separate inner search within each outer training split. The corresponding
+held-out outer fold supplies evaluation evidence and is not used by that
+search.
+
+The public optimization budget for tunable models is configured as:
 
 ```toml
 [optimization]
 n_trials = 100
 ```
 
-`n_trials` is the trial budget per optimization search and is the primary
-public control for optimization search effort. The normal default is 100.
-Smoke mode instead uses an internal 5-trial budget.
+`n_trials` is the trial budget per Optuna search and is the primary public
+control for optimization effort. The normal default is 100. Smoke mode instead
+uses an internal 5-trial budget. It applies to tunable classifiers and to Ridge
+and Lasso; direct-fitting models do not start an Optuna study.
 
 The global random seed is configured as:
 
@@ -338,10 +432,18 @@ Use them with:
 melite run --smoke --config my_config.toml
 ```
 
-F1-macro is the fixed optimization and selection metric in MELITE.
-Hyperparameter search optimizes F1-macro, and the classifier with the highest
-mean outer-CV F1-macro is selected. Accuracy and AUC-ROC are reported as
-additional evaluation metrics.
+Selection compares aggregate outer evidence in configured model order. Exact
+ties retain the first configured model: classification maximizes mean F1-macro,
+whereas regression minimizes mean RMSE. After selection, a tunable winner
+receives a fresh optimization using all available data with the configured
+inner-CV strategy. MELITE then fits the winner on all data and records those
+final parameters in the task-specific results CSV. A non-tunable winner is
+fitted directly and records an empty parameter mapping.
+
+Outer evaluation evidence, inner optimization results, final parameter
+selection, and full-data fitting are distinct stages. The resulting evidence
+characterizes the configured evaluation procedure; it does not establish
+external predictive generalizability.
 
 ### Legacy Configuration
 
@@ -414,15 +516,15 @@ Run with reduced smoke settings:
 melite run --smoke --config my_config.toml
 ```
 
-Evaluation time depends on the number of registered datasets, active
-classifiers, cross-validation settings, and the configured `n_trials` budget
-for tunable classifiers. A normal evaluation can therefore take substantially
-longer than a smoke run.
+Evaluation time depends on the number and tasks of registered datasets, the
+active classifiers and regressors, cross-validation settings, and the
+configured `n_trials` budget for tunable models. A normal evaluation can
+therefore take substantially longer than a smoke run.
 
 ### `melite export`
 
-After a normal evaluation, inspect `results.csv` and export the selected result
-for the desired dataset.
+After a normal classification evaluation, inspect `results.csv` and export the
+selected result for the desired dataset.
 
 `--row` is the zero-based row index in `results.csv`. With multiple datasets,
 identify the corresponding row in `results.csv` before exporting it.
@@ -451,13 +553,29 @@ on all available data. It uses the classifier parameters persisted in
 `results.csv` by `melite run`. It performs no additional hyperparameter search,
 cross-validation, or classifier selection.
 
+Regression export requires explicit selection of the regression results file:
+
+```powershell
+melite export --config config.toml --csv output/regression_results.csv --row 0
+```
+
+`--row` is also zero-based for `regression_results.csv`. MELITE validates the
+regression schema, reconstructs the selected regressor with the final
+parameters recorded by `melite run`, fits it on all available data, and writes
+the `.pkl` artifact. Export does not repeat Ridge or Lasso optimization and does
+not perform another evaluation or model-selection step.
+
 Smoke results are blocked from export by default. The `--force` option exists
-for deliberate testing or diagnostic use.
+for deliberate testing or diagnostic use with either task. For example:
+
+```powershell
+melite export --force --config config.toml --csv output/regression_results.csv --row 0
+```
 
 ## Outputs
 
-A standard MELITE workflow produces evaluation artifacts and, when requested,
-a final exported model:
+A MELITE run writes only the artifact family required by the tasks that were
+executed. A mixed-task run can produce:
 
 ```text
 output/
@@ -469,10 +587,16 @@ output/
 ├── optimization_provenance.json
 ├── figures/
 │   └── evaluation_f1_macro_<dataset>.png
-└── Model_<classifier>_<dataset>.pkl
+├── regression_results.txt
+├── regression_results.csv
+├── regression_evaluations.csv
+├── regression_evaluation_folds.csv
+├── regression_optimization_searches.csv
+├── regression_optimization_provenance.json
+└── Model_<model>_<dataset>.pkl
 ```
 
-The artifacts have distinct roles:
+The classification artifacts have distinct roles:
 
 - `results.txt` — human-readable summary of selected results;
 - `results.csv` — selected classifier result for each dataset and the sole
@@ -490,15 +614,37 @@ The artifacts have distinct roles:
 - `Model_<classifier>_<dataset>.pkl` — final full-data fitted model created by
   `melite export`.
 
+The separate regression family contains:
+
+- `regression_results.txt` — human-readable selected-regressor summaries;
+- `regression_results.csv` — one selected regressor per regression dataset and
+  the operational parameter source for regression export;
+- `regression_evaluations.csv` — aggregate RMSE, MAE, and R² evidence for every
+  active regressor;
+- `regression_evaluation_folds.csv` — held-out RMSE, MAE, and R² for every
+  regressor and outer split;
+- `regression_optimization_searches.csv` — completed outer and final Ridge or
+  Lasso optimization searches;
+- `regression_optimization_provenance.json` — the effective regression
+  evaluation, optimization, and search-space contract.
+
+Classification-only runs do not write regression artifacts, regression-only
+runs do not write classification artifacts, and mixed-task runs write both
+families. Regression currently does not produce an F1-macro or other evaluation
+figure.
+
 `results.csv`, `evaluations.csv`, `evaluation_folds.csv`, and
 `optimization_searches.csv` include a `smoke` column identifying whether their
 evidence was produced in smoke mode. `optimization_provenance.json` records the
 same condition in its top-level `smoke` key rather than a CSV column.
 
+The four regression CSV files use the same `smoke` convention, and
+`regression_optimization_provenance.json` records it as a top-level key.
+
 ### Output Data Contract
 
-The four CSV files and the optimization provenance JSON are persistent data
-artifacts whose schemas are part of the MELITE package-version contract.
+The classification and regression CSV files and their optimization provenance
+JSON artifacts have package-versioned schemas.
 MELITE does not embed an independent machine-readable `schema_version`. A
 separate schema version should be reconsidered only if output schemas need to
 evolve independently of the MELITE package version.
@@ -681,10 +827,135 @@ included. The artifact deliberately excludes filesystem, dataset, user,
 environment, estimator, Study, Trial, and per-trial runtime state. MELITE does
 not introduce a separate formal JSON Schema or independent `schema_version`.
 
+#### Regression artifact schemas
+
+`regression_results.txt` is the human-readable regression report. It identifies
+the selected regressor, final parameter mapping, aggregate outer-CV metrics,
+effective CV strategies, random state, trial budget, and smoke status for each
+executed regression dataset. It is not the machine-readable export interface;
+that role belongs to `regression_results.csv`.
+
+All four regression CSV files begin with this exact ordered identity prefix:
+
+| Column | Meaning |
+|---|---|
+| `dataset` | User-defined registered dataset identifier. |
+| `task` | Prediction task; always `regression` in these artifacts. |
+| `family` | Optional dataset-family metadata. |
+| `method` | Optional dataset-method metadata. |
+| `variant` | Optional dataset-variant metadata. |
+| `level` | Optional dataset-level metadata. |
+| `description` | Optional dataset description. |
+| `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
+| `regressor_key` | Canonical regressor key: `linear`, `poly`, `ridge`, or `lasso`. |
+| `regressor_name` | Canonical public regressor name. |
+
+Optional metadata is serialized as an empty field when absent.
+
+##### `regression_results.csv`
+
+This file contains one row per regression dataset and only the selected
+regressor. After the identity prefix, its exact columns are:
+
+| Column | Meaning |
+|---|---|
+| `parameters` | Final full-data parameter mapping serialized as canonical JSON; empty mappings are written as `{}`. |
+| `rmse` | Mean outer-CV RMSE for the selected regressor. |
+| `rmse_std` | Population standard deviation of outer-CV RMSE. |
+| `mae` | Mean outer-CV MAE for the selected regressor. |
+| `mae_std` | Population standard deviation of outer-CV MAE. |
+| `r2` | Mean outer-CV R² for the selected regressor. |
+| `r2_std` | Population standard deviation of outer-CV R². |
+| `smoke` | Whether the row was produced in smoke mode. |
+
+For Ridge and Lasso, `parameters` contains the effective `ridge__alpha` or
+`lasso__alpha` parameter selected by the fresh full-data search performed
+during `melite run`. LinearRegression and PolynomialRegression record `{}`.
+`melite export` uses this file and parameter mapping to reconstruct and fit the
+final regressor without another optimization.
+
+##### `regression_evaluations.csv`
+
+This file contains one row per regression dataset × evaluated regressor. After
+the identity prefix, its exact columns are:
+
+| Column | Meaning |
+|---|---|
+| `rmse` | Mean outer-CV RMSE. |
+| `rmse_std` | Population standard deviation of outer-CV RMSE. |
+| `mae` | Mean outer-CV MAE. |
+| `mae_std` | Population standard deviation of outer-CV MAE. |
+| `r2` | Mean outer-CV R². |
+| `r2_std` | Population standard deviation of outer-CV R². |
+| `selected` | Whether this regressor was selected for the dataset. |
+| `smoke` | Whether the row was produced in smoke mode. |
+
+##### `regression_evaluation_folds.csv`
+
+This file contains one row per regression dataset × evaluated regressor ×
+outer split. After the identity prefix, its exact columns are:
+
+| Column | Meaning |
+|---|---|
+| `outer_split` | Sequential identifier of the preserved outer split. |
+| `outer_repeat` | Repeated-CV repeat identifier. |
+| `outer_fold` | Fold identifier within the repeat. |
+| `rmse` | Nonnegative held-out RMSE for this outer split. |
+| `mae` | Nonnegative held-out MAE for this outer split. |
+| `r2` | Held-out R² for this outer split. |
+| `selected` | Whether this regressor was selected globally after aggregate evaluation. |
+| `smoke` | Whether the evidence was produced in smoke mode. |
+
+As with classification folds, `selected` does not indicate independent
+selection within an outer fold.
+
+##### `regression_optimization_searches.csv`
+
+This file contains one row per completed Ridge or Lasso optimization search,
+not one row per Optuna trial. After the identity prefix, its exact columns are:
+
+| Column | Meaning |
+|---|---|
+| `search_scope` | `outer` for an inner search within one outer training split; `final` for the fresh full-data search after selection. |
+| `outer_split` | Sequential outer split identifier for outer rows; empty for final rows. |
+| `outer_repeat` | Outer repeat identifier for outer rows; empty for final rows. |
+| `outer_fold` | Fold identifier for outer rows; empty for final rows. |
+| `best_inner_rmse` | Lowest mean inner-CV RMSE found by the search. |
+| `best_params` | Effective best parameters serialized as canonical JSON. |
+| `n_trials_requested` | Number of Optuna trials requested. |
+| `n_trials_complete` | Number of successfully completed trials. |
+| `n_trials_failed` | Number of failed trials. |
+| `selected` | Dataset-level selection status; final rows identify the selected tunable regressor. |
+| `smoke` | Whether the search was produced in smoke mode. |
+
+If a regression run evaluates only LinearRegression and/or
+PolynomialRegression, the file is still created with its header and no search
+rows.
+
+##### `regression_optimization_provenance.json`
+
+This file records the effective regression evaluation and optimization
+contract with these exact top-level keys:
+
+| Key | Meaning |
+|---|---|
+| `melite_version` | MELITE package version governing the artifact contract. |
+| `task` | Fixed value `regression`. |
+| `optimization_backend` | Optimization backend name and runtime version. |
+| `smoke` | Whether the effective run used smoke settings. |
+| `random_state` | Canonical MELITE random state. |
+| `active_regressors` | Active regressor keys in configured evaluation order. |
+| `cv` | Effective `RepeatedKFold` outer and shuffled `KFold` inner contracts. |
+| `optimization` | RMSE objective, minimization direction, sampler settings, effective trial budget, pruning policy, and parallelism. |
+| `search_spaces` | Effective search-space contracts; direct-fitting regressors are represented as `null`. |
+
 ## Python API
 
-The public Python API can load an exported model artifact and run inference on
-new numeric feature matrices.
+The public `melite.predict(model_path, X, return_proba=True)` function loads an
+exported model artifact and runs inference on a new numeric feature matrix. It
+returns `predictions`, `probabilities`, `model_path`, and `n_samples`.
+
+Classification example:
 
 ```python
 import numpy as np
@@ -701,34 +972,74 @@ print(result["predictions"])
 print(result["probabilities"])
 ```
 
-`X_new` must use the same feature representation expected by the exported
+`X_new` must be a two-dimensional NumPy array using the same feature
+representation, feature order, and feature count expected by the exported
 model.
 
-All classifier artifacts exported by MELITE for the six supported keys provide
-probability estimates. The returned `probabilities` value is `None` only when
-`return_proba=False` or when this API is used with another compatible artifact
-that does not provide `predict_proba()`.
+All classifier artifacts exported by MELITE for the 11 supported keys provide
+probability estimates. Exported regression artifacts return `probabilities` as
+`None`. For classifier artifacts, that value is also `None` when
+`return_proba=False`.
+
+Regression example:
+
+```python
+import numpy as np
+from melite import predict
+
+X_new = np.array(
+    [
+        [0.2, 1.4, -0.3],
+        [0.8, 0.1, 0.5],
+    ],
+    dtype=float,
+)
+
+result = predict("output/Model_Ridge_quantitative_a.pkl", X_new)
+continuous_predictions = result["predictions"]
+assert continuous_predictions.shape == (2,)
+assert result["probabilities"] is None
+```
+
+Regression inference requires a two-dimensional NumPy array containing only
+finite real numerical values. MELITE checks the feature count exposed by the
+fitted regressor and returns one continuous quantitative prediction per input
+row. It does not persist or validate feature names or semantic feature identity;
+the caller must preserve the training representation and column order.
 
 For the complete public Python interface, see the [API Reference](api.md).
 
 ## Evaluation Contract
 
-For each registered dataset, MELITE follows a reproducible evaluation contract:
+For each registered dataset, MELITE follows a task-specific reproducible
+evaluation contract:
 
-1. `X` is validated as a two-dimensional numeric feature matrix, and `y`
-   provides labels for the same samples.
-2. Each active classifier is evaluated under the configured repeated
-   stratified outer cross-validation design.
-3. For tunable classifiers, hyperparameter search occurs only within the
-   training portion of each outer split.
-4. Evaluation evidence comes from the held-out outer folds across all repeats.
-5. Mean outer-CV F1-macro determines the selected classifier for each dataset.
-6. Aggregate and per-fold evidence are preserved for every evaluated
-   classifier.
-7. The F1-macro evidence figure is generated from preserved outer-CV evidence
-   without additional fitting, tuning, cross-validation, or selection.
-8. Selection and final fitting are separate stages.
-9. After selection, the chosen classifier is fitted using all available data.
-   If it is tunable, MELITE performs a final full-data hyperparameter search to
-   determine the exported configuration.
-10. `melite export` does not run a second post-selection evaluation.
+1. `X` is a two-dimensional numeric matrix. Classification uses a
+   one-dimensional label target; regression requires a one-dimensional finite
+   real quantitative target.
+2. Classification uses repeated stratified outer folds and stratified inner
+   folds. Regression uses repeated `KFold` outer folds and shuffled `KFold`
+   inner folds.
+3. Every inner optimization is fitted only on the training portion of its
+   corresponding outer split. Its best configuration is then evaluated on the
+   held-out outer fold.
+4. Classification selects the highest mean outer F1-macro and additionally
+   reports accuracy and ROC-AUC. Regression selects the lowest mean outer RMSE
+   and additionally reports MAE and R².
+5. Exact metric ties preserve configured model order. Aggregate and per-fold
+   evidence is retained for all evaluated models.
+6. After selection, Ridge, Lasso, and tunable classifiers receive a fresh
+   full-data optimization using the configured inner strategy. LinearRegression,
+   PolynomialRegression, and StackingClassifier are fitted directly.
+7. Final parameters are persisted in `regression_results.csv` or `results.csv`.
+   The selected model is fitted on all available data during `melite run`.
+8. `melite export` reconstructs the selected model from those recorded final
+   parameters and fits it on all available data to create the `.pkl` artifact.
+   It does not repeat optimization, cross-validation, or model selection.
+9. The classification F1-macro figure is generated from existing outer evidence
+   without further fitting. No corresponding regression figure is currently
+   produced.
+
+These stages preserve the evidence for the configured software evaluation;
+they do not establish performance on an external population or scientific
+validity beyond the evaluated data and design.

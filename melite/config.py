@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Configuration loader for MELITE.
+"""Configuration loader for MELITE classification and regression workflows.
 
 Reads ``melite/config_default.toml`` as the base configuration.
 An optional user-supplied TOML file can override any key via deep merge.
@@ -16,12 +16,16 @@ from pathlib import Path
 
 import numpy as np
 
+from melite.model_catalog import MODEL_CATALOG
 from melite.optimization_policy import OPTIMIZATION_POLICY
 
 __all__ = ["Config"]
 
 # Path to the default configuration file bundled with the package
 _DEFAULT_CONFIG = Path(__file__).parent / "config_default.toml"
+_REGRESSION_MODEL_KEYS = frozenset(
+    model.key for model in MODEL_CATALOG if model.prediction_task == "regression"
+)
 
 
 def _load_toml(path: Path) -> dict:
@@ -76,10 +80,19 @@ class Config:
     DATASETS : dict
         Normalized dataset registry keyed by user-defined dataset id. Each
         entry contains ``path`` and ``metadata`` plus ``label_path`` for NPZ
-        datasets or ``label_column`` for CSV datasets.
+        datasets or ``label_column`` for CSV datasets. Every entry also contains
+        ``task``, which is exactly ``"classification"`` or ``"regression"``.
+        Registered datasets default to classification when ``task`` is omitted;
+        the legacy synthesized registry is also classification-only.
     ACTIVE_CLASSIFIERS : list of str
-        Classifier keys to include in the evaluation (e.g. ``["svc", "rf", "xgb"]``;
-        add ``"stack"`` to opt in to stacking).
+        Classifier keys from ``[classifiers].active`` in configured evaluation
+        order. The packaged default is ``["svc", "rf", "xgb"]``.
+    ACTIVE_REGRESSORS : list of str
+        Validated regressor keys from ``[regressors].active`` in configured
+        evaluation order. Supported values are ``"linear"``, ``"poly"``,
+        ``"ridge"``, and ``"lasso"``. The packaged default is an empty list;
+        at least one regressor is required when any registered dataset has
+        ``task = "regression"``.
     CV_CONFIG : dict
         Cross-validation settings with keys ``n_splits``, ``n_repeats``, and
         ``inner_n_splits``.
@@ -94,9 +107,11 @@ class Config:
         specifies ``random_state`` under ``[cv]`` or ``[cv_smoke]`` instead of
         ``[benchmark]``, contains an unsupported ``[optimization]`` key, sets
         an invalid ``[optimization].n_trials`` value, or defines an invalid
-        registered dataset. Registered datasets support only ``.npz`` files
-        with ``label_path`` and ``.csv`` files with a non-empty
-        ``label_column``.
+        registered dataset or active-regressor list, or configures a regression
+        dataset without an active regressor. Registered datasets support only
+        ``.npz`` files with ``label_path`` and ``.csv`` files with a non-empty
+        ``label_column``; ``task`` accepts exactly ``"classification"`` or
+        ``"regression"``.
 
     Examples
     --------
@@ -177,7 +192,21 @@ class Config:
             )
         self.N_TRIALS = OPTIMIZATION_POLICY.smoke_n_trials if smoke else normal_n_trials
         self.ACTIVE_CLASSIFIERS = cfg["classifiers"]["active"]
+        self.ACTIVE_REGRESSORS = self._validate_active_regressors(
+            cfg["regressors"]["active"]
+        )
         self.DATASETS = self._build_dataset_registry(cfg)
+        regression_datasets = [
+            dataset_id
+            for dataset_id, spec in self.DATASETS.items()
+            if spec["task"] == "regression"
+        ]
+        if regression_datasets and not self.ACTIVE_REGRESSORS:
+            raise ValueError(
+                "Regression dataset(s) require at least one selected regressor in "
+                "[regressors].active: "
+                f"{', '.join(regression_datasets)}."
+            )
 
         # Cross-validation
         cv_section = cfg["cv_smoke"] if smoke else cfg["cv"]
@@ -186,6 +215,22 @@ class Config:
             "n_repeats": cv_section["n_repeats"],
             "inner_n_splits": cv_section["inner_n_splits"],
         }
+
+    @staticmethod
+    def _validate_active_regressors(active_regressors) -> list[str]:
+        if not isinstance(active_regressors, list) or not all(
+            isinstance(key, str) for key in active_regressors
+        ):
+            raise ValueError("[regressors].active must be a list of model keys.")
+
+        unknown = sorted(set(active_regressors) - _REGRESSION_MODEL_KEYS)
+        if unknown:
+            valid = ", ".join(sorted(_REGRESSION_MODEL_KEYS))
+            raise ValueError(
+                "Unknown active regressor(s): "
+                f"{', '.join(unknown)}. Valid regressor keys are: {valid}."
+            )
+        return list(active_regressors)
 
     def _build_dataset_registry(self, cfg: dict) -> dict:
         datasets = cfg.get("datasets")
@@ -203,6 +248,7 @@ class Config:
             "path",
             "label_path",
             "label_column",
+            "task",
             *metadata_keys,
         )
         normalized = {}
@@ -218,6 +264,16 @@ class Config:
             if "path" not in entry:
                 raise ValueError(
                     f"Dataset '{dataset_id}' is missing required field: path."
+                )
+
+            task = entry.get("task", "classification")
+            if not isinstance(task, str) or task not in {
+                "classification",
+                "regression",
+            }:
+                raise ValueError(
+                    f"Dataset '{dataset_id}' task must be exactly "
+                    "'classification' or 'regression'."
                 )
 
             has_label_path = "label_path" in entry
@@ -272,6 +328,7 @@ class Config:
             normalized[dataset_id] = {
                 "path": entry["path"],
                 **label_spec,
+                "task": task,
                 "metadata": metadata,
             }
         return normalized
@@ -284,6 +341,7 @@ class Config:
                 datasets[dataset_id] = {
                     "path": os.path.join(self.PATHS["DATASET"], f"{dataset_id}.npz"),
                     "label_path": os.path.join(self.PATHS["INPUT"], "labels.npy"),
+                    "task": "classification",
                     "metadata": {
                         "family": "dimensionality",
                         "method": reduction_type,

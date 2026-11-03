@@ -70,13 +70,26 @@ schema versions.
 
 ## Optimization Engine and Policy
 
-**Status:** Fixed design and runtime architecture for v0.3.0. Optuna is the
-single optimization engine for tunable classifiers; coexistence with
-`GridSearchCV` is not part of the design. The only optimization-specific user
-setting is `n_trials`,
-with a normal default of 100. The sampler seed derives from the existing
-canonical `RANDOM_STATE`; MELITE does not expose a separate optimization seed.
-The smoke budget is an internal, non-configurable 5 trials.
+**Status:** Fixed runtime architecture. The classification policy was
+established for v0.3.0; v0.3.2 applies the corresponding task-specific contract
+to regression. Optuna is the single optimization engine for tunable models;
+coexistence with `GridSearchCV` is not part of the current design. The only
+optimization-specific user setting is `n_trials`, with a normal default of 100.
+The sampler seed derives from the canonical `RANDOM_STATE`; MELITE does not
+expose a separate optimization seed. The smoke budget is an internal,
+non-configurable 5 trials.
+
+**Classification policy:** Tunable classifiers maximize mean inner-CV
+F1-macro. Inner folds use shuffled `StratifiedKFold`, and outer evidence uses
+`RepeatedStratifiedKFold`. The classifier with the highest mean outer-CV
+F1-macro is selected; accuracy and ROC-AUC are additional evidence metrics.
+Stacking has no separate Optuna search.
+
+**Regression policy:** Ridge and Lasso minimize mean inner-CV RMSE over their
+`alpha` search spaces. Inner folds use shuffled `KFold`, and outer evidence uses
+`RepeatedKFold`. The regressor with the lowest mean outer-CV RMSE is selected;
+MAE and R² are additional evidence metrics. LinearRegression and
+PolynomialRegression are fitted without Optuna.
 
 **Fixed method:** Seeded, sequential, independent TPE with
 `n_startup_trials=20`, `multivariate=False`, `group=False`,
@@ -89,16 +102,25 @@ model-based TPE. Smoke mode is intentionally exempt.
 
 **Failure and evidence boundary:** Failed candidate evaluations may fail their
 trial without aborting the study; contract, programming, and final refit
-failures propagate. Level-2 outer-search evidence is required, while full
-per-trial traces are not.
+failures propagate. For tunable models, completed outer and final optimization
+search summaries are persisted. Direct-fit-only runs may
+produce header-only search artifacts. Full per-trial traces
+are not persisted.
 
 **Execution boundary:** Sklearn `cross_validate` remains the outer orchestrator,
-with tunable searches adapted through a sklearn-compatible Optuna estimator.
-Tunable outer fits use `error_score="raise"` so fatal optimization failures are
-not converted to NaN; direct non-tunable evaluation retains historical sklearn
-error behavior. Optuna startup accounting includes COMPLETE and PRUNED trials.
-MELITE's no-op pruner makes PRUNED a contract violation, while FAIL consumes
-budget without advancing startup accounting.
+with task-specific tunable searches adapted through sklearn-compatible Optuna
+estimators. Classification tunable outer fits use `error_score="raise"`; direct
+classification evaluation retains its historical sklearn error behavior.
+Regression outer evaluation uses `error_score="raise"` for tunable and direct
+models. Optuna startup accounting includes COMPLETE and PRUNED trials. MELITE's
+no-op pruner makes PRUNED a contract violation, while FAIL consumes budget
+without advancing startup accounting.
+
+For either task, optimization within an outer split uses only its training
+portion. Exact aggregate-metric ties preserve configured model order. After
+selection, a tunable winner receives a fresh full-data optimization and fit;
+non-tunable winners fit directly. Export later reconstructs the selected model
+from the recorded final parameters and does not repeat optimization.
 
 **Compatibility:** MELITE v0.3.0 validates Optuna 4.x. Optuna 5 may be adopted
 only after it is stable and MELITE explicitly verifies compatible sampler
@@ -106,24 +128,47 @@ behavior, trial/error semantics, and optimization policy.
 
 ## Optimization Evidence and Provenance
 
-**Status:** Fixed for v0.3.0.
+**Status:** Fixed task-specific artifact contracts. The classification contract
+was established for v0.3.0; the regression artifact family was added for
+v0.3.2.
 
-MELITE persists one row per complete optimization search, not per trial.
-Outer and final searches share `optimization_searches.csv` through
-`search_scope`; `selected` applies only to outer rows and is not applicable to
-final rows. A Stack-only run legitimately produces a header-only optimization
-search artifact. Full trial traces are deliberately not persisted.
+For classification, MELITE persists one row per completed optimization search,
+not per trial, in `optimization_searches.csv`. Outer and final searches are
+distinguished by `search_scope`; `selected` applies only to outer rows and is
+not applicable to final rows. A Stack-only run legitimately produces a
+header-only search artifact. `evaluations.csv` and `evaluation_folds.csv`
+preserve aggregate and per-outer-split F1-macro, accuracy, and ROC-AUC evidence.
+`results.csv` contains the selected classifier and its final parameters. The
+F1-macro figure is derived from existing outer evidence without further model
+fitting.
 
-Optimization provenance records the effective cross-validation design,
-canonical `RANDOM_STATE`, effective optimization budget, fixed optimization
-policy, backend identity and runtime version, and only the active search-space
-contracts. Stack is represented as `null`. Filesystem, data, and environment
-provenance are outside B4.
+For regression, the corresponding files are
+`regression_optimization_searches.csv`, `regression_evaluations.csv`,
+`regression_evaluation_folds.csv`, and `regression_results.csv`. Search rows
+exist only for Ridge and Lasso; a run containing only LinearRegression and/or
+PolynomialRegression produces a header-only regression search artifact. RMSE,
+MAE, and R² are preserved as aggregate and per-outer-split evidence, and the
+selected result is determined by the lowest mean outer RMSE. Regression does
+not currently produce an evaluation figure.
+
+For both tasks, exact selection ties retain the first model in configured
+order, and full trial traces are deliberately not persisted. Outer-CV evidence
+describes the configured evaluation design; it is not evidence of external
+scientific validation or generalizability.
+
+`optimization_provenance.json` records the classification cross-validation
+design, canonical `RANDOM_STATE`, effective budget, fixed policy, backend
+identity and runtime version, and active classifier search spaces; Stack is
+represented as `null`. `regression_optimization_provenance.json` records the
+task-specific outer and inner strategies, RMSE minimization contract, active
+regressors, and their search spaces; LinearRegression and PolynomialRegression
+are represented as `null`. Filesystem, data, and environment provenance remain
+outside these artifacts.
 
 The MELITE package version governs these artifact schemas; no independent
 `schema_version` is added. Optimization evidence is not an operational model
-input: `results.csv` remains the sole persisted parameter source used by
-`melite export`.
+input: `results.csv` is the persisted classification parameter source used by
+`melite export`, while regression export uses `regression_results.csv`.
 
 ## Public Classifier Extensibility
 

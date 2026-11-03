@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.2] - 2026-11-02
+
+### Added
+
+- Added five classifiers: KNeighborsClassifier, DecisionTreeClassifier,
+  AdaBoostClassifier, LGBMClassifier, and CatBoostClassifier. LightGBM and
+  CatBoost are included in the standard installation.
+- Added supervised regression with LinearRegression, PolynomialRegression,
+  Ridge, and Lasso. PolynomialRegression uses a fixed degree-two expansion
+  with an explicit 10,000-feature limit; Ridge and Lasso optimize `alpha` on
+  a logarithmic scale.
+- Added regression-specific nested evaluation using outer RepeatedKFold and
+  inner shuffled KFold cross-validation. Model selection minimizes mean outer
+  RMSE, preserves configured order on exact ties, and also reports MAE and R².
+  Tunable models are optimized within each outer fold and optimized again on
+  the full dataset before final fitting.
+- Added classification-only, regression-only, and mixed-task execution through
+  explicit dataset task configuration, while retaining classification as the
+  default for existing configurations.
+- Added six regression reporting and provenance artifacts:
+  `regression_results.txt`, `regression_results.csv`,
+  `regression_evaluations.csv`, `regression_evaluation_folds.csv`,
+  `regression_optimization_searches.csv`, and
+  `regression_optimization_provenance.json`.
+- Added reconstruction and export of selected regression models from
+  `regression_results.csv`, plus quantitative prediction through the public
+  `melite.predict()` API. Regression predictions are one-dimensional and do
+  not include class probabilities.
+
+### Changed
+
+- Expanded the supported classification inventory to 11 models while
+  preserving the existing default classifier selection, classification
+  metrics, nested evaluation, and stacking composition.
+- Updated the README, MkDocs content, public Python API documentation, and CLI
+  help for classification and regression workflows. Replaced the obsolete
+  evaluation-workflow figure with a conceptual illustration of the
+  machine-learning methods implemented in MELITE.
+
+### Fixed
+
+- Corrected classification result persistence to record the selected
+  classifier identity rather than the fitted estimator's Python class. This
+  prevents pipeline-backed classifiers such as LogisticRegression from being
+  recorded as `Pipeline` and restores their export reconstruction.
+
+### Validation
+
+- Expanded automated regression coverage for model identity, catalog and
+  search-space contracts, task configuration, regression training and
+  selection, reporting, export, and prediction.
+- Extended installed-wheel smoke validation to cover independent
+  classification and regression execution, artifact schemas, smoke-result
+  export safeguards, forced regression export, and public prediction using the
+  installed package.
+
+---
+
 ## [0.3.1] - 2026-10-28
 
 ### Added
@@ -621,6 +679,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.3.2]: https://github.com/NanoBiostructuresRG/melite/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/NanoBiostructuresRG/melite/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.5...v0.3.0
 [0.2.5]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.4...v0.2.5

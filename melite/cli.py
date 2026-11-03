@@ -4,9 +4,9 @@
 This module provides the ``melite`` command registered in ``pyproject.toml``
 under ``[project.scripts]``. It exposes three subcommands:
 
-- ``melite run`` — execute the full evaluation pipeline.
+- ``melite run`` — execute configured classification and regression workflows.
 - ``melite export`` — retrain a selected model and export a ``.pkl`` artifact.
-- ``melite example`` — copy the bundled example project.
+- ``melite example`` — copy the bundled classification example project.
 
 Global flags (``--verbose``, ``--config``, ``--version``) are available to
 all subcommands via argparse parent parsers.
@@ -52,7 +52,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="melite",
-        description="MELITE — Multi-Model Classifier Evaluator.",
+        description=(
+            "MELITE — supervised classification and regression model evaluation."
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         parents=[global_parent],
     )
@@ -70,8 +72,10 @@ def _build_parser() -> argparse.ArgumentParser:
     # ------------------------------------------------------------------ #
     run_parser = subparsers.add_parser(
         "run",
-        help="Run the full evaluation pipeline.",
-        description="Evaluate configured classifiers across all registered datasets.",
+        help="Run the configured classification and regression workflows.",
+        description=(
+            "Evaluate configured classifiers and regressors for registered datasets."
+        ),
         parents=[global_parent],
     )
     run_parser.add_argument(
@@ -79,7 +83,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Lightweight mode: reduced search and cross-validation settings. "
-            "Results are not suitable for final classifier selection."
+            "Results are not suitable for final model selection."
         ),
     )
 
@@ -88,7 +92,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # ------------------------------------------------------------------ #
     export_parser = subparsers.add_parser(
         "export",
-        help="Export a selected model from results.csv.",
+        help="Export a selected model from a MELITE results CSV.",
         description="Retrain a selected model on all available data and save a .pkl artifact.",
         parents=[global_parent],
     )
@@ -97,14 +101,20 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         metavar="INDEX",
-        help="Row index from results.csv to export without interactive prompt.",
+        help=(
+            "Zero-based row index from the selected results CSV; "
+            "skips the interactive prompt."
+        ),
     )
     export_parser.add_argument(
         "--csv",
         type=Path,
         default=None,
         metavar="PATH",
-        help="Path to results CSV file. Defaults to output/results.csv.",
+        help=(
+            "Path to a classification or regression results CSV. "
+            "Defaults to output/results.csv."
+        ),
     )
     export_parser.add_argument(
         "--outdir",
@@ -124,10 +134,10 @@ def _build_parser() -> argparse.ArgumentParser:
     # ------------------------------------------------------------------ #
     subparsers.add_parser(
         "example",
-        help="Copy the bundled synthetic example project.",
+        help="Copy the bundled synthetic classification example project.",
         description=(
-            "Copy a ready-to-run synthetic numeric-tabular example into "
-            "./melite_example/."
+            "Copy a ready-to-run synthetic numeric-tabular classification "
+            "example into ./melite_example/."
         ),
         parents=[global_parent],
     )

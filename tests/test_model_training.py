@@ -652,7 +652,7 @@ def test_legacy_grid_search_members_are_absent():
 
 
 def test_invalid_and_empty_active_classifier_lists_raise_clear_errors():
-    with pytest.raises(ValueError, match="Unknown active classifier\\(s\\): knn"):
-        MultiModelTrainer(_config(["svc", "knn"]))
+    with pytest.raises(ValueError, match="Unknown active classifier\\(s\\): unknown"):
+        MultiModelTrainer(_config(["svc", "unknown"]))
     with pytest.raises(ValueError, match="must contain at least one"):
         MultiModelTrainer(_config([]))

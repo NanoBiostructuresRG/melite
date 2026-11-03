@@ -33,6 +33,7 @@ def test_config_default_construction_does_not_discover_cwd_config(
     cfg = Config(user_config=None)
 
     assert cfg.ACTIVE_CLASSIFIERS == ["svc", "rf", "xgb"]
+    assert cfg.ACTIVE_REGRESSORS == []
 
 
 def test_config_construction_does_not_mutate_global_rng_state():
@@ -63,6 +64,7 @@ def test_config_exposes_only_the_intended_public_runtime_values():
         "N_TRIALS",
         "DATASETS",
         "ACTIVE_CLASSIFIERS",
+        "ACTIVE_REGRESSORS",
         "CV_CONFIG",
     }
 
@@ -290,6 +292,28 @@ def test_classifiers_is_the_active_public_configuration_section(tmp_path):
     assert not hasattr(cfg, "ACTIVE_MODELS")
 
 
+def test_regressor_keys_are_validated_against_catalog(tmp_path):
+    valid_toml = tmp_path / "valid-regressors.toml"
+    valid_toml.write_text(
+        '[regressors]\nactive = ["linear", "poly", "ridge", "lasso"]\n',
+        encoding="utf-8",
+    )
+    invalid_toml = tmp_path / "invalid-regressors.toml"
+    invalid_toml.write_text(
+        '[regressors]\nactive = ["svc"]\n',
+        encoding="utf-8",
+    )
+
+    assert Config(user_config=valid_toml).ACTIVE_REGRESSORS == [
+        "linear",
+        "poly",
+        "ridge",
+        "lasso",
+    ]
+    with pytest.raises(ValueError, match=r"Unknown active regressor.*svc"):
+        Config(user_config=invalid_toml)
+
+
 def test_legacy_models_section_fails_with_migration_message(tmp_path):
     user_toml = tmp_path / "models.toml"
     user_toml.write_text('[models]\nactive = ["stack"]\n')
@@ -317,6 +341,7 @@ def test_config_synthesizes_legacy_dataset_registry(tmp_path):
     assert set(cfg.DATASETS) == {"PCA70", "PCA75", "UMAP70", "UMAP75"}
     assert Path(cfg.DATASETS["PCA70"]["path"]) == Path("data/PCA70.npz")
     assert Path(cfg.DATASETS["PCA70"]["label_path"]) == Path("raw/labels.npy")
+    assert cfg.DATASETS["PCA70"]["task"] == "classification"
     assert cfg.DATASETS["PCA70"]["metadata"] == {
         "family": "dimensionality",
         "method": "PCA",
@@ -374,6 +399,7 @@ family = "descriptors"
     assert cfg.DATASETS["morgan_r2_2048"] == {
         "path": "data/morgan_r2_2048.npz",
         "label_path": "raw/labels.npy",
+        "task": "classification",
         "metadata": {
             "family": "fingerprints",
             "method": "Morgan",
@@ -381,6 +407,62 @@ family = "descriptors"
             "description": "Morgan radius 2 fingerprint",
         },
     }
+
+
+def test_config_normalizes_explicit_regression_task(tmp_path):
+    user_toml = tmp_path / "regression.toml"
+    user_toml.write_text(
+        """
+[regressors]
+active = ["ridge"]
+
+[datasets.solubility]
+path = "data/solubility.csv"
+label_column = "solubility"
+task = "regression"
+""",
+        encoding="utf-8",
+    )
+
+    cfg = Config(user_config=user_toml)
+
+    assert cfg.ACTIVE_REGRESSORS == ["ridge"]
+    assert cfg.DATASETS["solubility"]["task"] == "regression"
+
+
+def test_config_regression_dataset_requires_selected_regressor(tmp_path):
+    user_toml = tmp_path / "regression.toml"
+    user_toml.write_text(
+        """
+[datasets.solubility]
+path = "data/solubility.csv"
+label_column = "solubility"
+task = "regression"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"Regression dataset.*\[regressors\].active"):
+        Config(user_config=user_toml)
+
+
+@pytest.mark.parametrize("task", ["clustering", "Classification", "regression "])
+def test_config_dataset_task_accepts_only_canonical_values(tmp_path, task):
+    user_toml = tmp_path / "invalid-task.toml"
+    user_toml.write_text(
+        f"""
+[datasets.sample]
+path = "data/sample.csv"
+label_column = "target"
+task = "{task}"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError, match=r"task must be exactly.*classification.*regression"
+    ):
+        Config(user_config=user_toml)
 
 
 def test_config_user_dataset_requires_path(tmp_path):
@@ -428,6 +510,7 @@ description = "Neutral numeric table"
     assert cfg.DATASETS["sample_tabular"] == {
         "path": "data/sample_tabular.CSV",
         "label_column": "Outcome",
+        "task": "classification",
         "metadata": {
             "family": "tabular",
             "method": "prepared",
@@ -546,6 +629,7 @@ unexpected = "value"
         "path",
         "label_path",
         "label_column",
+        "task",
         "family",
         "method",
         "variant",

@@ -1,8 +1,8 @@
-# MELITE — Multi-Model Classifier Evaluator
+# MELITE
 
 <section class="ms-hero">
   <div class="ms-hero__content">
-    <p class="ms-eyebrow">Multi-model classifier evaluation</p>
+    <p class="ms-eyebrow">Supervised model evaluation</p>
     <div class="ms-brand" aria-label="MELITE">
       <span class="ms-brand__logo" aria-hidden="true">
         <img src="assets/logo-azul.svg" alt="">
@@ -10,7 +10,7 @@
       <span class="ms-wordmark">MELITE</span>
     </div>
     <p class="ms-subtitle">
-      Comparative classifier evaluation for reproducible classifier selection on numeric tabular data.
+      Reproducible evaluation and selection of supervised classification and regression models on numeric tabular data.
     </p>
     <div class="ms-actions">
       <a class="md-button md-button--primary" href="usage/">Usage</a>
@@ -31,25 +31,25 @@
 
 ## Why MELITE?
 
-Comparing classifiers is easy. Keeping the comparison methodologically sound
-and reconstructable is harder.
+Comparing supervised models is easy. Keeping the comparison methodologically
+sound and reconstructable is harder.
 
-You tune several classifiers, compare their scores, and choose one. Later comes
-the question: why this classifier? Answering it depends on two things that are
+You tune several models, compare their scores, and choose one. Later comes
+the question: why this model? Answering it depends on two things that are
 easy to lose — whether tuning stayed clear of the evidence used to report
 performance, and whether the fold-level results still exist.
 
 MELITE turns that decision into a recorded evaluation workflow. Hyperparameter
 search stays inside the training portion of each outer split, while performance
-is measured on held-out outer folds. Classifier selection is based on mean
-outer-CV F1-macro, and both aggregate and fold-level evidence are persisted.
-For tunable classifiers, search effort is controlled by an explicitly declared
+is measured on held-out outer folds. Model selection uses a task-specific
+primary metric, and both aggregate and fold-level evidence are persisted. For
+tunable models, search effort is controlled by an explicitly declared
 optimization budget, making that effort part of the recorded evaluation
 design.
 
 Selection and final fitting are deliberately separate. Outer-CV evidence
-identifies the winning classifier; the final artifact is then fitted on all
-available data, with a final full-data search when the classifier is tunable.
+identifies the winning model; the final artifact is then fitted on all
+available data, with a final full-data search when the model is tunable.
 The outer-CV score estimates performance; the exported artifact is the
 deliverable. MELITE reports them as distinct.
 
@@ -57,14 +57,17 @@ You can assemble the same procedure manually with scikit-learn and the
 underlying estimator libraries. MELITE makes it explicit, repeatable, and
 inspectable — and keeps the evidence.
 
-## Evaluation Workflow
+MELITE records software and model-evaluation evidence. It does not by itself
+establish external scientific validity or predictive generalizability.
 
-<img class="ms-workflow-image" src="assets/melite_evaluation_workflow.png" alt="MELITE evaluation workflow">
+## Machine-Learning Methods Implemented in MELITE
+
+<img class="ms-workflow-image" src="assets/ML_methods_implemented_MELITE.png" alt="Conceptual organization of machine-learning methods implemented in MELITE">
 
 ## What You Provide and Receive
 
 MELITE sits between prepared numeric datasets and the fitted model you
-ultimately export. A typical workflow has the following contract:
+ultimately export. The following contract describes the classification path:
 
 | Stage | You provide | MELITE does | You receive |
 |---|---|---|---|

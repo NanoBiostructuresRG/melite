@@ -10,10 +10,14 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline as SklearnPipeline
+from sklearn.preprocessing import StandardScaler
 
 import melite.main as main_module
 from melite.config import Config
 from melite.main import Main, Pipeline
+from melite.model_catalog import MODEL_CATALOG
 from melite.optimization import OptimizationResult
 from melite.search_spaces import get_search_space
 from melite.version import __version__
@@ -266,6 +270,126 @@ def test_selected_evaluation_requires_exactly_one(evaluations, count):
         Main._selected_evaluation(evaluations)
 
 
+def test_main_dispatches_regression_dataset_without_classifier_pipeline(monkeypatch):
+    calls = []
+
+    class ClassificationPipeline:
+        def run_with_evaluations(self, *args):
+            pytest.fail("Regression data must not reach the classification pipeline")
+
+    main = Main.__new__(Main)
+    main.config = SimpleNamespace(
+        SMOKE=False,
+        N_TRIALS=100,
+        ACTIVE_CLASSIFIERS=["svc"],
+        ACTIVE_REGRESSORS=["linear"],
+        DATASETS={"solubility": {"task": "regression"}},
+    )
+    main.pipeline = ClassificationPipeline()
+    main.regression_model_trainer = object()
+    main._run_regression_dataset = lambda dataset_id, dataset, metadata: calls.append(
+        dataset_id
+    )
+    main._write_regression_artifacts = lambda: calls.append("write_regression")
+    main._write_classification_artifacts = lambda: pytest.fail(
+        "Regression-only execution must not write classification artifacts"
+    )
+    monkeypatch.setattr(
+        main_module,
+        "load_datasets",
+        lambda config: {
+            "solubility": {
+                "X": np.ones((4, 2)),
+                "y": np.arange(4, dtype=float),
+                "task": "regression",
+                "metadata": {},
+            }
+        },
+    )
+
+    main._run_evaluation()
+
+    assert calls == ["solubility", "write_regression"]
+
+
+def test_selected_lr_pipeline_persists_logistic_regression_identity(
+    monkeypatch, tmp_path
+):
+    selected_pipeline = SklearnPipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("lr", LogisticRegression()),
+        ]
+    )
+
+    class SelectedLrPipeline:
+        def run_with_evaluations(self, *args):
+            selected_result = (
+                selected_pipeline,
+                {"lr__C": 1.0},
+                0.8,
+                0.01,
+                0.82,
+                0.02,
+                0.9,
+                0.03,
+            )
+            evaluation = {
+                "classifier_key": "lr",
+                "f1_macro": 0.8,
+                "f1_std": 0.01,
+                "accuracy": 0.82,
+                "acc_std": 0.02,
+                "auc_roc": 0.9,
+                "auc_std": 0.03,
+                "outer_scores": [],
+                "optimization_searches": [],
+                "final_optimization_search": None,
+                "selected": True,
+            }
+            return selected_result, [evaluation]
+
+    main = Main.__new__(Main)
+    main.config = SimpleNamespace(
+        SMOKE=False,
+        N_TRIALS=100,
+        ACTIVE_CLASSIFIERS=["lr"],
+        RANDOM_STATE=42,
+        CV_CONFIG={"n_splits": 2, "n_repeats": 1, "inner_n_splits": 2},
+        DATASETS={"sample": {"task": "classification"}},
+        PATHS={"OUTPUT": str(tmp_path)},
+        RESULTS_FILE=str(tmp_path / "results.txt"),
+    )
+    main.pipeline = SelectedLrPipeline()
+    main.result_manager = main_module.ResultManager(main.config.RESULTS_FILE)
+    main.final_results = []
+    main.csv_rows = []
+    main.evaluations_by_dataset = {}
+    main.evaluation_rows = []
+    main.evaluation_fold_rows = []
+    main.optimization_rows = []
+    monkeypatch.setattr(
+        main_module,
+        "load_datasets",
+        lambda config: {
+            "sample": {
+                "X": np.ones((4, 2)),
+                "y": np.array([0, 1, 0, 1]),
+                "metadata": {},
+            }
+        },
+    )
+
+    main._run_evaluation()
+
+    row = _rows(tmp_path / "results.csv")[0]
+    report = (tmp_path / "results.txt").read_text(encoding="utf-8")
+    assert selected_pipeline.__class__.__name__ == "Pipeline"
+    assert row["classifier_name"] == "LogisticRegression"
+    assert "Classifier selected: LogisticRegression" in report
+    assert "Classifier selected: Pipeline" not in report
+
+
 def test_main_run_uses_arbitrary_dataset_ids(monkeypatch, tmp_path):
     DummyPipeline.calls = []
     monkeypatch.setattr(main_module, "Pipeline", DummyPipeline)
@@ -321,11 +445,14 @@ level = 85
 
     rows = _rows(output_dir / "results.csv")
     report = (output_dir / "results.txt").read_text(encoding="utf-8")
-    assert (
-        "Classifiers: SVC, Logistic Regression (opt-in), "
-        "Gaussian Naive Bayes (opt-in), Random Forest, XGBoost, "
-        "Stacking (opt-in)" in report
+    classifier_names = ", ".join(
+        model.public_name
+        for model in MODEL_CATALOG
+        if model.prediction_task == "classification"
+        and model.availability == "implemented"
     )
+    assert "Supervised Classification Evaluator" in report
+    assert f"Classifiers: {classifier_names}" in report
     assert "Classifier selected: SVC" in report
     assert "Best classifier parameters:" in report
     assert "Model Selected:" not in report
@@ -448,6 +575,7 @@ level = 85
     assert len(figure_calls) == 1
     assert figure_calls[0]["rows"] is main.evaluation_fold_rows
     assert figure_calls[0]["smoke"] is False
+    assert not list(output_dir.glob("regression_*"))
 
 
 def test_main_persists_exact_final_parameters(monkeypatch, tmp_path):
