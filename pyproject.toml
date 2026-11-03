@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 [project]
 name = "melite"
 dynamic = ["version"]
-description = "Comparative classifier evaluation for reproducible model selection on numeric tabular data, with nested cross-validation and preserved evaluation evidence."
+description = "Reproducible evaluation and selection of supervised classification and regression models on numeric tabular data, with nested cross-validation and preserved evaluation evidence."
 readme = "README.md"
 license = "LGPL-3.0-or-later"
 license-files = ["LICENSE", "COPYING", "COPYING.LESSER"]
@@ -16,16 +16,19 @@ authors = [
 ]
 keywords = [
     "machine learning",
+    "supervised learning",
     "classification",
+    "regression",
     "tabular data",
-    "classifier selection",
+    "model evaluation",
+    "model selection",
     "cross-validation",
-    "nested cross-validation",
+    "hyperparameter optimization",
+    "Optuna",
+    "reproducibility",
     "evaluation evidence",
-    "csv",
-    "inference",
-    "scikit-learn",
-    "xgboost",
+    "model export",
+    "nested cross-validation",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

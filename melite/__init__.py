@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""MELITE — Multi-Model Classifier Evaluator.
+"""MELITE — Multi-Model Supervised Learning Evaluator.
 
 Public API
 ----------

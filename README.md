@@ -1,7 +1,7 @@
-# MELITE
+# MELITE — Multi-Model Supervised Learning Evaluator
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.3.1-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v0.3.2-blue.svg)]()
 [![PyPI](https://img.shields.io/pypi/v/melite.svg)](https://pypi.org/project/melite/)
 [![Python](https://img.shields.io/pypi/pyversions/melite.svg)](https://pypi.org/project/melite/)
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
@@ -450,12 +450,6 @@ If you use MELITE in your research, please cite it using the metadata in
 ```text
 Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE — Multi-Model Classifier Evaluator. Zenodo. https://doi.org/10.5281/zenodo.20382752
 ```
-
-## Authors
-
-- **Flavio F. Contreras-Torres** — Tecnológico de Monterrey
-- **Ana C. Murrieta** — Tecnológico de Monterrey
-
 
 ## License
 

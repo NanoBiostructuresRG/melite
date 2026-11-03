@@ -1,9 +1,9 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
-title: "MELITE — Multi-Model Classifier Evaluator"
-version: "0.3.1"
-date-released: "2026-10-28"
+title: "MELITE — Multi-Model Supervised Learning Evaluator"
+version: "0.3.2"
+date-released: "2026-11-02"
 authors:
   - family-names: "Contreras-Torres"
     given-names: "Flavio F."
@@ -16,29 +16,33 @@ authors:
 repository-code: "https://github.com/NanoBiostructuresRG/melite"
 license: "LGPL-3.0-or-later"
 abstract: >-
-  MELITE is a pre-stable comparative classifier evaluator for tabular
-  classification, classifier selection with nested cross-validation, final model
-  export, and artifact-based inference.
+  MELITE is an open-source Python package for the evaluation and selection
+  of supervised classification and regression models using numeric tabular
+  datasets. It supports classification-only, regression-only, and mixed-task
+  workflows.
 
-  It operates at the tabular modeling level by consuming numeric feature
-  matrices and labels. MELITE evaluates SVC, Random Forest, XGBoost, and
-  opt-in Stacking classifiers under an outer repeated-stratified
-  cross-validation framework. Tunable classifiers are optimized with Optuna
-  inside each outer training split, under the same declared trial budget across
-  tunable classifiers. It selects the best active classifier by mean outer-CV
-  F1-macro, persists aggregate and per-fold evaluation evidence together with
-  per-search optimization evidence, and supports final model retraining, export,
-  and artifact-based inference.
+  Model evaluation uses task-specific cross-validation strategies and
+  selection criteria: F1-macro for classification and RMSE for regression.
+  Supported models are optimized with Optuna when hyperparameter tuning
+  is applicable. Evaluation results, optimization summaries, and provenance
+  are preserved in task-specific artifacts.
+
+  Selected models can be fitted on the full dataset, exported, and reused
+  for prediction. The resulting evaluation evidence supports reproducible
+  model comparison but does not establish external predictive
+  generalizability.
+
 keywords:
   - machine learning
-  - tabular classification
-  - classifier evaluation
-  - classifier selection
-  - nested cross-validation
+  - supervised learning
+  - classification
+  - regression
+  - tabular data
+  - model evaluation
+  - model selection
+  - cross-validation
   - hyperparameter optimization
-  - optimization evidence
   - Optuna
-  - SVC
-  - random forest
-  - XGBoost
-  - stacking
+  - reproducibility
+  - evaluation evidence
+  - model export
