@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Inference module for MELITE.
+"""Inference module for exported MELITE classification and regression models.
 
 This module provides :func:`predict`, which loads a ``.pkl`` model artifact
 produced by ``melite export`` and runs inference on a new feature matrix.
-Both class predictions and class probabilities are returned when the model
-supports them.
+Classification artifacts return class predictions and, when requested and
+supported, class probabilities. Regression artifacts return continuous
+predictions without probabilities.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ def predict(
     X: np.ndarray,
     return_proba: bool = True,
 ) -> dict[str, Any]:
-    """Run inference with a model artifact produced by ``melite export``.
+    """Run classification or regression inference with an exported model.
 
     Parameters
     ----------
@@ -35,12 +36,14 @@ def predict(
         Path to a ``.pkl`` file produced by ``melite export``.
     X : numpy.ndarray
         Numeric feature matrix of shape ``(n_samples, n_features)``. It must
-        use the same feature representation and number of features expected
-        by the exported model, and it must be two-dimensional.
+        be two-dimensional and use the same feature representation, column
+        order, and feature count expected by the exported model. MELITE does
+        not validate feature names or semantic feature identity.
     return_proba : bool, optional
-        Whether to request class probabilities when the loaded model supports
-        ``predict_proba``. Default is ``True``. If disabled or unsupported,
-        the returned ``probabilities`` value is ``None``.
+        Whether to request class probabilities for a classification model when
+        the loaded model supports ``predict_proba``. Default is ``True``. If
+        disabled or unsupported, or if the artifact is a regressor, the
+        returned ``probabilities`` value is ``None``.
 
     Returns
     -------
@@ -48,10 +51,13 @@ def predict(
         Dictionary with the following keys:
 
         - ``"predictions"`` : numpy.ndarray
-          Predicted class labels with shape ``(n_samples,)``.
+          One-dimensional output with shape ``(n_samples,)``: predicted class
+          labels for classification or continuous numeric predictions for
+          regression.
         - ``"probabilities"`` : numpy.ndarray or None
-          Class probabilities with shape ``(n_samples, n_classes)``, or ``None``
-          when unavailable or not requested.
+          Classification probabilities with shape
+          ``(n_samples, n_classes)``, or ``None`` when unavailable, not
+          requested, or performing regression.
         - ``"model_path"`` : str
           Resolved path to the loaded model artifact.
         - ``"n_samples"`` : int
@@ -62,12 +68,18 @@ def predict(
     FileNotFoundError
         If ``model_path`` does not exist.
     ValueError
-        If ``X`` is not a two-dimensional NumPy array.
+        If ``X`` is not a two-dimensional NumPy array. For regression
+        artifacts, also raised when ``X`` is not finite real numerical data or
+        its feature count differs from ``n_features_in_`` exposed by the fitted
+        model.
 
     Notes
     -----
     This function is intended for fitted model artifacts created by
-    ``melite export``.
+    ``melite export``. Regression input validation checks array structure,
+    numerical finiteness, and the fitted model's feature count when available;
+    it cannot verify that columns have the same scientific meaning as during
+    training.
 
     Examples
     --------

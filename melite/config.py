@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-"""Configuration loader for MELITE.
+"""Configuration loader for MELITE classification and regression workflows.
 
 Reads ``melite/config_default.toml`` as the base configuration.
 An optional user-supplied TOML file can override any key via deep merge.
@@ -80,10 +80,19 @@ class Config:
     DATASETS : dict
         Normalized dataset registry keyed by user-defined dataset id. Each
         entry contains ``path`` and ``metadata`` plus ``label_path`` for NPZ
-        datasets or ``label_column`` for CSV datasets.
+        datasets or ``label_column`` for CSV datasets. Every entry also contains
+        ``task``, which is exactly ``"classification"`` or ``"regression"``.
+        Registered datasets default to classification when ``task`` is omitted;
+        the legacy synthesized registry is also classification-only.
     ACTIVE_CLASSIFIERS : list of str
-        Classifier keys to include in the evaluation (e.g. ``["svc", "rf", "xgb"]``;
-        add ``"stack"`` to opt in to stacking).
+        Classifier keys from ``[classifiers].active`` in configured evaluation
+        order. The packaged default is ``["svc", "rf", "xgb"]``.
+    ACTIVE_REGRESSORS : list of str
+        Validated regressor keys from ``[regressors].active`` in configured
+        evaluation order. Supported values are ``"linear"``, ``"poly"``,
+        ``"ridge"``, and ``"lasso"``. The packaged default is an empty list;
+        at least one regressor is required when any registered dataset has
+        ``task = "regression"``.
     CV_CONFIG : dict
         Cross-validation settings with keys ``n_splits``, ``n_repeats``, and
         ``inner_n_splits``.
@@ -98,9 +107,11 @@ class Config:
         specifies ``random_state`` under ``[cv]`` or ``[cv_smoke]`` instead of
         ``[benchmark]``, contains an unsupported ``[optimization]`` key, sets
         an invalid ``[optimization].n_trials`` value, or defines an invalid
-        registered dataset. Registered datasets support only ``.npz`` files
-        with ``label_path`` and ``.csv`` files with a non-empty
-        ``label_column``.
+        registered dataset or active-regressor list, or configures a regression
+        dataset without an active regressor. Registered datasets support only
+        ``.npz`` files with ``label_path`` and ``.csv`` files with a non-empty
+        ``label_column``; ``task`` accepts exactly ``"classification"`` or
+        ``"regression"``.
 
     Examples
     --------
