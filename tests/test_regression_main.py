@@ -187,7 +187,7 @@ active = ["linear", "poly"]
     assert "Supervised Regression Evaluator" in report
     assert "Regressor selected:" in report
     assert "RMSE (outer-CV mean):" in report
-    assert "Multi-Model Classifier Evaluator" not in report
+    assert "Supervised Classification Evaluator" not in report
 
     provenance = json.loads(
         (output_dir / "regression_optimization_provenance.json").read_text(

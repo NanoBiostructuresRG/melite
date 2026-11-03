@@ -17,6 +17,7 @@ from sklearn.preprocessing import StandardScaler
 import melite.main as main_module
 from melite.config import Config
 from melite.main import Main, Pipeline
+from melite.model_catalog import MODEL_CATALOG
 from melite.optimization import OptimizationResult
 from melite.search_spaces import get_search_space
 from melite.version import __version__
@@ -444,11 +445,14 @@ level = 85
 
     rows = _rows(output_dir / "results.csv")
     report = (output_dir / "results.txt").read_text(encoding="utf-8")
-    assert (
-        "Classifiers: SVC, Logistic Regression (opt-in), "
-        "Gaussian Naive Bayes (opt-in), Random Forest, XGBoost, "
-        "Stacking (opt-in)" in report
+    classifier_names = ", ".join(
+        model.public_name
+        for model in MODEL_CATALOG
+        if model.prediction_task == "classification"
+        and model.availability == "implemented"
     )
+    assert "Supervised Classification Evaluator" in report
+    assert f"Classifiers: {classifier_names}" in report
     assert "Classifier selected: SVC" in report
     assert "Best classifier parameters:" in report
     assert "Model Selected:" not in report

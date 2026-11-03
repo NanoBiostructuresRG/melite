@@ -15,6 +15,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+from melite.model_catalog import MODEL_CATALOG
 from melite.plot_metrics import plot_f1_macro_evidence
 from melite.version import __version__
 
@@ -22,6 +23,11 @@ __all__ = ["ResultManager"]
 
 _REPORT_PROJECT_NAME = "MELITE"
 _REPORT_LICENSE = "LGPL-3.0-or-later"
+_CLASSIFICATION_REPORT_NAMES = ", ".join(
+    model.public_name
+    for model in MODEL_CATALOG
+    if model.prediction_task == "classification" and model.availability == "implemented"
+)
 _OPTIMIZATION_PROVENANCE_KEYS = (
     "melite_version",
     "optimization_backend",
@@ -137,9 +143,9 @@ class ResultManager:
         return f"""
 =====================================================
                        {_REPORT_PROJECT_NAME}
-            Multi-Model Classifier Evaluator
+          Supervised Classification Evaluator
 -----------------------------------------------------
-Classifiers: SVC, Logistic Regression (opt-in), Gaussian Naive Bayes (opt-in), Random Forest, XGBoost, Stacking (opt-in)
+Classifiers: {_CLASSIFICATION_REPORT_NAMES}
 CLI: melite run | melite export
 Package: melite
 Version: {__version__}
