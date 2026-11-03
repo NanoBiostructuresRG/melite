@@ -76,29 +76,30 @@ generalizability.
 
 ## Evaluation Contract
 
-For a registered dataset, MELITE follows the contract below:
+For each registered dataset, MELITE uses the configured `task` to apply a
+task-specific evaluation contract:
 
-1. `X` is a two-dimensional numeric feature matrix and `y` provides the target
-   labels for the same samples.
-2. Each active classifier is evaluated under the configured outer
-   cross-validation design.
-3. For tunable classifiers, hyperparameter search occurs only within the
-   training portion of each outer split.
-4. Evaluation evidence is obtained from the held-out folds of repeated
-   stratified outer cross-validation.
-5. Mean outer-CV F1-macro is used to select the best active classifier for each
-   dataset.
-6. Aggregate and per-fold evidence are preserved for every evaluated
-   classifier.
-7. After selection, MELITE performs the final full-data fitting stage. For a
-   tunable classifier, `melite run` first performs a final full-data
-   hyperparameter search and records the resulting parameters in `results.csv`;
-   Stacking is fitted directly.
-8. `melite export` reconstructs the selected classifier from the persisted
-   result, fits it on all available data, and serializes the final model
-   artifact. It performs no additional hyperparameter search, cross-validation,
-   or classifier selection.
-9. Smoke mode is intended for fast execution checks, not final classifier selection.
+1. Classification uses repeated stratified outer cross-validation and
+   stratified inner cross-validation. Models are selected by highest mean outer
+   F1-macro; accuracy and ROC-AUC are also reported.
+2. Regression uses `RepeatedKFold` for outer evaluation and shuffled `KFold`
+   for inner optimization. Models are selected by lowest mean outer RMSE; MAE
+   and R² are also reported.
+3. Inner hyperparameter optimization is confined to the training portion of
+   each outer split. LinearRegression, PolynomialRegression, and
+   StackingClassifier are evaluated without a separate Optuna search.
+4. Exact selection ties preserve the configured model order. Aggregate and
+   per-fold outer evidence are retained for every evaluated model.
+5. After selection, tunable models receive a fresh full-data optimization;
+   non-tunable models are fitted directly. The resulting final parameters are
+   persisted in the task-specific results CSV.
+6. `melite export` reconstructs the selected model from those parameters, fits
+   it on all available data, and serializes the artifact without another
+   optimization, cross-validation, or selection step.
+7. Smoke mode is intended for execution checks, not final model selection.
+
+Outer cross-validation estimates performance under the configured evaluation
+design; it does not establish external predictive generalizability.
 
 
 ## Installation
@@ -167,11 +168,11 @@ melite run --smoke --config melite_example/config.toml
 The command-line interface provides the canonical end-to-end MELITE workflow:
 
 1. Register one or more numeric datasets in a TOML configuration file.
-2. Choose the active classifiers.
+2. Assign each dataset to classification or regression and choose the active
+   models for the configured tasks.
 3. Run `melite run` to generate evaluation evidence and selected results.
-4. Inspect `results.csv`, `evaluations.csv`, `evaluation_folds.csv`,
-   `optimization_searches.csv`, `optimization_provenance.json`, and the
-   dataset-level F1-macro evidence figures.
+4. Inspect the classification and/or regression artifact family generated for
+   the registered tasks.
 5. Run `melite export` for the selected result you want to preserve as a model
    artifact.
 6. Use the exported `.pkl` artifact through `melite.predict()` for inference.
@@ -267,15 +268,21 @@ For example:
 [datasets.morgan_r2_2048]
 path = "data/morgan_r2_2048.npz"
 label_path = "raw/labels.npy"
+task = "classification"
 family = "fingerprints"
 method = "Morgan"
 variant = "r2_2048"
 description = "Morgan fingerprints, radius 2, 2048 bits"
 ```
 
+The optional `task` field accepts exactly `classification` or `regression` and
+defaults to `classification` when omitted. Regression requires a
+one-dimensional, finite quantitative target and at least one model in
+`[regressors].active`. Classification-only, regression-only, and mixed-task
+registries are supported.
+
 Here, `family` is optional **dataset metadata** used to describe the feature
-representation. It is unrelated to the classifier selected or evaluated by
-MELITE.
+representation. It is unrelated to the model selected or evaluated by MELITE.
 
 Each dataset must define `path` and the label source required by its format:
 `label_column` for CSV datasets or `label_path` for NPZ datasets.
@@ -317,20 +324,16 @@ method.
 A standard **MELITE** workflow produces evaluation artifacts and, when requested,
 a final exported model:
 
-```text
-output/
-├── results.txt
-├── results.csv
-├── evaluations.csv
-├── evaluation_folds.csv
-├── optimization_searches.csv
-├── optimization_provenance.json
-├── figures/
-│   └── evaluation_f1_macro_<dataset>.png
-└── Model_<classifier>_<dataset>.pkl
-```
+Classification datasets produce `results.txt`, `results.csv`,
+`evaluations.csv`, `evaluation_folds.csv`, `optimization_searches.csv`,
+`optimization_provenance.json`, and a dataset-level F1-macro evidence figure.
+Regression datasets produce the separate `regression_results.txt`,
+`regression_results.csv`, `regression_evaluations.csv`,
+`regression_evaluation_folds.csv`, `regression_optimization_searches.csv`, and
+`regression_optimization_provenance.json` family. Mixed-task runs produce both
+families. Regression currently produces no F1-macro figure.
 
-The artifacts have distinct roles:
+The classification artifacts have distinct roles:
 
 - `results.txt` — human-readable summary of the selected results.
 - `results.csv` — selected classifier result for each dataset and the persisted
@@ -347,6 +350,11 @@ The artifacts have distinct roles:
 - `Model_<classifier>_<dataset>.pkl` — final full-data fitted model created by
   `melite export`.
 
+The corresponding regression CSV files preserve selected results, aggregate
+and fold-level RMSE/MAE/R² evidence, completed Ridge/Lasso searches, and the
+effective regression evaluation and optimization contract. Exported regression
+models use the same `Model_<model>_<dataset>.pkl` naming pattern.
+
 See the [Output Data Contract](docs/usage.md#output-data-contract) for the
 column-level schemas and semantics.
 
@@ -360,7 +368,8 @@ MELITE uses TOML configuration files to keep execution choices explicit and
 reproducible. Configuration controls, among other settings:
 
 - registered datasets and their metadata;
-- active classifiers;
+- dataset prediction tasks;
+- active classifiers and regressors;
 - random state;
 - inner and outer cross-validation settings;
 - optimization trial budget (`n_trials`);
@@ -371,6 +380,7 @@ Use `--config` to supply a project-specific configuration:
 ```bash
 melite run --config my_config.toml
 melite export --config my_config.toml --row 0
+melite export --config my_config.toml --csv output/regression_results.csv --row 0
 ```
 
 A complete configuration template is available at
