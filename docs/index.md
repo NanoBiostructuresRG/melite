@@ -60,18 +60,14 @@ inspectable — and keeps the evidence.
 MELITE records software and model-evaluation evidence. It does not by itself
 establish external scientific validity or predictive generalizability.
 
-## Evaluation Workflow
+## Machine-Learning Methods Implemented in MELITE
 
-<img class="ms-workflow-image" src="assets/melite_evaluation_workflow.png" alt="MELITE evaluation workflow">
-
-The current diagram illustrates the classification workflow. Regression uses
-the same high-level stages with task-specific models, metrics, and artifacts.
+<img class="ms-workflow-image" src="assets/ML_methods_implemented_MELITE.png" alt="Conceptual organization of machine-learning methods implemented in MELITE">
 
 ## What You Provide and Receive
 
 MELITE sits between prepared numeric datasets and the fitted model you
-ultimately export. The following contract describes the classification path
-shown in the workflow diagram:
+ultimately export. The following contract describes the classification path:
 
 | Stage | You provide | MELITE does | You receive |
 |---|---|---|---|
