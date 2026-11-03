@@ -101,8 +101,17 @@ def test_supported_classifier_documentation_matches_public_policy():
     assert "11 classifier keys" in supported
 
     for classifier_key in (
-        "svc", "lr", "gnb", "knn", "dt", "rf",
-        "ada", "xgb", "lgbm", "catboost", "stack",
+        "svc",
+        "lr",
+        "gnb",
+        "knn",
+        "dt",
+        "rf",
+        "ada",
+        "xgb",
+        "lgbm",
+        "catboost",
+        "stack",
     ):
         assert f"| `{classifier_key}` |" in supported
 
