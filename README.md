@@ -22,6 +22,11 @@ features were produced. Inputs may therefore originate from fingerprints,
 descriptors, dimensionality-reduction methods, clinical variables, experimental
 measurements, industrial features, or other numeric representations.
 
+Classification targets with two distinct labels use the binary evaluation
+contract; targets with three or more distinct labels use the multiclass
+contract. MELITE determines this from target cardinality and preserves the
+original class identities through evaluation, export, and inference.
+
 ## Purpose
 
 MELITE is designed to make supervised-model comparison and selection explicit,
@@ -81,7 +86,9 @@ task-specific evaluation contract:
 
 1. Classification uses repeated stratified outer cross-validation and
    stratified inner cross-validation. Models are selected by highest mean outer
-   F1-macro; accuracy and ROC-AUC are also reported.
+   F1-macro; accuracy and ROC-AUC are also reported. Binary ROC-AUC retains its
+   binary definition, while multiclass ROC-AUC uses probability-based
+   One-vs-One macro averaging.
 2. Regression uses `RepeatedKFold` for outer evaluation and shuffled `KFold`
    for inner optimization. Models are selected by lowest mean outer RMSE; MAE
    and R² are also reported.
@@ -89,7 +96,9 @@ task-specific evaluation contract:
    each outer split. LinearRegression, PolynomialRegression, and
    StackingClassifier are evaluated without a separate Optuna search.
 4. Exact selection ties preserve the configured model order. Aggregate and
-   per-fold outer evidence are retained for every evaluated model.
+   per-fold outer evidence are retained for every evaluated model. Classification
+   additionally retains held-out precision, recall, F1-score, and support for
+   every original class in every outer fold.
 5. After selection, tunable models receive a fresh full-data optimization;
    non-tunable models are fitted directly. The resulting final parameters are
    persisted in the task-specific results CSV.
@@ -99,7 +108,9 @@ task-specific evaluation contract:
 7. Smoke mode is intended for execution checks, not final model selection.
 
 Outer cross-validation estimates performance under the configured evaluation
-design; it does not establish external predictive generalizability.
+design; it does not establish external predictive generalizability. In repeated
+cross-validation, the same observation can occur in more than one held-out
+fold across repeats, so those records are not an independent test population.
 
 
 ## Installation
@@ -235,6 +246,10 @@ StackingClassifier combines SVC, RandomForestClassifier, and XGBClassifier as
 base estimators with LogisticRegression as the final estimator and uses
 probability-based base-estimator outputs.
 
+Binary and multiclass classification use this same classifier inventory. For
+multiclass artifacts, `classes_` retains the original labels and defines the
+column order returned by `predict_proba()` and `melite.predict()`.
+
 Tunable classifiers use Optuna with its TPE sampler for hyperparameter
 optimization. The public `n_trials` setting explicitly declares the budget per
 search, with a normal default of 100 trials. Searches are sequential and seeded
@@ -326,7 +341,9 @@ a final exported model:
 
 Classification datasets produce `results.txt`, `results.csv`,
 `evaluations.csv`, `evaluation_folds.csv`, `optimization_searches.csv`,
-`optimization_provenance.json`, and a dataset-level F1-macro evidence figure.
+`optimization_provenance.json`, `evaluation_class_folds.csv`,
+`evaluation_class_summary.csv`, `classification_metric_provenance.json`, and a
+dataset-level F1-macro evidence figure.
 Regression datasets produce the separate `regression_results.txt`,
 `regression_results.csv`, `regression_evaluations.csv`,
 `regression_evaluation_folds.csv`, `regression_optimization_searches.csv`, and
@@ -341,10 +358,16 @@ The classification artifacts have distinct roles:
 - `evaluations.csv` — aggregate evaluation evidence for every active classifier.
 - `evaluation_folds.csv` — outer-CV evidence for every dataset, classifier, and
   outer split.
+- `evaluation_class_folds.csv` — held-out precision, recall, F1-score, and
+  support for every original class in every outer split.
+- `evaluation_class_summary.csv` — per-class means and population standard
+  deviations over outer folds, including per-fold support summaries.
 - `optimization_searches.csv` — one row per completed outer or final
   optimization search.
 - `optimization_provenance.json` — the effective optimization and evaluation
   contract for the run.
+- `classification_metric_provenance.json` — classification metric definitions
+  and ordered original class identities for each executed dataset.
 - `figures/evaluation_f1_macro_<dataset>.png` — visualization of the outer-CV
   F1-macro evidence used for classifier selection.
 - `Model_<classifier>_<dataset>.pkl` — final full-data fitted model created by

@@ -43,6 +43,31 @@ class ProbabilityCalibratedClassifier(ClassifierMixin, BaseEstimator):
         self.estimator = estimator
         self.max_calibration_cv = max_calibration_cv
 
+    def get_params(self, deep=True):
+        """Expose wrapped-estimator parameters without changing their names."""
+        params = super().get_params(deep=deep)
+        if deep and hasattr(self.estimator, "get_params"):
+            for name, value in self.estimator.get_params(deep=True).items():
+                params.setdefault(name, value)
+        return params
+
+    def set_params(self, **params):
+        """Accept both ordinary adapter parameters and flat estimator parameters."""
+        adapter_names = {"estimator", "max_calibration_cv"}
+        adapter_params = {
+            name: value
+            for name, value in params.items()
+            if name in adapter_names or name.startswith("estimator__")
+        }
+        estimator_params = {
+            name: value for name, value in params.items() if name not in adapter_params
+        }
+        if adapter_params:
+            super().set_params(**adapter_params)
+        if estimator_params:
+            self.estimator.set_params(**estimator_params)
+        return self
+
     def fit(self, X, y):
         """Fit independent direct-prediction and probability-calibration paths."""
         if (

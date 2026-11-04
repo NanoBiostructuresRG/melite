@@ -367,6 +367,9 @@ def test_selected_lr_pipeline_persists_logistic_regression_identity(
     main.evaluations_by_dataset = {}
     main.evaluation_rows = []
     main.evaluation_fold_rows = []
+    main.evaluation_class_fold_rows = []
+    main.evaluation_class_summary_rows = []
+    main.classification_metric_datasets = []
     main.optimization_rows = []
     monkeypatch.setattr(
         main_module,

@@ -28,6 +28,11 @@ Loads a fitted artifact produced by `melite export`. Classification artifacts
 return labels and optional probabilities; regression artifacts return
 continuous predictions with `probabilities` set to `None`.
 
+Binary and multiclass classifier artifacts preserve their original class
+identities. For multiclass inference, probability columns follow the loaded
+model's `classes_` order. Callers must still provide the same numeric feature
+representation, feature order, and feature count used for fitting.
+
 ::: melite.predict.predict
 
 ## `Config`

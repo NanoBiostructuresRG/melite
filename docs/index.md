@@ -47,6 +47,12 @@ tunable models, search effort is controlled by an explicitly declared
 optimization budget, making that effort part of the recorded evaluation
 design.
 
+For classification, MELITE determines binary or multiclass evaluation from the
+number of distinct target labels and preserves those original identities.
+F1-macro remains the optimization and selection metric in both cases. Binary
+ROC-AUC retains its established definition; multiclass ROC-AUC uses
+probability-based One-vs-One macro averaging.
+
 Selection and final fitting are deliberately separate. Outer-CV evidence
 identifies the winning model; the final artifact is then fitted on all
 available data, with a final full-data search when the model is tunable.
@@ -73,9 +79,9 @@ ultimately export. The following contract describes the classification path:
 |---|---|---|---|
 | **Input** | Numeric feature matrices (`X`) and target labels (`y`) for one or more datasets. | Validates each registered dataset and treats it as an independent evaluation unit. | Validated datasets, ready for evaluation. |
 | **Configuration** | Active classifiers, cross-validation settings, dataset metadata, and output paths. | Resolves the evaluation design before classifier fitting begins. | A validated evaluation setup. |
-| **Evaluation** | Nothing further — the evaluation design is already fixed. | Evaluates each active classifier under the same outer cross-validation design. Tunable classifiers perform hyperparameter search only within the training portion of each outer split. | `evaluations.csv`, aggregate evidence for every evaluated classifier; `evaluation_folds.csv`, the corresponding outer-fold evidence; `optimization_searches.csv`, the completed-search evidence; and `optimization_provenance.json`, the effective optimization and evaluation contract. |
+| **Evaluation** | Nothing further — the evaluation design is already fixed. | Evaluates each active classifier under the same outer cross-validation design. Tunable classifiers perform hyperparameter search only within the training portion of each outer split. Per-class metrics use only held-out outer-fold predictions. | `evaluations.csv`, aggregate evidence; `evaluation_folds.csv`, outer-fold evidence; `evaluation_class_folds.csv` and `evaluation_class_summary.csv`, class-level evidence; `optimization_searches.csv`, completed-search evidence; and the optimization and classification metric provenance JSON files. |
 | **Selection** | The evaluation evidence produced by the run. | Selects the classifier with the highest mean outer-CV F1-macro for each dataset. | `results.csv`, the selected classifier result for each dataset, and `evaluation_f1_macro_<dataset>.png`, the visual evidence behind the selection. |
-| **Export** | A request to export a selected result. | Fits the selected classifier on all available data using the classifier parameters persisted in `results.csv` by `melite run`; no additional hyperparameter search, cross-validation, or classifier selection is performed. | `Model_<classifier>_<dataset>.pkl`, a fitted model artifact distinct from the estimators used to obtain the outer-CV evidence. |
+| **Export** | A request to export a selected result. | Fits the selected classifier on all available data using the classifier parameters persisted in `results.csv` by `melite run`; no additional hyperparameter search, cross-validation, or classifier selection is performed. Original binary or multiclass label identities are retained. | `Model_<classifier>_<dataset>.pkl`, a fitted model artifact distinct from the estimators used to obtain the outer-CV evidence. Its `classes_` order defines probability columns during inference. |
 
 
 
