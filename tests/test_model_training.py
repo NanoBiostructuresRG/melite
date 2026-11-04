@@ -24,8 +24,8 @@ from melite.probability_calibration import ProbabilityCalibratedClassifier
 from melite.search_spaces import get_search_space
 
 
-X = np.ones((6, 2))
-Y = np.array([0, 1, 0, 1, 0, 1])
+X = np.ones((12, 2))
+Y = np.array([0, 1] * 6)
 
 
 def _config(active_classifiers, random_state=42, n_trials=5):
@@ -66,6 +66,16 @@ def _optimization_result(params=None):
         n_trials_complete=5,
         n_trials_failed=0,
     )
+
+
+class _ConstantOuterEstimator:
+    def __init__(self, optimization_result=None):
+        if optimization_result is not None:
+            self.optimization_result_ = optimization_result
+
+    @staticmethod
+    def predict(X_test):
+        return np.zeros(len(X_test), dtype=int)
 
 
 def test_outer_cv_uses_configured_repeated_stratified_folds():
@@ -231,7 +241,7 @@ def test_search_decision_uses_space_presence_not_classifier_name(monkeypatch):
     assert isinstance(captured["estimator"], SklearnPipeline)
 
 
-def test_direct_outer_cross_validate_preserves_historical_kwargs(monkeypatch):
+def test_direct_outer_cross_validate_raises_scoring_errors(monkeypatch):
     trainer = MultiModelTrainer(_config(["stack"]))
     captured = {}
 
@@ -241,6 +251,7 @@ def test_direct_outer_cross_validate_preserves_historical_kwargs(monkeypatch):
             "test_f1": np.array([0.7, 0.9]),
             "test_acc": np.array([0.6, 0.8]),
             "test_auc": np.array([0.75, 0.85]),
+            "estimator": [_ConstantOuterEstimator() for _ in range(2)],
         }
 
     monkeypatch.setattr(model_training, "cross_validate", fake_cross_validate)
@@ -252,8 +263,8 @@ def test_direct_outer_cross_validate_preserves_historical_kwargs(monkeypatch):
     }
     assert captured["n_jobs"] == 1
     assert captured["return_train_score"] is False
-    assert "error_score" not in captured
-    assert "return_estimator" not in captured
+    assert captured["error_score"] == "raise"
+    assert captured["return_estimator"] is True
     assert result["optimization_searches"] == []
 
 
@@ -264,7 +275,7 @@ def test_tunable_outer_cross_validate_raises_errors_and_extracts_level2(monkeypa
     )
     captured = {}
     fitted = [
-        SimpleNamespace(optimization_result_=_optimization_result({"svc__C": value}))
+        _ConstantOuterEstimator(_optimization_result({"svc__C": value}))
         for value in (1.0, 2.0)
     ]
 
@@ -296,6 +307,7 @@ def test_outer_metric_aggregation_and_split_indexing_are_unchanged(monkeypatch):
             "test_f1": np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
             "test_acc": np.array([0.2, 0.3, 0.4, 0.5, 0.6, 0.7]),
             "test_auc": np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8]),
+            "estimator": [_ConstantOuterEstimator() for _ in range(6)],
         },
     )
     result = trainer._cross_validate_model_with_scores(object(), X, Y)

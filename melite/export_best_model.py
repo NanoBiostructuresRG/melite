@@ -33,6 +33,7 @@ from melite.regression_models import (
     validate_polynomial_expansion,
     validate_regression_inputs,
 )
+from melite.xgboost_adapter import LabelIdentityXGBClassifier
 from sklearn.ensemble import (
     AdaBoostClassifier,
     RandomForestClassifier,
@@ -55,7 +56,7 @@ logger = logging.getLogger(__name__)
 MODEL_MAP = {
     "GaussianNB": GaussianNB,
     "RandomForestClassifier": RandomForestClassifier,
-    "XGBClassifier": XGBClassifier,
+    "XGBClassifier": LabelIdentityXGBClassifier,
 }
 
 METRIC_COLUMNS = [

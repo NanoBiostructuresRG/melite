@@ -83,7 +83,9 @@ non-configurable 5 trials.
 F1-macro. Inner folds use shuffled `StratifiedKFold`, and outer evidence uses
 `RepeatedStratifiedKFold`. The classifier with the highest mean outer-CV
 F1-macro is selected; accuracy and ROC-AUC are additional evidence metrics.
-Stacking has no separate Optuna search.
+Targets with two labels use binary ROC-AUC, while targets with three or more
+labels use probability-based One-vs-One macro ROC-AUC. Original label
+identities are retained. Stacking has no separate Optuna search.
 
 **Regression policy:** Ridge and Lasso minimize mean inner-CV RMSE over their
 `alpha` search spaces. Inner folds use shuffled `KFold`, and outer evidence uses
@@ -109,10 +111,9 @@ are not persisted.
 
 **Execution boundary:** Sklearn `cross_validate` remains the outer orchestrator,
 with task-specific tunable searches adapted through sklearn-compatible Optuna
-estimators. Classification tunable outer fits use `error_score="raise"`; direct
-classification evaluation retains its historical sklearn error behavior.
-Regression outer evaluation uses `error_score="raise"` for tunable and direct
-models. Optuna startup accounting includes COMPLETE and PRUNED trials. MELITE's
+estimators. Classification and regression outer evaluation use
+`error_score="raise"` for tunable and direct models. Optuna startup accounting
+includes COMPLETE and PRUNED trials. MELITE's
 no-op pruner makes PRUNED a contract violation, while FAIL consumes budget
 without advancing startup accounting.
 
@@ -164,6 +165,15 @@ task-specific outer and inner strategies, RMSE minimization contract, active
 regressors, and their search spaces; LinearRegression and PolynomialRegression
 are represented as `null`. Filesystem, data, and environment provenance remain
 outside these artifacts.
+
+Classification additionally persists `evaluation_class_folds.csv`, containing
+held-out precision, recall, F1-score, and support for every original class in
+every outer fold, and `evaluation_class_summary.csv`, containing fold-level
+means and population standard deviations (`ddof=0`). Undefined per-class
+metrics use `zero_division=0`. Support summaries remain per-fold; predictions
+are not pooled across repeats. `classification_metric_provenance.json` records
+the binary or multiclass metric definitions and each dataset's ordered original
+class identities without changing `optimization_provenance.json`.
 
 The MELITE package version governs these artifact schemas; no independent
 `schema_version` is added. Optimization evidence is not an operational model

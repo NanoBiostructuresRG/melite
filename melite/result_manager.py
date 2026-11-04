@@ -38,6 +38,14 @@ _OPTIMIZATION_PROVENANCE_KEYS = (
     "optimization",
     "search_spaces",
 )
+_CLASSIFICATION_METRIC_PROVENANCE_KEYS = (
+    "melite_version",
+    "prediction_task",
+    "optimization_and_selection",
+    "reported",
+    "per_class",
+    "datasets",
+)
 _REGRESSION_OPTIMIZATION_PROVENANCE_KEYS = (
     "melite_version",
     "task",
@@ -326,6 +334,60 @@ Repository: https://github.com/NanoBiostructuresRG/melite
         ]
         self._write_evaluation_csv(rows, path, fieldnames, smoke)
 
+    def write_evaluation_class_folds_csv(
+        self, rows: list[dict], path: Path | str, smoke: bool = False
+    ) -> None:
+        """Write held-out per-class evidence for every classification outer fold."""
+        fieldnames = [
+            "dataset",
+            "family",
+            "method",
+            "variant",
+            "level",
+            "description",
+            "reduction_type",
+            "classifier_name",
+            "outer_split",
+            "outer_repeat",
+            "outer_fold",
+            "class_label",
+            "precision",
+            "recall",
+            "f1_score",
+            "support",
+            "selected",
+            "smoke",
+        ]
+        self._write_evaluation_csv(rows, path, fieldnames, smoke)
+
+    def write_evaluation_class_summary_csv(
+        self, rows: list[dict], path: Path | str, smoke: bool = False
+    ) -> None:
+        """Write per-class means and population standard deviations over folds."""
+        fieldnames = [
+            "dataset",
+            "family",
+            "method",
+            "variant",
+            "level",
+            "description",
+            "reduction_type",
+            "classifier_name",
+            "class_label",
+            "precision_mean",
+            "precision_std",
+            "recall_mean",
+            "recall_std",
+            "f1_score_mean",
+            "f1_score_std",
+            "support_mean",
+            "support_std",
+            "n_outer_folds",
+            "selected",
+            "smoke",
+        ]
+        self._write_evaluation_csv(rows, path, fieldnames, smoke)
+
     def write_optimization_searches_csv(
         self, rows: list[dict], path: Path | str, smoke: bool = False
     ) -> None:
@@ -387,6 +449,53 @@ Repository: https://github.com/NanoBiostructuresRG/melite
                 "Optimization provenance must contain exactly "
                 f"{sorted(expected_keys)}; got {sorted(actual_keys)}."
             )
+
+        payload = json.dumps(
+            provenance,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, mode="w", encoding="utf-8", newline="\n") as f:
+            f.write(f"{payload}\n")
+
+    def write_classification_metric_provenance_json(
+        self, provenance: dict, path: Path | str
+    ) -> None:
+        """Write metric definitions and class identities for each dataset."""
+        expected_keys = set(_CLASSIFICATION_METRIC_PROVENANCE_KEYS)
+        actual_keys = set(provenance)
+        if actual_keys != expected_keys:
+            raise ValueError(
+                "Classification metric provenance must contain exactly "
+                f"{sorted(expected_keys)}; got {sorted(actual_keys)}."
+            )
+        if provenance["prediction_task"] != "classification":
+            raise ValueError(
+                "Classification metric provenance prediction_task must be "
+                "'classification'."
+            )
+        dataset_keys = {
+            "dataset",
+            "number_of_classes",
+            "class_labels",
+            "evaluation_mode",
+            "roc_auc_definition",
+        }
+        for dataset in provenance["datasets"]:
+            if set(dataset) != dataset_keys:
+                raise ValueError(
+                    "Classification metric dataset identity must contain exactly "
+                    f"{sorted(dataset_keys)}; got {sorted(dataset)}."
+                )
+            if dataset["number_of_classes"] != len(dataset["class_labels"]):
+                raise ValueError(
+                    "Classification metric dataset class count does not match its "
+                    "class-label list."
+                )
 
         payload = json.dumps(
             provenance,

@@ -12,12 +12,14 @@ from dataclasses import asdict
 
 from catboost import CatBoostClassifier
 from lightgbm import LGBMClassifier
+import numpy as np
 from sklearn.ensemble import (
     AdaBoostClassifier,
     RandomForestClassifier,
     StackingClassifier,
 )
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import precision_recall_fscore_support
 from sklearn.model_selection import (
     RepeatedStratifiedKFold,
     StratifiedKFold,
@@ -29,11 +31,16 @@ from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
 
+from melite.classification_metrics import (
+    analyze_classification_target,
+    classification_scoring,
+)
 from melite.optimization import OptunaSearchClassifier, optimize_and_refit
 from melite.probability_calibration import ProbabilityCalibratedClassifier
 from melite.search_spaces import get_search_space
+from melite.xgboost_adapter import LabelIdentityXGBClassifier
+from xgboost import XGBClassifier
 
 __all__ = ["MultiModelTrainer"]
 
@@ -129,7 +136,7 @@ class MultiModelTrainer(ModelTrainer):
             "dt": lambda: DecisionTreeClassifier(random_state=rs),
             "rf": lambda: RandomForestClassifier(random_state=rs, n_jobs=1),
             "ada": lambda: AdaBoostClassifier(random_state=rs),
-            "xgb": lambda: XGBClassifier(
+            "xgb": lambda: LabelIdentityXGBClassifier(
                 eval_metric="logloss", random_state=rs, n_jobs=1
             ),
             "lgbm": lambda: LGBMClassifier(
@@ -147,6 +154,69 @@ class MultiModelTrainer(ModelTrainer):
             "stack": lambda: self._build_stacking_classifier(rs),
         }
         self.active_classifiers = self._validate_active_classifiers()
+
+    def _build_model_for_target(self, classifier_name, y):
+        """Build one classifier with target-specific probability support."""
+        model = self.model_builders[classifier_name]()
+        target = analyze_classification_target(y)
+        if classifier_name != "svc" or not target.is_multiclass:
+            return model
+
+        return SklearnPipeline(
+            [
+                ("scaler", model.named_steps["scaler"]),
+                (
+                    "svc",
+                    ProbabilityCalibratedClassifier(
+                        estimator=model.named_steps["svc"],
+                        max_calibration_cv=5,
+                    ),
+                ),
+            ]
+        )
+
+    def _validate_class_distribution(self, y, classifier_name):
+        """Reject class counts incompatible with configured nested folds."""
+        target = analyze_classification_target(y)
+        outer_splits = self.config.CV_CONFIG["n_splits"]
+        inner_splits = self.config.CV_CONFIG["inner_n_splits"]
+
+        for class_label, count in zip(target.classes, target.counts):
+            if count < outer_splits:
+                raise ValueError(
+                    "Classification class distribution is incompatible with outer "
+                    f"cross-validation: class {class_label!r} has {count} samples, "
+                    f"but n_splits={outer_splits} requires at least "
+                    f"{outer_splits}."
+                )
+
+            largest_outer_validation = (count + outer_splits - 1) // outer_splits
+            smallest_outer_training = count - largest_outer_validation
+            if smallest_outer_training < inner_splits:
+                raise ValueError(
+                    "Classification class distribution is incompatible with inner "
+                    f"cross-validation: class {class_label!r} can have only "
+                    f"{smallest_outer_training} samples in an outer training fold, "
+                    f"but inner_n_splits={inner_splits} requires at least "
+                    f"{inner_splits}."
+                )
+
+            if target.is_multiclass and classifier_name in {"svc", "stack"}:
+                largest_inner_validation = (
+                    smallest_outer_training + inner_splits - 1
+                ) // inner_splits
+                smallest_calibration_training = (
+                    smallest_outer_training - largest_inner_validation
+                )
+                if smallest_calibration_training < 2:
+                    raise ValueError(
+                        "Classification class distribution is incompatible with "
+                        "fold-local probability calibration: class "
+                        f"{class_label!r} can have only "
+                        f"{smallest_calibration_training} samples in an inner "
+                        "training partition; at least 2 are required."
+                    )
+        return target
 
     def _build_stacking_classifier(self, random_state):
         cv_cfg = self.config.CV_CONFIG
@@ -262,42 +332,75 @@ class MultiModelTrainer(ModelTrainer):
     def _cross_validate_model_with_scores(self, model, X_train, y_train):
         cv_cfg = self.config.CV_CONFIG
         cv = self._build_outer_cv()
-        scoring = {"f1": "f1_macro", "acc": "accuracy", "auc": "roc_auc"}
+        target = analyze_classification_target(y_train)
+        scoring = classification_scoring(target)
         tunable = isinstance(model, OptunaSearchClassifier)
+        outer_splits = list(cv.split(X_train, y_train))
         cross_validate_kwargs = {
             "scoring": scoring,
-            "cv": cv,
+            "cv": outer_splits,
             "n_jobs": 1,
             "return_train_score": False,
+            "return_estimator": True,
+            "error_score": "raise",
         }
-        if tunable:
-            cross_validate_kwargs.update(
-                return_estimator=True,
-                error_score="raise",
-            )
         scores = cross_validate(model, X_train, y_train, **cross_validate_kwargs)
 
         f1_vals = scores["test_f1"]
         acc_vals = scores["test_acc"]
-        auc_vals = scores.get("test_auc")
-        auc_mean, auc_std = (
-            (auc_vals.mean(), auc_vals.std()) if auc_vals is not None else (None, None)
-        )
+        auc_vals = scores["test_auc"]
+        fitted_estimators = scores.pop("estimator")
+        for metric_name, values in (
+            ("F1-macro", f1_vals),
+            ("Accuracy", acc_vals),
+            ("ROC-AUC", auc_vals),
+        ):
+            if not np.all(np.isfinite(values)):
+                raise ValueError(
+                    f"Outer cross-validation produced non-finite {metric_name} values."
+                )
+        auc_mean, auc_std = auc_vals.mean(), auc_vals.std()
         n_splits = cv_cfg["n_splits"]
-        outer_scores = [
-            {
-                "outer_split": outer_split,
-                "outer_repeat": outer_split // n_splits,
-                "outer_fold": outer_split % n_splits,
-                "f1_macro": f1_value,
-                "accuracy": acc_vals[outer_split],
-                "auc_roc": (auc_vals[outer_split] if auc_vals is not None else None),
+        outer_scores = []
+        y_array = np.asarray(y_train)
+        for outer_split, ((_, test_indices), fitted_estimator) in enumerate(
+            zip(outer_splits, fitted_estimators)
+        ):
+            y_test = y_array[test_indices]
+            y_pred = fitted_estimator.predict(np.asarray(X_train)[test_indices])
+            precision, recall, per_class_f1, support = precision_recall_fscore_support(
+                y_test,
+                y_pred,
+                labels=list(target.classes),
+                zero_division=0,
+            )
+            if int(np.sum(support)) != len(test_indices):
+                raise RuntimeError(
+                    "Per-class outer-fold supports do not match the held-out "
+                    "observation count."
+                )
+            per_class_metrics = {
+                class_label: {
+                    "precision": float(precision[class_index]),
+                    "recall": float(recall[class_index]),
+                    "f1": float(per_class_f1[class_index]),
+                    "support": int(support[class_index]),
+                }
+                for class_index, class_label in enumerate(target.classes)
             }
-            for outer_split, f1_value in enumerate(f1_vals)
-        ]
+            outer_scores.append(
+                {
+                    "outer_split": outer_split,
+                    "outer_repeat": outer_split // n_splits,
+                    "outer_fold": outer_split % n_splits,
+                    "f1_macro": f1_vals[outer_split],
+                    "accuracy": acc_vals[outer_split],
+                    "auc_roc": auc_vals[outer_split],
+                    "per_class_metrics": per_class_metrics,
+                }
+            )
         optimization_searches = []
         if tunable:
-            fitted_wrappers = scores.pop("estimator")
             optimization_searches = [
                 {
                     "outer_split": outer_split,
@@ -305,7 +408,7 @@ class MultiModelTrainer(ModelTrainer):
                     "outer_fold": outer_split % n_splits,
                     **asdict(wrapper.optimization_result_),
                 }
-                for outer_split, wrapper in enumerate(fitted_wrappers)
+                for outer_split, wrapper in enumerate(fitted_estimators)
             ]
 
         return {
@@ -320,7 +423,8 @@ class MultiModelTrainer(ModelTrainer):
         }
 
     def _evaluate_classifier(self, classifier_name, X_train, y_train):
-        model = self.model_builders[classifier_name]()
+        self._validate_class_distribution(y_train, classifier_name)
+        model = self._build_model_for_target(classifier_name, y_train)
         search_space = get_search_space(classifier_name)
         evaluation_estimator = (
             model
@@ -378,7 +482,7 @@ class MultiModelTrainer(ModelTrainer):
                 best = evaluation
         best["selected"] = True
 
-        winning_model = self.model_builders[best["classifier_key"]]()
+        winning_model = self._build_model_for_target(best["classifier_key"], y_train)
         winning_space = get_search_space(best["classifier_key"])
         if winning_space is None:
             winning_model.fit(X_train, y_train)

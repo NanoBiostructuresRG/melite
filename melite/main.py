@@ -13,6 +13,10 @@ from typing import Any
 
 import numpy as np
 
+from melite.classification_metrics import (
+    analyze_classification_target,
+    classification_metric_policy,
+)
 from melite.config import Config
 from melite.load_dataset import load_datasets
 from melite.model_catalog import MODEL_CATALOG
@@ -129,6 +133,9 @@ class Main:
         self.evaluations_by_dataset: dict[str, list[dict[str, Any]]] = {}
         self.evaluation_rows: list[dict[str, Any]] = []
         self.evaluation_fold_rows: list[dict[str, Any]] = []
+        self.evaluation_class_fold_rows: list[dict[str, Any]] = []
+        self.evaluation_class_summary_rows: list[dict[str, Any]] = []
+        self.classification_metric_datasets: list[dict[str, Any]] = []
         self.optimization_rows: list[dict[str, Any]] = []
         self.regression_final_results: list[str] = []
         self.regression_csv_rows: list[dict[str, Any]] = []
@@ -253,6 +260,18 @@ class Main:
             "search_spaces": search_spaces,
         }
 
+    def _classification_metric_provenance(self) -> dict[str, Any]:
+        """Return classification metric definitions and per-dataset identities."""
+        policy = classification_metric_policy()
+        return {
+            "melite_version": __version__,
+            "prediction_task": "classification",
+            "optimization_and_selection": policy["optimization_and_selection"],
+            "reported": policy["reported"],
+            "per_class": policy["per_class"],
+            "datasets": self.classification_metric_datasets,
+        }
+
     def run(self) -> None:
         """Execute the evaluation pipeline for all configured datasets.
 
@@ -315,6 +334,23 @@ class Main:
     ) -> None:
         X_train = dataset["X"]
         y_train = dataset["y"]
+        target = analyze_classification_target(y_train)
+        self.classification_metric_datasets.append(
+            {
+                "dataset": dataset_id,
+                "number_of_classes": len(target.classes),
+                "class_labels": [
+                    label.item() if isinstance(label, np.generic) else label
+                    for label in target.classes
+                ],
+                "evaluation_mode": ("multiclass" if target.is_multiclass else "binary"),
+                "roc_auc_definition": (
+                    "multiclass_ovo_macro_probability"
+                    if target.is_multiclass
+                    else "binary"
+                ),
+            }
+        )
         reduction_type = dataset_metadata["reduction_type"]
         level = dataset_metadata["level"]
         if self.pipeline is None:
@@ -352,6 +388,79 @@ class Main:
                         "f1_macro": outer_score["f1_macro"],
                         "accuracy": outer_score["accuracy"],
                         "auc_roc": outer_score["auc_roc"],
+                        "selected": evaluation["selected"],
+                    }
+                )
+                for class_label, metrics in outer_score.get(
+                    "per_class_metrics", {}
+                ).items():
+                    self.evaluation_class_fold_rows.append(
+                        {
+                            **evaluation_metadata,
+                            "outer_split": outer_score["outer_split"],
+                            "outer_repeat": outer_score["outer_repeat"],
+                            "outer_fold": outer_score["outer_fold"],
+                            "class_label": (
+                                class_label.item()
+                                if isinstance(class_label, np.generic)
+                                else class_label
+                            ),
+                            "precision": metrics["precision"],
+                            "recall": metrics["recall"],
+                            "f1_score": metrics["f1"],
+                            "support": metrics["support"],
+                            "selected": evaluation["selected"],
+                        }
+                    )
+
+            classifier_class_rows = [
+                row
+                for row in self.evaluation_class_fold_rows
+                if row["dataset"] == dataset_id
+                and row["classifier_name"] == evaluation_metadata["classifier_name"]
+            ]
+            for class_label in target.classes:
+                native_label = (
+                    class_label.item()
+                    if isinstance(class_label, np.generic)
+                    else class_label
+                )
+                class_rows = [
+                    row
+                    for row in classifier_class_rows
+                    if row["class_label"] == native_label
+                ]
+                if not class_rows:
+                    continue
+                self.evaluation_class_summary_rows.append(
+                    {
+                        **evaluation_metadata,
+                        "class_label": native_label,
+                        "precision_mean": float(
+                            np.mean([row["precision"] for row in class_rows])
+                        ),
+                        "precision_std": float(
+                            np.std([row["precision"] for row in class_rows], ddof=0)
+                        ),
+                        "recall_mean": float(
+                            np.mean([row["recall"] for row in class_rows])
+                        ),
+                        "recall_std": float(
+                            np.std([row["recall"] for row in class_rows], ddof=0)
+                        ),
+                        "f1_score_mean": float(
+                            np.mean([row["f1_score"] for row in class_rows])
+                        ),
+                        "f1_score_std": float(
+                            np.std([row["f1_score"] for row in class_rows], ddof=0)
+                        ),
+                        "support_mean": float(
+                            np.mean([row["support"] for row in class_rows])
+                        ),
+                        "support_std": float(
+                            np.std([row["support"] for row in class_rows], ddof=0)
+                        ),
+                        "n_outer_folds": len(class_rows),
                         "selected": evaluation["selected"],
                     }
                 )
@@ -611,6 +720,16 @@ class Main:
             output_path / "evaluation_folds.csv",
             smoke=self.config.SMOKE,
         )
+        self.result_manager.write_evaluation_class_folds_csv(
+            self.evaluation_class_fold_rows,
+            output_path / "evaluation_class_folds.csv",
+            smoke=self.config.SMOKE,
+        )
+        self.result_manager.write_evaluation_class_summary_csv(
+            self.evaluation_class_summary_rows,
+            output_path / "evaluation_class_summary.csv",
+            smoke=self.config.SMOKE,
+        )
         self.result_manager.write_optimization_searches_csv(
             self.optimization_rows,
             output_path / "optimization_searches.csv",
@@ -619,6 +738,10 @@ class Main:
         self.result_manager.write_optimization_provenance_json(
             self._optimization_provenance(),
             output_path / "optimization_provenance.json",
+        )
+        self.result_manager.write_classification_metric_provenance_json(
+            self._classification_metric_provenance(),
+            output_path / "classification_metric_provenance.json",
         )
         self.result_manager.write_evaluation_figures(
             self.evaluation_fold_rows,

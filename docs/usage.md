@@ -48,9 +48,11 @@ melite run --smoke --config melite_example/config.toml
 
 A successful run creates `melite_example/output/` with `results.txt`,
 `results.csv`, `evaluations.csv`, `evaluation_folds.csv`,
-`optimization_searches.csv`, `optimization_provenance.json`, and the F1-macro
-evidence figure. For the bundled example, `results.csv` contains one selected
-result for `sample_tabular`.
+`evaluation_class_folds.csv`, `evaluation_class_summary.csv`,
+`optimization_searches.csv`, `optimization_provenance.json`,
+`classification_metric_provenance.json`, and the F1-macro evidence figure. For
+the bundled example, `results.csv` contains one selected result for
+`sample_tabular`.
 
 Smoke mode uses reduced evaluation settings to verify the execution workflow.
 The resulting evaluation evidence is explicitly marked as smoke and is not
@@ -138,6 +140,12 @@ The `[classifiers].active` list accepts any supported subset in evaluation
 order, including a single classifier. Classifiers other than `svc`, `rf`, and
 `xgb` are opt-in.
 
+MELITE determines binary or multiclass classification from the number of
+distinct target labels: two labels select the binary metric contract, while
+three or more select the multiclass contract. The target is not recoded in
+persisted evidence or user-facing predictions; original class identities are
+retained.
+
 Standalone SVC evaluation uses a `StandardScaler` → `SVC` pipeline and retains
 its decision function without probability fitting during evaluation.
 
@@ -154,6 +162,11 @@ base-estimator outputs.
 
 Classifier artifacts exported for all 11 supported keys provide both
 `predict()` and `predict_proba()`.
+
+For binary and multiclass artifacts, the fitted model's `classes_` attribute is
+the authoritative class order. Column `i` of `predict_proba()` and of the
+`probabilities` array returned by `melite.predict()` corresponds to
+`classes_[i]`.
 
 For an exported SVC, class predictions and the decision function come directly
 from SVC, while MELITE supplies calibrated probabilities through an internal
@@ -234,6 +247,37 @@ description = "Prepared numeric feature matrix."
 [classifiers]
 active = ["svc", "rf", "xgb"]
 ```
+
+For a concise reproducible multiclass run, prepare a numeric CSV whose
+`class_label` column contains the original labels `1`, `2`, and `3`, then use:
+
+```toml
+[paths]
+output = "output/"
+
+[benchmark]
+random_state = 42
+
+[datasets.three_class]
+path = "data/three_class.csv"
+label_column = "class_label"
+task = "classification"
+
+[cv]
+n_splits = 2
+n_repeats = 1
+inner_n_splits = 2
+
+[classifiers]
+active = ["lr", "xgb", "stack"]
+
+[optimization]
+n_trials = 5
+```
+
+Run it with `melite run --config config.toml`. The small fold and trial counts
+make this suitable for workflow verification, not for a final scientific model
+comparison.
 
 A minimal regression-only configuration is:
 
@@ -583,8 +627,11 @@ output/
 ├── results.csv
 ├── evaluations.csv
 ├── evaluation_folds.csv
+├── evaluation_class_folds.csv
+├── evaluation_class_summary.csv
 ├── optimization_searches.csv
 ├── optimization_provenance.json
+├── classification_metric_provenance.json
 ├── figures/
 │   └── evaluation_f1_macro_<dataset>.png
 ├── regression_results.txt
@@ -605,10 +652,16 @@ The classification artifacts have distinct roles:
   classifier;
 - `evaluation_folds.csv` — outer-CV evidence for every dataset, classifier, and
   outer split;
+- `evaluation_class_folds.csv` — held-out precision, recall, F1-score, and
+  support for every original class in every outer split;
+- `evaluation_class_summary.csv` — class-level means and population standard
+  deviations over outer folds, including per-fold support summaries;
 - `optimization_searches.csv` — one persisted row per optimization search,
   covering outer and optional final optimization evidence;
 - `optimization_provenance.json` — effective optimization and evaluation
   contract for the run;
+- `classification_metric_provenance.json` — metric definitions and ordered
+  original class identities for every executed classification dataset;
 - `figures/evaluation_f1_macro_<dataset>.png` — visualization of the outer-CV
   F1-macro evidence used for classifier selection;
 - `Model_<classifier>_<dataset>.pkl` — final full-data fitted model created by
@@ -633,7 +686,8 @@ runs do not write classification artifacts, and mixed-task runs write both
 families. Regression currently does not produce an F1-macro or other evaluation
 figure.
 
-`results.csv`, `evaluations.csv`, `evaluation_folds.csv`, and
+`results.csv`, `evaluations.csv`, `evaluation_folds.csv`,
+`evaluation_class_folds.csv`, `evaluation_class_summary.csv`, and
 `optimization_searches.csv` include a `smoke` column identifying whether their
 evidence was produced in smoke mode. `optimization_provenance.json` records the
 same condition in its top-level `smoke` key rather than a CSV column.
@@ -643,7 +697,7 @@ The four regression CSV files use the same `smoke` convention, and
 
 ### Output Data Contract
 
-The classification and regression CSV files and their optimization provenance
+The classification and regression CSV files and their task-specific provenance
 JSON artifacts have package-versioned schemas.
 MELITE does not embed an independent machine-readable `schema_version`. A
 separate schema version should be reconsidered only if output schemas need to
@@ -751,6 +805,72 @@ reconstruct and inspect the aggregate comparison.
 The `selected` field does not mean that classifier selection occurred
 independently within that fold.
 
+#### `evaluation_class_folds.csv`
+
+`evaluation_class_folds.csv` contains one row per dataset × evaluated
+classifier × outer split × original class. Metrics are computed only from that
+split's held-out labels and predictions. Every original class is retained;
+undefined precision, recall, or F1-score is reported as zero
+(`zero_division=0`).
+
+<!-- melite-schema:evaluation_class_folds.csv -->
+
+| Column | Meaning |
+|---|---|
+| `dataset` | User-defined registered dataset identifier. |
+| `family` | Optional dataset-family metadata preserved for reporting and traceability. |
+| `method` | Optional dataset-method metadata preserved for reporting and traceability. |
+| `variant` | Optional dataset-variant metadata preserved for reporting and traceability. |
+| `level` | Optional dataset-level metadata preserved for reporting and traceability. |
+| `description` | Optional dataset description preserved for reporting and traceability. |
+| `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
+| `classifier_name` | Name of the evaluated classifier. |
+| `outer_split` | Sequential identifier of the preserved outer evaluation split. |
+| `outer_repeat` | Outer repeated-CV repeat identifier. |
+| `outer_fold` | Fold identifier within the repeat. |
+| `class_label` | Original class identity in deterministic scoring order. |
+| `precision` | Held-out precision for this class and outer split. |
+| `recall` | Held-out recall for this class and outer split. |
+| `f1_score` | Held-out F1-score for this class and outer split. |
+| `support` | Number of held-out observations of this class in the outer split. |
+| `selected` | Whether this classifier was selected globally for the dataset. |
+| `smoke` | Whether the evidence was generated under smoke-mode settings. |
+
+Within one dataset, classifier, and outer split, class supports sum to the
+held-out fold size and F1-macro is the arithmetic mean of the class-level
+F1-scores.
+
+#### `evaluation_class_summary.csv`
+
+`evaluation_class_summary.csv` summarizes each dataset × classifier × class
+over outer folds. It does not pool predictions across repeats or present
+repeated observations as an independent test population.
+
+<!-- melite-schema:evaluation_class_summary.csv -->
+
+| Column | Meaning |
+|---|---|
+| `dataset` | User-defined registered dataset identifier. |
+| `family` | Optional dataset-family metadata preserved for reporting and traceability. |
+| `method` | Optional dataset-method metadata preserved for reporting and traceability. |
+| `variant` | Optional dataset-variant metadata preserved for reporting and traceability. |
+| `level` | Optional dataset-level metadata preserved for reporting and traceability. |
+| `description` | Optional dataset description preserved for reporting and traceability. |
+| `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
+| `classifier_name` | Name of the evaluated classifier. |
+| `class_label` | Original class identity in deterministic scoring order. |
+| `precision_mean` | Arithmetic mean of the class precision values over outer folds. |
+| `precision_std` | Population standard deviation (`ddof=0`) of class precision over outer folds. |
+| `recall_mean` | Arithmetic mean of the class recall values over outer folds. |
+| `recall_std` | Population standard deviation (`ddof=0`) of class recall over outer folds. |
+| `f1_score_mean` | Arithmetic mean of the class F1-scores over outer folds. |
+| `f1_score_std` | Population standard deviation (`ddof=0`) of class F1-score over outer folds. |
+| `support_mean` | Mean class support per outer fold; not a pooled repeated-sample total. |
+| `support_std` | Population standard deviation (`ddof=0`) of class support over outer folds. |
+| `n_outer_folds` | Number of outer-fold records contributing to the summary. |
+| `selected` | Whether this classifier was selected globally for the dataset. |
+| `smoke` | Whether the evidence was generated under smoke-mode settings. |
+
 #### `optimization_searches.csv`
 
 `optimization_searches.csv` contains one row per complete optimization search,
@@ -826,6 +946,27 @@ active classifiers appear in `search_spaces`; inactive search spaces are not
 included. The artifact deliberately excludes filesystem, dataset, user,
 environment, estimator, Study, Trial, and per-trial runtime state. MELITE does
 not introduce a separate formal JSON Schema or independent `schema_version`.
+
+#### `classification_metric_provenance.json`
+
+`classification_metric_provenance.json` records the effective classification
+metric definitions and keeps each executed dataset's class identity separate.
+It is methodological evidence and is not an input to `melite export`.
+
+<!-- melite-schema:classification_metric_provenance.json -->
+
+| Key | Meaning |
+|---|---|
+| `melite_version` | MELITE package version governing the artifact contract. |
+| `prediction_task` | Fixed value `classification`. |
+| `optimization_and_selection` | F1-macro objective and maximization direction. |
+| `reported` | F1-macro, accuracy, binary ROC-AUC, and probability-based multiclass OvO macro ROC-AUC definitions. |
+| `per_class` | Per-class metrics, held-out source, class order, `zero_division=0` convention, and fold-summary aggregation contract. |
+| `datasets` | Ordered dataset records containing dataset id, class count, original labels in scoring order, evaluation mode, and applicable ROC-AUC definition. |
+
+For multiclass datasets, `roc_auc_definition` is
+`multiclass_ovo_macro_probability`; for binary datasets it is `binary`.
+Probability columns follow the listed class-label order.
 
 #### Regression artifact schemas
 
@@ -981,6 +1122,11 @@ probability estimates. Exported regression artifacts return `probabilities` as
 `None`. For classifier artifacts, that value is also `None` when
 `return_proba=False`.
 
+Classification predictions retain the original target labels. For binary and
+multiclass artifacts, probability column `i` corresponds to `classes_[i]` on
+the fitted model. MELITE validates numerical shape and feature count where the
+estimator exposes it, but it does not infer semantic feature identity.
+
 Regression example:
 
 ```python
@@ -1017,17 +1163,22 @@ evaluation contract:
 1. `X` is a two-dimensional numeric matrix. Classification uses a
    one-dimensional label target; regression requires a one-dimensional finite
    real quantitative target.
-2. Classification uses repeated stratified outer folds and stratified inner
+2. Classification determines binary or multiclass evaluation from target
+   cardinality, then uses repeated stratified outer folds and stratified inner
    folds. Regression uses repeated `KFold` outer folds and shuffled `KFold`
    inner folds.
 3. Every inner optimization is fitted only on the training portion of its
    corresponding outer split. Its best configuration is then evaluated on the
    held-out outer fold.
 4. Classification selects the highest mean outer F1-macro and additionally
-   reports accuracy and ROC-AUC. Regression selects the lowest mean outer RMSE
-   and additionally reports MAE and R².
+   reports accuracy and ROC-AUC. Binary ROC-AUC uses its established binary
+   definition; multiclass ROC-AUC uses probabilities with One-vs-One macro
+   averaging. Regression selects the lowest mean outer RMSE and additionally
+   reports MAE and R².
 5. Exact metric ties preserve configured model order. Aggregate and per-fold
-   evidence is retained for all evaluated models.
+   evidence is retained for all evaluated models. Classification also records
+   held-out precision, recall, F1-score, and support for every original class;
+   undefined values use `zero_division=0`.
 6. After selection, Ridge, Lasso, and tunable classifiers receive a fresh
    full-data optimization using the configured inner strategy. LinearRegression,
    PolynomialRegression, and StackingClassifier are fitted directly.
@@ -1039,6 +1190,12 @@ evaluation contract:
 9. The classification F1-macro figure is generated from existing outer evidence
    without further fitting. No corresponding regression figure is currently
    produced.
+
+Class-level summaries use arithmetic means and population standard deviations
+(`ddof=0`) over outer folds. They report per-fold support mean and standard
+deviation rather than pooling predictions across repeats. Since an observation
+can appear in held-out folds in more than one repeat, repeated-CV records must
+not be interpreted as an independent external test population.
 
 These stages preserve the evidence for the configured software evaluation;
 they do not establish performance on an external population or scientific

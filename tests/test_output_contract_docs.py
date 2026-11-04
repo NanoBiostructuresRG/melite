@@ -93,6 +93,8 @@ def _writer_schema(tmp_path: Path, writer_name: str, filename: str) -> list[str]
         ("results.csv", "write_csv"),
         ("evaluations.csv", "write_evaluations_csv"),
         ("evaluation_folds.csv", "write_evaluation_folds_csv"),
+        ("evaluation_class_folds.csv", "write_evaluation_class_folds_csv"),
+        ("evaluation_class_summary.csv", "write_evaluation_class_summary_csv"),
         ("optimization_searches.csv", "write_optimization_searches_csv"),
     ],
 )
@@ -117,6 +119,20 @@ def test_documented_provenance_keys_match_writer_contract():
     )
 
     assert set(documented) == set(result_manager_module._OPTIMIZATION_PROVENANCE_KEYS)
+
+
+def test_documented_classification_metric_provenance_matches_writer_contract():
+    markdown = USAGE_PATH.read_text(encoding="utf-8")
+
+    documented = _documented_schema(
+        markdown,
+        "classification_metric_provenance.json",
+        first_column_heading="Key",
+    )
+
+    assert set(documented) == set(
+        result_manager_module._CLASSIFICATION_METRIC_PROVENANCE_KEYS
+    )
 
 
 def test_schema_parser_fails_when_marker_is_missing():

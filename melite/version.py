@@ -6,7 +6,7 @@ Hatchling reads this value at build time.
 """
 
 __version__: str
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 """Current MELITE package version."""
 
 __all__ = ["__version__"]
