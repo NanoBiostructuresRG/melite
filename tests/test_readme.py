@@ -61,12 +61,14 @@ def test_quick_start_uses_canonical_packaged_example():
 
 def test_version_badge_matches_package_version():
     match = re.search(
-        r"\[!\[Version\]\(https://img\.shields\.io/badge/version-v(.*?)-blue\.svg\)\]\(\)",
+        r"\[!\[Version\]\(https://img\.shields\.io/badge/version-v(.*?)-blue\.svg\)\]"
+        r"\(([^)]*)\)",
         README_TEXT,
     )
 
     assert match is not None, "README Version badge not found"
     assert match.group(1) == __version__
+    assert match.group(2) == "https://pypi.org/project/melite/"
 
 
 def test_readme_melite_commands_use_real_cli_subcommands():

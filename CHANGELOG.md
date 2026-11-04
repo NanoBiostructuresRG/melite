@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.3] - 2026-11-04
+
+### Added
+
+- Added multiclass classification support for datasets containing three or
+  more mutually exclusive classes, while retaining binary classification
+  and regression as the existing prediction tasks.
+- Added multiclass ROC-AUC evaluation using One-vs-One (OvO) with macro
+  averaging and class-aligned probability estimates.
+- Added per-class precision, recall, F1-score, and support for each outer
+  cross-validation fold, with aggregate summaries across folds.
+- Added `evaluation_class_folds.csv`, `evaluation_class_summary.csv`, and
+  `classification_metric_provenance.json` to preserve class-level evaluation
+  evidence and metric definitions.
+
+### Changed
+
+- Added internal label encoding for XGBoost while preserving original class
+  identities in predictions, probability outputs, and exported models.
+- Extended SVC probability calibration to support multiclass ROC-AUC
+  evaluation without changing its direct prediction pathway.
+- Added explicit validation of class distributions and cross-validation
+  requirements, with propagation of scoring errors and rejection of
+  non-finite evaluation metrics.
+- Extended the README and MkDocs documentation to describe multiclass
+  evaluation, metric definitions, class identity, and result interpretation.
+
+### Compatibility
+
+- Preserved F1-macro as the optimization and model-selection criterion for
+  classification.
+- Preserved the existing binary ROC-AUC definition, regression workflows,
+  classifier inventory, and stacking composition.
+- Retained existing result schemas while adding class-level evidence for
+  both binary and multiclass classification.
+
+### Validation
+
+- Expanded automated tests for multiclass evaluation, class-label identity,
+  per-class metrics, provenance, model export, and inference.
+- Verified the complete evaluation-to-inference workflow, including XGBoost
+  and StackingClassifier.
+- Passed 486 automated tests, static analysis, installed-wheel smoke tests,
+  and GitHub CI.
+
+---
+
 ## [0.3.2] - 2026-11-02
 
 ### Added
@@ -679,6 +726,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.3.3]: https://github.com/NanoBiostructuresRG/melite/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/NanoBiostructuresRG/melite/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/NanoBiostructuresRG/melite/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/NanoBiostructuresRG/melite/compare/v0.2.5...v0.3.0
