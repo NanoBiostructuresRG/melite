@@ -655,9 +655,7 @@ def test_catboost_nested_cv_preserves_mixed_dataframe_folds():
     config.CV_CONFIG["n_repeats"] = 1
     trainer = MultiModelTrainer(config)
 
-    evaluation = trainer._evaluate_classifier(
-        "catboost", X_catboost, y_catboost
-    )
+    evaluation = trainer._evaluate_classifier("catboost", X_catboost, y_catboost)
 
     assert len(evaluation["outer_scores"]) == 2
     assert len(evaluation["optimization_searches"]) == 2

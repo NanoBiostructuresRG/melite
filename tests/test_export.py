@@ -639,9 +639,7 @@ def test_export_catboost_preserves_dataframe_schema_and_configuration(
 
     output_dir = tmp_path / "models"
     Finalizer(csv_path, output_dir, cfg, row_index=0).run()
-    model = joblib.load(
-        output_dir / "Model_CatBoostClassifier_catboost_data.pkl"
-    )
+    model = joblib.load(output_dir / "Model_CatBoostClassifier_catboost_data.pkl")
     feature_columns = [column for column in table if column != "Outcome"]
     X = table[feature_columns].copy()
 

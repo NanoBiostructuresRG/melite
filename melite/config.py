@@ -395,9 +395,7 @@ class Config:
                         f"Dataset '{dataset_id}' categorical_features requires "
                         '[classifiers].active = ["catboost"].'
                     )
-                categorical_spec = {
-                    "categorical_features": list(categorical_features)
-                }
+                categorical_spec = {"categorical_features": list(categorical_features)}
 
             metadata = {
                 key: value for key, value in entry.items() if key in metadata_keys

@@ -497,9 +497,7 @@ class Finalizer:
                 random_state=self._cfg.RANDOM_STATE,
                 categorical_features=categorical_features,
                 catboost_config=(
-                    {
-                        "boosting_type": persisted_catboost_config["boosting_type"]
-                    }
+                    {"boosting_type": persisted_catboost_config["boosting_type"]}
                     if persisted_catboost_config is not None
                     else getattr(self._cfg, "CATBOOST_CONFIG", {})
                 ),
@@ -585,9 +583,7 @@ class Finalizer:
         if "dataset" in row and _has_value(row.get("dataset")):
             dataset_id = str(row.get("dataset"))
             configured_categorical_features = list(
-                self._cfg.DATASETS.get(dataset_id, {}).get(
-                    "categorical_features", []
-                )
+                self._cfg.DATASETS.get(dataset_id, {}).get("categorical_features", [])
             )
         configured = {
             "boosting_type": getattr(self._cfg, "CATBOOST_CONFIG", {}).get(

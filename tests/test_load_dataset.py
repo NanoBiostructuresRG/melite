@@ -564,18 +564,14 @@ def test_load_datasets_csv_preserves_declared_categorical_dataframe(tmp_path, ta
     assert list(X.columns) == [column for column in table if column != "Outcome"]
     assert X.attrs["categorical_features"] == categorical_features
     assert all(
-        isinstance(value, str)
-        for column in categorical_features
-        for value in X[column]
+        isinstance(value, str) for column in categorical_features for value in X[column]
     )
     if "kind" in X and table["kind"].iloc[0] == "001":
         assert X["kind"].tolist() == ["001", "002", "001"]
 
 
 @pytest.mark.parametrize("invalid_value", [None, "   "])
-def test_load_datasets_csv_rejects_invalid_categorical_values(
-    tmp_path, invalid_value
-):
+def test_load_datasets_csv_rejects_invalid_categorical_values(tmp_path, invalid_value):
     path = _write_csv(
         tmp_path,
         "categorical",

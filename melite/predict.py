@@ -29,9 +29,7 @@ __all__ = ["predict"]
 logger = logging.getLogger(__name__)
 
 
-def _validate_catboost_dataframe_schema(
-    X: Any, schema: dict[str, Any]
-) -> pd.DataFrame:
+def _validate_catboost_dataframe_schema(X: Any, schema: dict[str, Any]) -> pd.DataFrame:
     expected_columns = schema.get("columns")
     categorical_features = schema.get("categorical_features")
     if not isinstance(expected_columns, list) or not isinstance(

@@ -318,13 +318,15 @@ def test_config_rejects_invalid_catboost_boosting_type(tmp_path, toml_value):
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match=r"\[catboost\]\.boosting_type.*Plain.*Ordered"):
+    with pytest.raises(
+        ValueError, match=r"\[catboost\]\.boosting_type.*Plain.*Ordered"
+    ):
         Config(user_config=user_toml)
 
 
 def test_config_rejects_unknown_catboost_key(tmp_path):
     user_toml = tmp_path / "catboost.toml"
-    user_toml.write_text("[catboost]\nboosting = \"Ordered\"\n", encoding="utf-8")
+    user_toml.write_text('[catboost]\nboosting = "Ordered"\n', encoding="utf-8")
 
     with pytest.raises(ValueError, match=r"\[catboost\].*boosting.*boosting_type"):
         Config(user_config=user_toml)
@@ -648,7 +650,7 @@ def test_config_restricts_categorical_features_to_catboost_csv_classification(
     user_toml = tmp_path / "categorical.toml"
     user_toml.write_text(
         f'[classifiers]\nactive = ["{active}"]\n'
-        "[regressors]\nactive = [\"ridge\"]\n"
+        '[regressors]\nactive = ["ridge"]\n'
         "[datasets.sample_tabular]\n"
         f"{dataset_fields}\n"
         'categorical_features = ["city"]\n',
