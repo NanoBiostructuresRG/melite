@@ -65,6 +65,7 @@ def test_config_exposes_only_the_intended_public_runtime_values():
         "DATASETS",
         "ACTIVE_CLASSIFIERS",
         "ACTIVE_REGRESSORS",
+        "CATBOOST_CONFIG",
         "CV_CONFIG",
     }
 
@@ -290,6 +291,43 @@ def test_classifiers_is_the_active_public_configuration_section(tmp_path):
 
     assert cfg.ACTIVE_CLASSIFIERS == ["svc"]
     assert not hasattr(cfg, "ACTIVE_MODELS")
+
+
+@pytest.mark.parametrize("boosting_type", ["Plain", "Ordered"])
+def test_config_accepts_catboost_boosting_type(tmp_path, boosting_type):
+    user_toml = tmp_path / "catboost.toml"
+    user_toml.write_text(
+        f'[catboost]\nboosting_type = "{boosting_type}"\n',
+        encoding="utf-8",
+    )
+
+    assert Config(user_config=user_toml).CATBOOST_CONFIG == {
+        "boosting_type": boosting_type
+    }
+
+
+def test_config_omitted_catboost_boosting_type_preserves_empty_override():
+    assert Config().CATBOOST_CONFIG == {}
+
+
+@pytest.mark.parametrize("toml_value", ['"plain"', '"Ordered "', '"invalid"', "3"])
+def test_config_rejects_invalid_catboost_boosting_type(tmp_path, toml_value):
+    user_toml = tmp_path / "catboost.toml"
+    user_toml.write_text(
+        f"[catboost]\nboosting_type = {toml_value}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"\[catboost\]\.boosting_type.*Plain.*Ordered"):
+        Config(user_config=user_toml)
+
+
+def test_config_rejects_unknown_catboost_key(tmp_path):
+    user_toml = tmp_path / "catboost.toml"
+    user_toml.write_text("[catboost]\nboosting = \"Ordered\"\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"\[catboost\].*boosting.*boosting_type"):
+        Config(user_config=user_toml)
 
 
 def test_regressor_keys_are_validated_against_catalog(tmp_path):
@@ -521,6 +559,109 @@ description = "Neutral numeric table"
     }
 
 
+def test_config_normalizes_csv_classification_categorical_features(tmp_path):
+    user_toml = tmp_path / "csv.toml"
+    user_toml.write_text(
+        """
+[classifiers]
+active = ["catboost"]
+
+[datasets.sample_tabular]
+path = "data/sample_tabular.csv"
+label_column = "Outcome"
+categorical_features = ["city", "segment"]
+""",
+        encoding="utf-8",
+    )
+
+    cfg = Config(user_config=user_toml)
+
+    assert cfg.DATASETS["sample_tabular"]["categorical_features"] == [
+        "city",
+        "segment",
+    ]
+    assert cfg.CATBOOST_CONFIG == {}
+
+
+@pytest.mark.parametrize(
+    "toml_value",
+    ["[]", '["city", "city"]', '["city", ""]', '"city"'],
+)
+def test_config_rejects_invalid_categorical_features(tmp_path, toml_value):
+    user_toml = tmp_path / "csv.toml"
+    user_toml.write_text(
+        "[classifiers]\n"
+        'active = ["catboost"]\n'
+        "[datasets.sample_tabular]\n"
+        'path = "data/sample_tabular.csv"\n'
+        'label_column = "Outcome"\n'
+        f"categorical_features = {toml_value}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"categorical_features.*(?:non-empty|unique)"):
+        Config(user_config=user_toml)
+
+
+def test_config_rejects_label_column_in_categorical_features(tmp_path):
+    user_toml = tmp_path / "csv.toml"
+    user_toml.write_text(
+        """
+[classifiers]
+active = ["catboost"]
+
+[datasets.sample_tabular]
+path = "data/sample_tabular.csv"
+label_column = "Outcome"
+categorical_features = ["city", "Outcome"]
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"categorical_features.*label_column.*Outcome",
+    ):
+        Config(user_config=user_toml)
+
+
+@pytest.mark.parametrize(
+    ("dataset_fields", "active"),
+    [
+        ('path = "data/sample_tabular.npz"\nlabel_path = "labels.npy"', "catboost"),
+        (
+            'path = "data/sample_tabular.csv"\n'
+            'label_column = "Outcome"\n'
+            'task = "regression"',
+            "catboost",
+        ),
+        ('path = "data/sample_tabular.csv"\nlabel_column = "Outcome"', "svc"),
+        (
+            'path = "data/sample_tabular.csv"\nlabel_column = "Outcome"',
+            'catboost", "svc',
+        ),
+    ],
+)
+def test_config_restricts_categorical_features_to_catboost_csv_classification(
+    tmp_path, dataset_fields, active
+):
+    user_toml = tmp_path / "categorical.toml"
+    user_toml.write_text(
+        f'[classifiers]\nactive = ["{active}"]\n'
+        "[regressors]\nactive = [\"ridge\"]\n"
+        "[datasets.sample_tabular]\n"
+        f"{dataset_fields}\n"
+        'categorical_features = ["city"]\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"categorical_features.*(?:CSV classification|catboost)",
+    ):
+        Config(user_config=user_toml)
+
+
 def test_config_csv_dataset_requires_label_column(tmp_path):
     user_toml = tmp_path / "csv.toml"
     user_toml.write_text(
@@ -630,6 +771,7 @@ unexpected = "value"
         "label_path",
         "label_column",
         "task",
+        "categorical_features",
         "family",
         "method",
         "variant",

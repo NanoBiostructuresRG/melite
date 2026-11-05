@@ -7,6 +7,10 @@
 # and stack are available as opt-in classifiers.
 active = ["svc", "rf", "xgb"]
 
+# Optional CatBoost-specific configuration:
+# [catboost]
+# boosting_type = "Ordered"
+
 [regressors]
 active = []
 
@@ -34,6 +38,7 @@ input   = "raw/"
 # [datasets.my_dataset]
 # path = "data/my_dataset.csv"
 # label_column = "label"
+# categorical_features = ["category"]  # Requires active = ["catboost"].
 
 [benchmark]
 # Active canonical random seed for evaluation and optimization.
