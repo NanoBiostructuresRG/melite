@@ -5,7 +5,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
+from catboost import CatBoostClassifier
 from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
@@ -28,12 +30,13 @@ X = np.ones((12, 2))
 Y = np.array([0, 1] * 6)
 
 
-def _config(active_classifiers, random_state=42, n_trials=5):
+def _config(active_classifiers, random_state=42, n_trials=5, catboost_config=None):
     return SimpleNamespace(
         ACTIVE_CLASSIFIERS=active_classifiers,
         RANDOM_STATE=random_state,
         N_TRIALS=n_trials,
         CV_CONFIG={"n_splits": 2, "n_repeats": 3, "inner_n_splits": 2},
+        CATBOOST_CONFIG=catboost_config or {},
     )
 
 
@@ -593,6 +596,72 @@ def test_rf_and_xgb_builders_remain_sequential_direct_estimators():
     assert isinstance(xgb, XGBClassifier)
     assert rf.n_jobs == 1
     assert xgb.n_jobs == 1
+
+
+@pytest.mark.parametrize("boosting_type", ["Plain", "Ordered"])
+def test_catboost_builder_applies_configured_boosting_type(boosting_type):
+    trainer = MultiModelTrainer(
+        _config(["catboost"], catboost_config={"boosting_type": boosting_type})
+    )
+
+    model = trainer.model_builders["catboost"]()
+
+    assert isinstance(model, CatBoostClassifier)
+    assert model.get_params()["boosting_type"] == boosting_type
+
+
+@pytest.mark.parametrize(
+    ("X_catboost", "categorical_features"),
+    [
+        (np.column_stack((np.arange(12), np.arange(12) % 3)), []),
+        (pd.DataFrame({"kind": ["a", "b"] * 6}), ["kind"]),
+        (
+            pd.DataFrame(
+                {
+                    "numeric": np.arange(12, dtype=float),
+                    "kind": ["a", "b"] * 6,
+                }
+            ),
+            ["kind"],
+        ),
+    ],
+    ids=["numeric", "categorical", "mixed"],
+)
+def test_catboost_trains_numeric_categorical_and_mixed_data(
+    X_catboost, categorical_features
+):
+    if isinstance(X_catboost, pd.DataFrame):
+        X_catboost.attrs["categorical_features"] = categorical_features
+    trainer = MultiModelTrainer(_config(["catboost"]))
+    model = trainer._build_model_for_target("catboost", Y, X_catboost)
+    model.set_params(iterations=5, depth=2)
+
+    model.fit(X_catboost, Y)
+
+    assert model.predict(X_catboost).shape == (12,)
+    assert list(model.get_params().get("cat_features", ())) == categorical_features
+
+
+def test_catboost_nested_cv_preserves_mixed_dataframe_folds():
+    X_catboost = pd.DataFrame(
+        {
+            "numeric": np.arange(20, dtype=float),
+            "kind": ["a", "b"] * 10,
+        }
+    )
+    X_catboost.attrs["categorical_features"] = ["kind"]
+    y_catboost = np.array([0, 1] * 10)
+    config = _config(["catboost"], n_trials=1)
+    config.CV_CONFIG["n_repeats"] = 1
+    trainer = MultiModelTrainer(config)
+
+    evaluation = trainer._evaluate_classifier(
+        "catboost", X_catboost, y_catboost
+    )
+
+    assert len(evaluation["outer_scores"]) == 2
+    assert len(evaluation["optimization_searches"]) == 2
+    assert all(score["per_class_metrics"] for score in evaluation["outer_scores"])
 
 
 def test_native_probability_classifiers_remain_unwrapped():
