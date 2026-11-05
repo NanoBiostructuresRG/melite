@@ -6,6 +6,7 @@ multi-classifier evaluation and selection with nested cross-validation, and resu
 writing. It is invoked via ``melite run`` from the unified CLI.
 """
 
+import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
@@ -507,6 +508,17 @@ class Main:
         ) = selected_result
         params = self._clean_params(best_params)
         classifier_name = _CLASSIFIER_NAMES[selected_evaluation["classifier_key"]]
+        catboost_config = ""
+        if selected_evaluation["classifier_key"] == "catboost":
+            catboost_config = json.dumps(
+                {
+                    "boosting_type": best_model.get_all_params()["boosting_type"],
+                    "categorical_features": list(
+                        best_model.get_params().get("cat_features", ())
+                    ),
+                },
+                sort_keys=True,
+            )
         metadata_lines = [
             f"Family: {dataset_metadata['family']}"
             if dataset_metadata["family"] is not None
@@ -545,6 +557,7 @@ class Main:
                 **dataset_metadata,
                 "classifier_name": classifier_name,
                 "parameters": str(params),
+                "catboost_config": catboost_config,
                 "f1_macro": round(best_f1, 4),
                 "f1_std": round(f1_std, 4),
                 "accuracy": round(best_acc, 4),

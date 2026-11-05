@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from melite.catboost_schema import dataframe_feature_issues
 from melite.config import Config
 
 __all__ = ["load_datasets"]
@@ -26,13 +27,6 @@ logger = logging.getLogger(__name__)
 
 def _count_differences(left: np.ndarray, right: np.ndarray) -> int:
     return int(np.sum(left != right))
-
-
-def _is_numeric_dtype(dtype: Any) -> bool:
-    try:
-        return bool(np.issubdtype(dtype, np.number))
-    except TypeError:
-        return False
 
 
 def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
@@ -144,31 +138,21 @@ def _load_csv_dataset(dataset_id: str, spec: dict) -> dict:
             f"in addition to label_column '{label_column}'."
         )
 
-    missing_categorical = [
-        column for column in categorical_features if column not in features.columns
-    ]
+    missing_categorical, invalid_categorical, non_numeric_columns = (
+        dataframe_feature_issues(features, categorical_features)
+    )
     if missing_categorical:
         raise ValueError(
             f"Dataset '{dataset_id}' categorical feature column(s) were not found "
             f"in CSV file '{data_path}': {missing_categorical}."
         )
 
-    invalid_categorical = []
-    for column in categorical_features:
-        values = features[column]
-        if values.isna().any() or values.str.strip().eq("").any():
-            invalid_categorical.append(column)
     if invalid_categorical:
         raise ValueError(
             f"Dataset '{dataset_id}' categorical feature column(s) contain "
             f"missing or invalid values: {invalid_categorical}."
         )
 
-    non_numeric_columns = [
-        str(column)
-        for column, dtype in features.dtypes.items()
-        if column not in categorical_features and not _is_numeric_dtype(dtype)
-    ]
     if non_numeric_columns:
         raise ValueError(
             f"Dataset '{dataset_id}' feature columns must be numeric; "

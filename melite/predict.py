@@ -16,16 +16,72 @@ from typing import Any
 
 import joblib
 import numpy as np
+import pandas as pd
 from sklearn.base import is_regressor
+
+from melite.catboost_schema import (
+    dataframe_feature_issues,
+    read_catboost_feature_schema,
+)
 
 __all__ = ["predict"]
 
 logger = logging.getLogger(__name__)
 
 
+def _validate_catboost_dataframe_schema(
+    X: Any, schema: dict[str, Any]
+) -> pd.DataFrame:
+    expected_columns = schema.get("columns")
+    categorical_features = schema.get("categorical_features")
+    if not isinstance(expected_columns, list) or not isinstance(
+        categorical_features, list
+    ):
+        raise ValueError("Exported CatBoost feature schema is invalid.")
+    if not isinstance(X, pd.DataFrame):
+        raise ValueError(
+            "Categorical CatBoost inference X must be a pandas DataFrame with "
+            f"columns {expected_columns}."
+        )
+
+    actual_columns = list(X.columns)
+    missing_columns = [
+        column for column in expected_columns if column not in actual_columns
+    ]
+    extra_columns = [
+        column for column in actual_columns if column not in expected_columns
+    ]
+    if missing_columns or extra_columns:
+        raise ValueError(
+            "Categorical CatBoost inference feature schema mismatch: "
+            f"missing columns={missing_columns}, extra columns={extra_columns}."
+        )
+    if actual_columns != expected_columns:
+        raise ValueError(
+            "Categorical CatBoost inference feature column order mismatch: "
+            f"expected {expected_columns}, got {actual_columns}."
+        )
+
+    _, invalid_categorical, non_numeric_columns = dataframe_feature_issues(
+        X, categorical_features
+    )
+    if invalid_categorical:
+        raise ValueError(
+            "Categorical CatBoost inference categorical columns must contain "
+            "non-empty string values; invalid columns: "
+            f"{invalid_categorical}."
+        )
+    if non_numeric_columns:
+        raise ValueError(
+            "Categorical CatBoost inference non-categorical columns must be "
+            f"numeric; incompatible columns: {non_numeric_columns}."
+        )
+    return X
+
+
 def predict(
     model_path: Path | str,
-    X: np.ndarray,
+    X: np.ndarray | pd.DataFrame,
     return_proba: bool = True,
 ) -> dict[str, Any]:
     """Run classification or regression inference with an exported model.
@@ -34,11 +90,11 @@ def predict(
     ----------
     model_path : str or pathlib.Path
         Path to a ``.pkl`` file produced by ``melite export``.
-    X : numpy.ndarray
-        Numeric feature matrix of shape ``(n_samples, n_features)``. It must
-        be two-dimensional and use the same feature representation, column
-        order, and feature count expected by the exported model. MELITE does
-        not validate feature names or semantic feature identity.
+    X : numpy.ndarray or pandas.DataFrame
+        Feature matrix of shape ``(n_samples, n_features)``. Numeric artifacts
+        retain the NumPy input contract. Exported categorical CatBoost models
+        require a DataFrame with the same feature names, order, and compatible
+        numeric/categorical types used during training.
     return_proba : bool, optional
         Whether to request class probabilities for a classification model when
         the loaded model supports ``predict_proba``. Default is ``True``. If
@@ -68,10 +124,11 @@ def predict(
     FileNotFoundError
         If ``model_path`` does not exist.
     ValueError
-        If ``X`` is not a two-dimensional NumPy array. For regression
-        artifacts, also raised when ``X`` is not finite real numerical data or
-        its feature count differs from ``n_features_in_`` exposed by the fitted
-        model.
+        If ``X`` violates the artifact's array or DataFrame input contract. For
+        categorical CatBoost artifacts, also raised for missing, extra,
+        reordered, or type-incompatible columns. For regression artifacts,
+        also raised when ``X`` is not finite real numerical data or its feature
+        count differs from ``n_features_in_`` exposed by the fitted model.
 
     Notes
     -----
@@ -100,13 +157,16 @@ def predict(
             "Run 'melite export' first to generate a .pkl artifact."
         )
 
-    if not isinstance(X, np.ndarray) or X.ndim != 2:
+    logger.info("Loading model from %s", model_path.resolve())
+    model = joblib.load(model_path)
+    feature_schema = read_catboost_feature_schema(model)
+    if feature_schema is not None:
+        X = _validate_catboost_dataframe_schema(X, feature_schema)
+    elif not isinstance(X, np.ndarray) or X.ndim != 2:
         raise ValueError(
             f"X must be a 2-D numpy array, got shape {getattr(X, 'shape', type(X))}."
         )
 
-    logger.info("Loading model from %s", model_path.resolve())
-    model = joblib.load(model_path)
     regression_model = is_regressor(model)
     if regression_model:
         if not np.issubdtype(X.dtype, np.number) or np.issubdtype(

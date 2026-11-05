@@ -249,6 +249,7 @@ def test_write_csv_correct_fieldnames(tmp_path):
             "reduction_type",
             "classifier_name",
             "parameters",
+            "catboost_config",
             "f1_macro",
             "f1_std",
             "accuracy",
