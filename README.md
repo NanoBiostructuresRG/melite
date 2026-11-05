@@ -11,16 +11,18 @@
 ## Description
 
 **MELITE** is a Python package and command-line application for evaluating and
-comparing supervised classification and regression models on numeric tabular
+comparing supervised classification and regression models on prepared tabular
 datasets. It separates hyperparameter tuning from model evaluation, preserves
 the evidence used for selection, and exports the selected model as a reusable
 artifact for downstream inference.
 
-MELITE operates at the tabular modeling level. Its learning algorithms consume
-numeric feature matrices (`X`) and targets (`y`), regardless of how those
-features were produced. Inputs may therefore originate from fingerprints,
+MELITE operates at the tabular modeling level. Its established input contract
+uses numeric feature matrices (`X`) and targets (`y`), regardless of how those
+features were produced. CSV classification datasets evaluated exclusively with
+CatBoost may instead declare categorical columns and use categorical-only or
+mixed numeric/categorical predictors. Inputs may originate from fingerprints,
 descriptors, dimensionality-reduction methods, clinical variables, experimental
-measurements, industrial features, or other numeric representations.
+measurements, industrial features, or other prepared representations.
 
 Classification targets with two distinct labels use the binary evaluation
 contract; targets with three or more distinct labels use the multiclass
@@ -54,8 +56,9 @@ how the competing models performed.
 - **Explicit selection.** Model selection follows a predefined, task-specific
   criterion based on cross-validation evidence rather than an informal choice
   after training.
-- **Domain-agnostic inputs.** MELITE works with numeric tabular data without
-  assuming how the features were generated.
+- **Domain-agnostic inputs.** MELITE works with prepared tabular data without
+  assuming how the features were generated; native categorical predictors are
+  available for CatBoost-only CSV classification.
 - **Reusable artifacts.** After selection, the chosen model can be fitted
   on all available data and saved as a model artifact for prediction.
 - **CLI and Python interfaces.** MELITE can be used through its command-line
@@ -67,7 +70,7 @@ how the competing models performed.
 
 | MELITE does | MELITE does not |
 |---|---|
-| Evaluate supported classification and regression models on prepared numeric `X` and `y`. | Generate domain-specific features or descriptors. |
+| Evaluate supported classification and regression models on prepared tabular `X` and `y`. | Generate domain-specific features or descriptors. |
 | Tune supported models within the evaluation design. | Act as a general AutoML framework. |
 | Preserve aggregate and fold-level evaluation evidence. | Generate PCA, UMAP, fingerprints, or other feature representations. |
 | Select the best active model using the task-specific primary metric. | Process raw domain-specific inputs. |
@@ -178,7 +181,7 @@ melite run --smoke --config melite_example/config.toml
 
 The command-line interface provides the canonical end-to-end MELITE workflow:
 
-1. Register one or more numeric datasets in a TOML configuration file.
+1. Register one or more prepared tabular datasets in a TOML configuration file.
 2. Assign each dataset to classification or regression and choose the active
    models for the configured tasks.
 3. Run `melite run` to generate evaluation evidence and selected results.
@@ -246,6 +249,12 @@ StackingClassifier combines SVC, RandomForestClassifier, and XGBClassifier as
 base estimators with LogisticRegression as the final estimator and uses
 probability-based base-estimator outputs.
 
+CatBoost additionally supports native categorical predictors for CSV
+classification datasets. Declare those columns with `categorical_features` and
+select only `catboost`; undeclared predictors must remain numeric. With no
+`categorical_features` declaration, CatBoost retains the same numeric NumPy
+input path as the other numeric classifiers.
+
 Binary and multiclass classification use this same classifier inventory. For
 multiclass artifacts, `classes_` retains the original labels and defines the
 column order returned by `predict_proba()` and `melite.predict()`.
@@ -307,6 +316,38 @@ traceability and do not trigger dataset-specific execution logic.
 
 The legacy `[benchmark]` configuration section remains supported for backward
 compatibility. New configurations should use the dataset registry.
+
+Numeric CSV datasets omit `categorical_features`; every predictor must then be
+numeric. CatBoost-only categorical or mixed input is configured explicitly:
+
+```toml
+[datasets.customer_segments]
+path = "data/customer_segments.csv"
+label_column = "segment"
+categorical_features = ["region", "channel"]
+
+[classifiers]
+active = ["catboost"]
+
+[catboost]
+boosting_type = "Ordered"
+```
+
+`categorical_features` must be a non-empty list of unique predictor column
+names in a CSV classification dataset; it cannot contain `label_column` and
+requires `[classifiers].active = ["catboost"]`. Declared categorical values
+must be non-empty strings, while all remaining predictors must be numeric.
+Categorical-only input declares every predictor; mixed input declares only its
+categorical predictors. `[catboost].boosting_type` accepts `"Plain"` or
+`"Ordered"`; omitting it preserves the `"Plain"` behavior.
+
+Exported categorical and mixed CatBoost artifacts retain their feature names,
+column order, and categorical schema. Inference with those artifacts requires
+a pandas `DataFrame` with exactly the same columns in the same order and
+compatible categorical/numeric types; missing, extra, or reordered columns are
+rejected. The schema is stored in the artifact, so the original TOML is not
+needed for inference. Numeric artifacts retain the existing two-dimensional
+NumPy inference contract.
 
 ### Array Requirements
 

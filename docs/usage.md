@@ -1,7 +1,9 @@
 # Usage
 
-MELITE supports supervised classification and regression on prepared numeric
-tabular datasets. The bundled quick-start project remains a classification
+MELITE supports supervised classification and regression on prepared tabular
+datasets. The established input path is numeric, with native categorical and
+mixed CSV classification available when CatBoost is the sole active
+classifier. The bundled quick-start project remains a numeric classification
 example.
 
 ## Installation
@@ -60,22 +62,34 @@ intended for final classifier selection or model export.
 
 ## Data Preparation
 
-MELITE evaluates prepared numeric tabular feature representations. Users are
-responsible for supplying analysis-ready numeric features compatible with the
-models they evaluate.
+MELITE evaluates prepared tabular feature representations. Its established
+contract is numeric; CSV classification datasets evaluated exclusively with
+CatBoost may additionally declare categorical predictors. Users are responsible
+for supplying analysis-ready features compatible with the selected model.
 
 ### CSV
 
 CSV is the recommended low-friction registered input path. A single table
 contains both feature columns and labels, and the configured `label_column`
 identifies the target column. All remaining columns become `X` in exactly the
-order in which they appear in the CSV. Feature columns must be numeric, while
-labels may be categorical.
+order in which they appear in the CSV. Labels may be categorical.
 
-Column names help define and validate the registered input, but MELITE
-does not persist feature names into exported model artifacts. Training and
-later inference must therefore use the same feature representation, number of
-features, and feature order.
+When `categorical_features` is omitted, all feature columns must be numeric and
+MELITE preserves the existing NumPy loading path. This is the input contract
+for every regressor and for all classifiers on numeric datasets.
+
+For a CSV classification dataset evaluated only with CatBoost,
+`categorical_features` may explicitly list categorical predictor columns.
+Declared columns are loaded as strings and must contain only non-empty string
+values; all remaining predictors must be numeric. A categorical-only dataset
+declares every predictor, while a mixed dataset declares only its categorical
+predictors. MELITE preserves the DataFrame column names and order so CatBoost
+can process categories natively inside each training fold.
+
+Numeric artifacts do not persist semantic feature names, so later inference
+must preserve the same representation, feature count, and order. Exported
+categorical or mixed CatBoost artifacts do persist their DataFrame schema; their
+inference requirements are described under [Python API](#python-api).
 
 A column whose name starts with `Unnamed:` is rejected because it commonly
 represents an accidentally exported pandas index. When creating a CSV with
@@ -88,7 +102,7 @@ dataframe.to_csv("data/features.csv", index=False)
 MELITE does not:
 
 - impute missing values;
-- encode categorical feature columns;
+- provide general categorical preprocessing or encoding for other models;
 - infer identifier columns;
 - select feature columns automatically;
 - reorder feature columns;
@@ -187,6 +201,11 @@ LogisticRegression estimator. It can be selected by itself:
 [classifiers]
 active = ["stack"]
 ```
+
+CatBoost supports numeric, categorical-only, and mixed numeric/categorical CSV
+classification inputs. Native categorical processing is opt-in through the
+dataset's `categorical_features` declaration and remains inside each training
+fold. It does not add categorical preprocessing to any other classifier.
 
 Hyperparameter search spaces for tunable classifiers are defined by MELITE. User
 configuration determines which supported classifiers are active rather than
@@ -335,7 +354,7 @@ melite run --config my_config.toml
 
 ### Dataset Registry
 
-Each numeric feature matrix is registered under a user-defined
+Each feature matrix is registered under a user-defined
 `[datasets.<dataset_id>]` entry.
 
 CSV example:
@@ -370,6 +389,7 @@ The accepted fields inside each `[datasets.*]` entry are exactly:
 - `label_path`;
 - `label_column`;
 - `task`;
+- `categorical_features`;
 - `family`;
 - `method`;
 - `variant`;
@@ -397,12 +417,38 @@ to populate optional metadata.
 The `family` field describes the feature representation as dataset metadata. It
 is unrelated to the model selected or evaluated by MELITE.
 
-Each `dataset_id` identifies one concrete numeric feature matrix evaluated as an
+Each `dataset_id` identifies one concrete feature matrix evaluated as an
 independent dataset.
 
-For CSV, MELITE does not persist feature names into exported model
-artifacts. Training and later inference must use the same feature
-representation and feature order.
+`categorical_features` is optional. When present, it must be a non-empty list
+of unique, non-empty column names, must not include `label_column`, and is valid
+only for CSV classification with `[classifiers].active = ["catboost"]`. When it
+is omitted, the existing numeric behavior is unchanged.
+
+### CatBoost Configuration
+
+The following example uses mixed input: `age` and `balance` are numeric, while
+`region` and `channel` are categorical. A categorical-only dataset uses the same
+form but lists every predictor in `categorical_features`.
+
+```toml
+[datasets.customer_segments]
+path = "data/customer_segments.csv"
+label_column = "segment"
+task = "classification"
+categorical_features = ["region", "channel"]
+
+[classifiers]
+active = ["catboost"]
+
+[catboost]
+boosting_type = "Ordered"
+```
+
+`[catboost].boosting_type` is independent of whether categorical features are
+declared and accepts exactly `"Plain"` or `"Ordered"`. Omitting the setting
+preserves the existing `"Plain"` behavior. A numeric CatBoost dataset therefore
+may select either boosting type without declaring `categorical_features`.
 
 ### Evaluation Settings
 
@@ -597,6 +643,14 @@ on all available data. It uses the classifier parameters persisted in
 `results.csv` by `melite run`. It performs no additional hyperparameter search,
 cross-validation, or classifier selection.
 
+For CatBoost, `results.csv` also persists the effective boosting type and
+categorical feature declaration used during evaluation. Export verifies these
+values against the supplied configuration before fitting, so it cannot silently
+change the evaluated CatBoost contract. The exported categorical or mixed model
+stores its feature schema in the artifact; the original TOML is not required
+for inference. Legacy v0.3.3 CatBoost result files without this persisted field
+remain exportable only for numeric input with `Plain` boosting.
+
 Regression export requires explicit selection of the regression results file:
 
 ```powershell
@@ -728,6 +782,7 @@ reconstruct a selected result produced by `melite run`.
 | `reduction_type` | Legacy compatibility field; normally empty for modern registered datasets. |
 | `classifier_name` | Name of the classifier selected for the dataset. |
 | `parameters` | Parameters recorded for the selected result produced by `melite run`. |
+| `catboost_config` | Effective CatBoost `boosting_type` and ordered `categorical_features` serialized as JSON for a selected CatBoost result; empty for other classifiers. |
 | `f1_macro` | Mean outer-CV F1-macro for the selected classifier. |
 | `f1_std` | Population standard deviation of outer-CV F1-macro. |
 | `accuracy` | Mean outer-CV accuracy for the selected classifier. |
@@ -1093,7 +1148,7 @@ contract with these exact top-level keys:
 ## Python API
 
 The public `melite.predict(model_path, X, return_proba=True)` function loads an
-exported model artifact and runs inference on a new numeric feature matrix. It
+exported model artifact and runs inference on a new feature matrix. It
 returns `predictions`, `probabilities`, `model_path`, and `n_samples`.
 
 Classification example:
@@ -1115,7 +1170,32 @@ print(result["probabilities"])
 
 `X_new` must be a two-dimensional NumPy array using the same feature
 representation, feature order, and feature count expected by the exported
-model.
+numeric model. This existing NumPy contract applies to numeric CatBoost models
+as well as the other numeric classifiers and regressors.
+
+Categorical and mixed CatBoost artifacts instead require a pandas DataFrame:
+
+```python
+import pandas as pd
+from melite import predict
+
+X_new = pd.DataFrame(
+    {
+        "age": [31.0, 47.0],
+        "balance": [125.5, 810.0],
+        "region": ["north", "south"],
+        "channel": ["web", "store"],
+    }
+)
+
+result = predict("output/Model_CatBoostClassifier_segments.pkl", X_new)
+```
+
+The DataFrame must contain exactly the feature names stored during export, in
+the same order. Declared categorical columns must contain non-empty strings and
+all other columns must be numeric. Missing, extra, reordered, or
+type-incompatible columns are rejected explicitly. The exported artifact
+contains this schema and does not need the original TOML at inference time.
 
 All classifier artifacts exported by MELITE for the 11 supported keys provide
 probability estimates. Exported regression artifacts return `probabilities` as
@@ -1160,9 +1240,11 @@ For the complete public Python interface, see the [API Reference](api.md).
 For each registered dataset, MELITE follows a task-specific reproducible
 evaluation contract:
 
-1. `X` is a two-dimensional numeric matrix. Classification uses a
-   one-dimensional label target; regression requires a one-dimensional finite
-   real quantitative target.
+1. `X` is a two-dimensional numeric matrix except for CSV classification
+   datasets declaring native CatBoost categorical features, which retain a
+   schema-preserving DataFrame. Classification uses a one-dimensional label
+   target; regression requires a one-dimensional finite real quantitative
+   target.
 2. Classification determines binary or multiclass evaluation from target
    cardinality, then uses repeated stratified outer folds and stratified inner
    folds. Regression uses repeated `KFold` outer folds and shuffled `KFold`
