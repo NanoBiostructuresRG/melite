@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 [project]
 name = "melite"
 dynamic = ["version"]
-description = "Reproducible evaluation and selection of supervised classification and regression models on numeric tabular data, with nested cross-validation and preserved evaluation evidence."
+description = "Evaluation and selection of supervised classification and regression models on tabular data, with nested cross-validation and preserved evaluation evidence."
 readme = "README.md"
 license = "LGPL-3.0-or-later"
 license-files = ["LICENSE", "COPYING", "COPYING.LESSER"]

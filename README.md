@@ -1,7 +1,7 @@
 # MELITE — Multi-Model Supervised Learning Evaluator
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.3.3-blue.svg)](https://pypi.org/project/melite/)
+[![Version](https://img.shields.io/badge/version-v0.3.4-blue.svg)](https://pypi.org/project/melite/)
 [![PyPI](https://img.shields.io/pypi/v/melite.svg)](https://pypi.org/project/melite/)
 [![Python](https://img.shields.io/pypi/pyversions/melite.svg)](https://pypi.org/project/melite/)
 [![CI](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml/badge.svg)](https://github.com/NanoBiostructuresRG/melite/actions/workflows/ci.yml)
@@ -487,17 +487,6 @@ Run the installed-wheel smoke test:
 python scripts/smoke_install_wheel.py
 ```
 
-## Contributing
-
-Contributions are welcome. Please open an issue before submitting a pull
-request. Follow the existing code style: NumPy-style docstrings, type hints,
-and SPDX license headers in all source files.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines, including the
-development setup and the pull request target branch.
-Please also read our [Code of Conduct](CODE_OF_CONDUCT.md).
-
-
 ## Documentation
 
 The full documentation is published at:
@@ -512,7 +501,7 @@ If you use MELITE in your research, please cite it using the metadata in
 
 
 ```text
-Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE — Multi-Model Classifier Evaluator. Zenodo. https://doi.org/10.5281/zenodo.20382752
+Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE — Multi-Model Supervised Learning Evaluator. Zenodo. https://doi.org/10.5281/zenodo.20382752
 ```
 
 ## License

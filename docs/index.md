@@ -2,7 +2,7 @@
 
 <section class="ms-hero">
   <div class="ms-hero__content">
-    <p class="ms-eyebrow">Supervised model evaluation</p>
+    <p class="ms-eyebrow">Supervised learning evaluation</p>
     <div class="ms-brand" aria-label="MELITE">
       <span class="ms-brand__logo" aria-hidden="true">
         <img src="assets/logo-azul.svg" alt="">
@@ -10,7 +10,7 @@
       <span class="ms-wordmark">MELITE</span>
     </div>
     <p class="ms-subtitle">
-      Reproducible evaluation and selection of supervised classification and regression models on prepared tabular data.
+      Multi-model supervised classification and regression evaluator on tabular data.
     </p>
     <div class="ms-actions">
       <a class="md-button md-button--primary" href="usage/">Usage</a>
@@ -91,7 +91,7 @@ The following contract describes the classification path:
 
 
 ```text
-Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE — Multi-Model Classifier Evaluator. Zenodo. https://doi.org/10.5281/zenodo.20382752
+Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE — Multi-Model Supervised Learning Evaluator. Zenodo. https://doi.org/10.5281/zenodo.20382752
 ```
 
 Use [CITATION.cff](https://github.com/NanoBiostructuresRG/melite/blob/main/CITATION.cff) as the authoritative machine-readable citation metadata for MELITE. Citation metadata is updated with each release.
