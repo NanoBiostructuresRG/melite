@@ -3,6 +3,7 @@
 
 import ast
 import csv
+import json
 
 from catboost import CatBoostClassifier
 import joblib
@@ -12,6 +13,7 @@ import pandas as pd
 import pytest
 
 from melite.config import Config
+from melite.catboost_schema import read_catboost_feature_schema
 from melite.export_best_model import DatasetLoader, Finalizer
 from melite.probability_calibration import ProbabilityCalibratedClassifier
 from sklearn.datasets import make_classification
@@ -578,6 +580,235 @@ def test_export_reconstructs_new_classifiers_with_persisted_parameters(
     assert isinstance(estimator, expected_type)
     assert {key: model.get_params()[key] for key in params} == params
     assert {key: model.get_params()[key] for key in fixed_settings} == fixed_settings
+
+
+@pytest.mark.parametrize("include_numeric", [False, True], ids=["categorical", "mixed"])
+def test_export_catboost_preserves_dataframe_schema_and_configuration(
+    tmp_path, include_numeric
+):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    table = pd.DataFrame(
+        {
+            "kind": ["a", "b"] * 6,
+            "Outcome": [0, 1] * 6,
+        }
+    )
+    if include_numeric:
+        table.insert(0, "numeric", np.arange(12, dtype=float))
+    dataset_path = data_dir / "catboost.csv"
+    table.to_csv(dataset_path, index=False)
+
+    cfg = _make_config(tmp_path)
+    cfg.CATBOOST_CONFIG = {"boosting_type": "Ordered"}
+    cfg.DATASETS = {
+        "catboost_data": {
+            "path": str(dataset_path),
+            "label_column": "Outcome",
+            "categorical_features": ["kind"],
+            "task": "classification",
+            "metadata": {},
+        }
+    }
+    csv_path = tmp_path / "results.csv"
+    _write_results_csv(
+        csv_path,
+        [
+            "dataset",
+            "classifier_name",
+            "parameters",
+            "catboost_config",
+            "smoke",
+        ],
+        {
+            "dataset": "catboost_data",
+            "classifier_name": "CatBoostClassifier",
+            "parameters": (
+                "{'iterations': 5, 'learning_rate': 0.1, "
+                "'depth': 2, 'l2_leaf_reg': 3.0}"
+            ),
+            "catboost_config": json.dumps(
+                {
+                    "boosting_type": "Ordered",
+                    "categorical_features": ["kind"],
+                }
+            ),
+            "smoke": False,
+        },
+    )
+
+    output_dir = tmp_path / "models"
+    Finalizer(csv_path, output_dir, cfg, row_index=0).run()
+    model = joblib.load(output_dir / "Model_CatBoostClassifier_catboost_data.pkl")
+    feature_columns = [column for column in table if column != "Outcome"]
+    X = table[feature_columns].copy()
+
+    assert model.get_params()["boosting_type"] == "Ordered"
+    assert list(model.get_params()["cat_features"]) == ["kind"]
+    assert model.feature_names_ == feature_columns
+    assert read_catboost_feature_schema(model) == {
+        "columns": feature_columns,
+        "categorical_features": ["kind"],
+        "dtypes": [str(dtype) for dtype in X.dtypes],
+    }
+    assert model.predict(X).shape == (12,)
+    assert model.predict_proba(X).shape == (12, 2)
+
+
+def test_export_catboost_rejects_configuration_changed_after_evaluation(tmp_path):
+    cfg = _make_config(tmp_path)
+    cfg.CATBOOST_CONFIG = {"boosting_type": "Plain"}
+    cfg.DATASETS = {
+        "catboost_data": {
+            "path": str(tmp_path / "data.csv"),
+            "label_column": "Outcome",
+            "categorical_features": ["kind"],
+            "task": "classification",
+            "metadata": {},
+        }
+    }
+    csv_path = tmp_path / "results.csv"
+    _write_results_csv(
+        csv_path,
+        [
+            "dataset",
+            "classifier_name",
+            "parameters",
+            "catboost_config",
+            "smoke",
+        ],
+        {
+            "dataset": "catboost_data",
+            "classifier_name": "CatBoostClassifier",
+            "parameters": "{'iterations': 5}",
+            "catboost_config": json.dumps(
+                {
+                    "boosting_type": "Ordered",
+                    "categorical_features": ["kind"],
+                }
+            ),
+            "smoke": False,
+        },
+    )
+
+    with pytest.raises(ValueError, match=r"configuration mismatch.*Ordered.*Plain"):
+        Finalizer(csv_path, tmp_path, cfg, row_index=0).run()
+
+
+def test_export_legacy_catboost_numeric_plain_without_config_column(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    table = pd.DataFrame(
+        {
+            "feature_a": np.arange(12, dtype=float),
+            "feature_b": np.tile([0.0, 1.0], 6),
+            "Outcome": [0, 1] * 6,
+        }
+    )
+    dataset_path = data_dir / "numeric.csv"
+    table.to_csv(dataset_path, index=False)
+
+    cfg = _make_config(tmp_path)
+    cfg.CATBOOST_CONFIG = {"boosting_type": "Plain"}
+    cfg.DATASETS = {
+        "numeric_data": {
+            "path": str(dataset_path),
+            "label_column": "Outcome",
+            "task": "classification",
+            "metadata": {},
+        }
+    }
+    csv_path = tmp_path / "legacy_results.csv"
+    _write_results_csv(
+        csv_path,
+        ["dataset", "classifier_name", "parameters", "smoke"],
+        {
+            "dataset": "numeric_data",
+            "classifier_name": "CatBoostClassifier",
+            "parameters": "{'iterations': 5, 'depth': 2}",
+            "smoke": False,
+        },
+    )
+
+    output_dir = tmp_path / "models"
+    Finalizer(csv_path, output_dir, cfg, row_index=0).run()
+    model = joblib.load(output_dir / "Model_CatBoostClassifier_numeric_data.pkl")
+
+    assert model.get_params()["boosting_type"] == "Plain"
+    assert "cat_features" not in model.get_params()
+    assert model.predict(table[["feature_a", "feature_b"]].to_numpy()).shape == (12,)
+
+
+@pytest.mark.parametrize(
+    ("boosting_type", "categorical_features"),
+    [("Ordered", []), ("Plain", ["kind"])],
+    ids=["ordered", "categorical"],
+)
+def test_export_legacy_catboost_rejects_non_numeric_plain_configuration(
+    tmp_path, boosting_type, categorical_features
+):
+    cfg = _make_config(tmp_path)
+    cfg.CATBOOST_CONFIG = {"boosting_type": boosting_type}
+    cfg.DATASETS = {
+        "legacy_data": {
+            "path": str(tmp_path / "unused.csv"),
+            "label_column": "Outcome",
+            "categorical_features": categorical_features,
+            "task": "classification",
+            "metadata": {},
+        }
+    }
+    csv_path = tmp_path / "legacy_results.csv"
+    _write_results_csv(
+        csv_path,
+        ["dataset", "classifier_name", "parameters", "smoke"],
+        {
+            "dataset": "legacy_data",
+            "classifier_name": "CatBoostClassifier",
+            "parameters": "{'iterations': 5}",
+            "smoke": False,
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"without catboost_config.*Plain boosting and numeric features",
+    ):
+        Finalizer(csv_path, tmp_path, cfg, row_index=0).run()
+
+
+def test_export_new_catboost_row_rejects_empty_config(tmp_path):
+    cfg = _make_config(tmp_path)
+    cfg.CATBOOST_CONFIG = {"boosting_type": "Plain"}
+    cfg.DATASETS = {
+        "numeric_data": {
+            "path": str(tmp_path / "unused.csv"),
+            "label_column": "Outcome",
+            "task": "classification",
+            "metadata": {},
+        }
+    }
+    csv_path = tmp_path / "results.csv"
+    _write_results_csv(
+        csv_path,
+        [
+            "dataset",
+            "classifier_name",
+            "parameters",
+            "catboost_config",
+            "smoke",
+        ],
+        {
+            "dataset": "numeric_data",
+            "classifier_name": "CatBoostClassifier",
+            "parameters": "{'iterations': 5}",
+            "catboost_config": "",
+            "smoke": False,
+        },
+    )
+
+    with pytest.raises(ValueError, match=r"missing its effective catboost_config"):
+        Finalizer(csv_path, tmp_path, cfg, row_index=0).run()
 
 
 def test_export_reconstructs_exact_persisted_continuous_parameters(tmp_path):

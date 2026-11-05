@@ -4,7 +4,9 @@
 For NPZ datasets, ``label_path`` supplies the authoritative target and an
 embedded ``y`` is checked only for consistency. For CSV datasets, the
 configured ``label_column`` inside the table supplies the target and is removed
-from the numeric feature matrix. Each loaded dataset preserves its normalized
+from the feature matrix. Numeric CSV datasets retain the NumPy loading path;
+CSV datasets with declared categorical features retain a pandas DataFrame for
+native CatBoost handling. Each loaded dataset preserves its normalized
 ``classification`` or ``regression`` prediction task.
 """
 
@@ -15,6 +17,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from melite.catboost_schema import dataframe_feature_issues
 from melite.config import Config
 
 __all__ = ["load_datasets"]
@@ -24,13 +27,6 @@ logger = logging.getLogger(__name__)
 
 def _count_differences(left: np.ndarray, right: np.ndarray) -> int:
     return int(np.sum(left != right))
-
-
-def _is_numeric_dtype(dtype: Any) -> bool:
-    try:
-        return bool(np.issubdtype(dtype, np.number))
-    except TypeError:
-        return False
 
 
 def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
@@ -102,6 +98,7 @@ def _load_one_dataset(dataset_id: str, spec: dict) -> dict:
 def _load_csv_dataset(dataset_id: str, spec: dict) -> dict:
     data_path = Path(spec["path"])
     label_column = spec["label_column"]
+    categorical_features = list(spec.get("categorical_features", []))
     metadata = dict(spec.get("metadata", {}))
     task = spec.get("task", "classification")
 
@@ -109,7 +106,10 @@ def _load_csv_dataset(dataset_id: str, spec: dict) -> dict:
         raise FileNotFoundError(f"Dataset '{dataset_id}' file not found: {data_path}")
 
     try:
-        table = pd.read_csv(data_path)
+        table = pd.read_csv(
+            data_path,
+            dtype={column: "string" for column in categorical_features},
+        )
     except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as exc:
         raise ValueError(
             f"Dataset '{dataset_id}' could not parse CSV file '{data_path}': {exc}"
@@ -138,18 +138,35 @@ def _load_csv_dataset(dataset_id: str, spec: dict) -> dict:
             f"in addition to label_column '{label_column}'."
         )
 
-    non_numeric_columns = [
-        str(column)
-        for column, dtype in features.dtypes.items()
-        if not _is_numeric_dtype(dtype)
-    ]
+    missing_categorical, invalid_categorical, non_numeric_columns = (
+        dataframe_feature_issues(features, categorical_features)
+    )
+    if missing_categorical:
+        raise ValueError(
+            f"Dataset '{dataset_id}' categorical feature column(s) were not found "
+            f"in CSV file '{data_path}': {missing_categorical}."
+        )
+
+    if invalid_categorical:
+        raise ValueError(
+            f"Dataset '{dataset_id}' categorical feature column(s) contain "
+            f"missing or invalid values: {invalid_categorical}."
+        )
+
     if non_numeric_columns:
         raise ValueError(
             f"Dataset '{dataset_id}' feature columns must be numeric; "
             f"non-numeric column(s): {non_numeric_columns}."
         )
 
-    X = features.to_numpy()
+    if categorical_features:
+        features = features.copy()
+        for column in categorical_features:
+            features[column] = features[column].astype(str)
+        features.attrs["categorical_features"] = list(categorical_features)
+        X = features
+    else:
+        X = features.to_numpy()
     y = table[label_column].to_numpy()
     if X.ndim != 2:
         raise ValueError(f"Dataset '{dataset_id}' X must be 2D; got shape {X.shape}.")
@@ -178,8 +195,10 @@ def load_datasets(config: Config) -> dict[str, dict[str, Any]]:
         Dictionary keyed by user-defined dataset id. Each dataset value is a
         dictionary containing:
 
-        - ``"X"`` : numpy.ndarray
-          Two-dimensional numeric feature matrix.
+        - ``"X"`` : numpy.ndarray or pandas.DataFrame
+          Two-dimensional feature matrix. Numeric datasets use NumPy arrays;
+          CSV datasets declaring categorical features use DataFrames that
+          preserve feature names and column order.
         - ``"y"`` : numpy.ndarray
           One-dimensional target vector loaded from ``label_path`` for NPZ or
           from ``label_column`` for CSV. Classification targets may contain
@@ -199,9 +218,11 @@ def load_datasets(config: Config) -> dict[str, dict[str, Any]]:
         or model names. For NPZ, the configured ``label_path`` is
         authoritative and an embedded ``y`` is used only as a consistency
         check. For CSV, the configured ``label_column`` supplies ``y`` and all
-        remaining columns supply ``X`` in their original order. Loading
-        preserves the target values and task identity; task-specific training
-        applies the corresponding target contract.
+        remaining columns supply ``X`` in their original order. Declared
+        categorical columns are loaded as non-missing strings and all other
+        predictors must be numeric. Loading preserves the target values and
+        task identity; task-specific training applies the corresponding target
+        contract.
 
     Raises
     ------
@@ -211,8 +232,10 @@ def load_datasets(config: Config) -> dict[str, dict[str, Any]]:
     ValueError
         If an NPZ dataset violates its feature or label consistency contract,
         or if a CSV cannot be parsed, lacks its configured label or any feature
-        columns, contains an ``Unnamed:`` column or non-numeric feature column,
-        or produces invalid feature or label dimensions or row counts.
+        columns, contains an ``Unnamed:`` column, a non-numeric undeclared
+        feature column, a missing declared categorical column, invalid
+        categorical values, or invalid feature or label dimensions or row
+        counts.
 
     Examples
     --------

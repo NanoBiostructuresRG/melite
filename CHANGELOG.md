@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.4] - 2026-11-05
+
+### Added
+
+- Added native CatBoost categorical feature support for CSV classification
+  datasets, including categorical-only and mixed numeric/categorical inputs.
+- Added optional per-dataset `categorical_features` declarations and optional
+  CatBoost `Plain` or `Ordered` boosting configuration.
+- Added schema-aware export and DataFrame inference for categorical and mixed
+  CatBoost artifacts, including explicit validation of feature names, order,
+  and compatible types.
+
+### Changed
+
+- CatBoost evaluation now preserves DataFrame structure throughout nested
+  cross-validation, optimization, and per-class metric calculation, keeping
+  native categorical handling inside each training fold.
+- Selected CatBoost results persist their effective boosting and categorical
+  configuration. Export verifies that provenance and reconstructs the same
+  contract without repeating optimization.
+- Updated the README and usage/API documentation for numeric, categorical, and
+  mixed CatBoost workflows.
+
+### Compatibility
+
+- Preserved the existing NumPy path for numeric datasets and the established
+  scientific contracts of all other classifiers and regressors.
+- Preserved export compatibility with v0.3.3 CatBoost result files lacking the
+  new configuration field only for numeric input with `Plain` boosting.
+
+---
+
 ## [0.3.3] - 2026-11-04
 
 ### Added
@@ -726,6 +758,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.3.4]: https://github.com/NanoBiostructuresRG/melite/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/NanoBiostructuresRG/melite/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/NanoBiostructuresRG/melite/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/NanoBiostructuresRG/melite/compare/v0.3.0...v0.3.1

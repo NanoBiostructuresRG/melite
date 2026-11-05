@@ -82,6 +82,8 @@ class Config:
         entry contains ``path`` and ``metadata`` plus ``label_path`` for NPZ
         datasets or ``label_column`` for CSV datasets. Every entry also contains
         ``task``, which is exactly ``"classification"`` or ``"regression"``.
+        CSV classification entries may additionally contain a declared
+        ``categorical_features`` list.
         Registered datasets default to classification when ``task`` is omitted;
         the legacy synthesized registry is also classification-only.
     ACTIVE_CLASSIFIERS : list of str
@@ -93,6 +95,10 @@ class Config:
         ``"ridge"``, and ``"lasso"``. The packaged default is an empty list;
         at least one regressor is required when any registered dataset has
         ``task = "regression"``.
+    CATBOOST_CONFIG : dict
+        Validated optional settings from ``[catboost]``. Empty when the section
+        or ``boosting_type`` is omitted; otherwise contains ``boosting_type``
+        set to exactly ``"Plain"`` or ``"Ordered"``.
     CV_CONFIG : dict
         Cross-validation settings with keys ``n_splits``, ``n_repeats``, and
         ``inner_n_splits``.
@@ -111,7 +117,8 @@ class Config:
         dataset without an active regressor. Registered datasets support only
         ``.npz`` files with ``label_path`` and ``.csv`` files with a non-empty
         ``label_column``; ``task`` accepts exactly ``"classification"`` or
-        ``"regression"``.
+        ``"regression"``. ``[catboost].boosting_type`` accepts exactly
+        ``"Plain"`` or ``"Ordered"``.
 
     Examples
     --------
@@ -195,6 +202,7 @@ class Config:
         self.ACTIVE_REGRESSORS = self._validate_active_regressors(
             cfg["regressors"]["active"]
         )
+        self.CATBOOST_CONFIG = self._validate_catboost_config(cfg.get("catboost"))
         self.DATASETS = self._build_dataset_registry(cfg)
         regression_datasets = [
             dataset_id
@@ -232,23 +240,53 @@ class Config:
             )
         return list(active_regressors)
 
+    @staticmethod
+    def _validate_catboost_config(catboost_config) -> dict:
+        if catboost_config is None:
+            return {}
+        if not isinstance(catboost_config, dict):
+            raise ValueError("[catboost] must be a TOML table.")
+
+        unknown_keys = sorted(set(catboost_config) - {"boosting_type"})
+        if unknown_keys:
+            raise ValueError(
+                "[catboost] contains unsupported key(s): "
+                f"{', '.join(unknown_keys)}. The only supported key is "
+                "boosting_type."
+            )
+
+        if "boosting_type" not in catboost_config:
+            return {}
+        boosting_type = catboost_config["boosting_type"]
+        if not isinstance(boosting_type, str) or boosting_type not in {
+            "Plain",
+            "Ordered",
+        }:
+            raise ValueError(
+                '[catboost].boosting_type must be exactly "Plain" or "Ordered".'
+            )
+        return {"boosting_type": boosting_type}
+
     def _build_dataset_registry(self, cfg: dict) -> dict:
         datasets = cfg.get("datasets")
         if datasets:
-            return self._normalize_user_datasets(datasets)
+            return self._normalize_user_datasets(
+                datasets, active_classifiers=self.ACTIVE_CLASSIFIERS
+            )
         benchmark = cfg["benchmark"]
         return self._synthesize_legacy_datasets(
             benchmark["reduction_types"], benchmark["levels"]
         )
 
     @staticmethod
-    def _normalize_user_datasets(datasets: dict) -> dict:
+    def _normalize_user_datasets(datasets: dict, active_classifiers) -> dict:
         metadata_keys = ("family", "method", "variant", "level", "description")
         allowed_keys = (
             "path",
             "label_path",
             "label_column",
             "task",
+            "categorical_features",
             *metadata_keys,
         )
         normalized = {}
@@ -322,6 +360,43 @@ class Config:
                     )
                 label_spec = {"label_column": label_column}
 
+            categorical_spec = {}
+            if "categorical_features" in entry:
+                categorical_features = entry["categorical_features"]
+                if (
+                    not isinstance(categorical_features, list)
+                    or not categorical_features
+                    or not all(
+                        isinstance(column, str) and column.strip()
+                        for column in categorical_features
+                    )
+                ):
+                    raise ValueError(
+                        f"Dataset '{dataset_id}' categorical_features must be a "
+                        "non-empty list of non-empty column names."
+                    )
+                if len(categorical_features) != len(set(categorical_features)):
+                    raise ValueError(
+                        f"Dataset '{dataset_id}' categorical_features must contain "
+                        "unique column names."
+                    )
+                if suffix != ".csv" or task != "classification":
+                    raise ValueError(
+                        f"Dataset '{dataset_id}' categorical_features is supported "
+                        "only for CSV classification datasets."
+                    )
+                if label_column in categorical_features:
+                    raise ValueError(
+                        f"Dataset '{dataset_id}' categorical_features must not "
+                        f"contain its label_column '{label_column}'."
+                    )
+                if active_classifiers != ["catboost"]:
+                    raise ValueError(
+                        f"Dataset '{dataset_id}' categorical_features requires "
+                        '[classifiers].active = ["catboost"].'
+                    )
+                categorical_spec = {"categorical_features": list(categorical_features)}
+
             metadata = {
                 key: value for key, value in entry.items() if key in metadata_keys
             }
@@ -329,6 +404,7 @@ class Config:
                 "path": entry["path"],
                 **label_spec,
                 "task": task,
+                **categorical_spec,
                 "metadata": metadata,
             }
         return normalized

@@ -5,8 +5,10 @@ import inspect
 import logging
 
 import numpy as np
+import pandas as pd
 import pytest
 import joblib
+from melite.catboost_schema import build_catboost_feature_schema
 from melite.export_best_model import Finalizer
 from melite.predict import predict
 from melite.regression_models import build_regression_model
@@ -14,6 +16,29 @@ from sklearn.datasets import make_regression
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+
+
+def _catboost_dataframe_artifact(tmp_path, include_numeric):
+    X = pd.DataFrame({"kind": ["a", "b"] * 6})
+    if include_numeric:
+        X.insert(0, "numeric", np.arange(12, dtype=float))
+    categorical_features = ["kind"]
+    schema = build_catboost_feature_schema(X, categorical_features)
+    model = Finalizer._build_model(
+        "CatBoostClassifier",
+        "{'iterations': 5, 'depth': 2}",
+        random_state=42,
+        categorical_features=categorical_features,
+        catboost_config={"boosting_type": "Plain"},
+        feature_schema=schema,
+    )
+    y = np.array([0, 1] * 6)
+    model.fit(X, y)
+    expected_predictions = model.predict(X)
+    expected_probabilities = model.predict_proba(X)
+    model_path = tmp_path / f"catboost-{include_numeric}.pkl"
+    joblib.dump(model, model_path)
+    return model_path, X, expected_predictions, expected_probabilities
 
 
 def test_predict_returns_dict(tmp_model):
@@ -149,6 +174,64 @@ def test_predict_loads_exported_stacking_classifier(tmp_path):
     joblib.dump(model, model_path)
 
     result = predict(model_path, np.random.rand(4, 5).astype(np.float32))
+
+    assert result["predictions"].shape == (4,)
+    assert result["probabilities"].shape == (4, 2)
+
+
+@pytest.mark.parametrize("include_numeric", [False, True], ids=["categorical", "mixed"])
+def test_predict_catboost_dataframe_survives_serialization(tmp_path, include_numeric):
+    model_path, X, expected_predictions, expected_probabilities = (
+        _catboost_dataframe_artifact(tmp_path, include_numeric)
+    )
+
+    result = predict(model_path, X.copy())
+
+    assert np.array_equal(result["predictions"], expected_predictions)
+    assert np.allclose(result["probabilities"], expected_probabilities)
+    assert result["n_samples"] == len(X)
+
+
+@pytest.mark.parametrize(
+    ("transform", "message"),
+    [
+        (lambda X: X.drop(columns=["numeric"]), "missing columns.*numeric"),
+        (lambda X: X.assign(extra=1.0), "extra columns.*extra"),
+        (lambda X: X[["kind", "numeric"]], "column order mismatch"),
+        (lambda X: X.assign(kind=[1, 2] * 6), "categorical columns.*kind"),
+        (lambda X: X.assign(numeric=["bad"] * 12), "non-categorical.*numeric"),
+    ],
+    ids=["missing", "extra", "reordered", "categorical-type", "numeric-type"],
+)
+def test_predict_catboost_rejects_incompatible_dataframe_schema(
+    tmp_path, transform, message
+):
+    model_path, X, _, _ = _catboost_dataframe_artifact(tmp_path, True)
+
+    with pytest.raises(ValueError, match=message):
+        predict(model_path, transform(X.copy()))
+
+
+def test_predict_categorical_catboost_rejects_numpy_input(tmp_path):
+    model_path, X, _, _ = _catboost_dataframe_artifact(tmp_path, True)
+
+    with pytest.raises(ValueError, match=r"must be a pandas DataFrame"):
+        predict(model_path, X.to_numpy())
+
+
+def test_predict_numeric_catboost_keeps_numpy_contract(tmp_path):
+    X = np.column_stack((np.arange(12), np.arange(12) % 3))
+    y = np.array([0, 1] * 6)
+    model = Finalizer._build_model(
+        "CatBoostClassifier",
+        "{'iterations': 5, 'depth': 2}",
+        random_state=42,
+    )
+    model.fit(X, y)
+    model_path = tmp_path / "numeric-catboost.pkl"
+    joblib.dump(model, model_path)
+
+    result = predict(model_path, X[:4])
 
     assert result["predictions"].shape == (4,)
     assert result["probabilities"].shape == (4, 2)

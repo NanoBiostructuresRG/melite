@@ -512,12 +512,116 @@ def test_load_datasets_csv_preserves_features_labels_and_column_order(tmp_path):
 
     result = load_datasets(cfg)["sample_tabular"]
 
+    assert isinstance(result["X"], np.ndarray)
     assert np.array_equal(
         result["X"],
         np.array([[3.5, 10.0], [4.5, 20.0], [5.5, 30.0]]),
     )
     assert np.array_equal(result["y"], np.array(["class_a", "class_b", "class_a"]))
     assert result["metadata"] == {"family": "tabular"}
+
+
+@pytest.mark.parametrize(
+    "table",
+    [
+        pd.DataFrame(
+            {
+                "kind": ["a", "b", "a"],
+                "region": ["north", "south", "north"],
+                "Outcome": [0, 1, 0],
+            }
+        ),
+        pd.DataFrame(
+            {
+                "numeric_z": [3.5, 4.5, 5.5],
+                "kind": ["001", "002", "001"],
+                "numeric_a": [10, 20, 30],
+                "Outcome": [0, 1, 0],
+            }
+        ),
+    ],
+)
+def test_load_datasets_csv_preserves_declared_categorical_dataframe(tmp_path, table):
+    path = _write_csv(tmp_path, "categorical", table)
+    categorical_features = [
+        column for column in ("kind", "region") if column in table.columns
+    ]
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "categorical": {
+                "path": str(path),
+                "label_column": "Outcome",
+                "categorical_features": categorical_features,
+                "metadata": {},
+            }
+        },
+    )
+
+    X = load_datasets(cfg)["categorical"]["X"]
+
+    assert isinstance(X, pd.DataFrame)
+    assert list(X.columns) == [column for column in table if column != "Outcome"]
+    assert X.attrs["categorical_features"] == categorical_features
+    assert all(
+        isinstance(value, str) for column in categorical_features for value in X[column]
+    )
+    if "kind" in X and table["kind"].iloc[0] == "001":
+        assert X["kind"].tolist() == ["001", "002", "001"]
+
+
+@pytest.mark.parametrize("invalid_value", [None, "   "])
+def test_load_datasets_csv_rejects_invalid_categorical_values(tmp_path, invalid_value):
+    path = _write_csv(
+        tmp_path,
+        "categorical",
+        pd.DataFrame(
+            {
+                "kind": ["valid", invalid_value],
+                "numeric": [1.0, 2.0],
+                "Outcome": [0, 1],
+            }
+        ),
+    )
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "categorical": {
+                "path": str(path),
+                "label_column": "Outcome",
+                "categorical_features": ["kind"],
+                "metadata": {},
+            }
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"kind.*missing or invalid|missing or invalid.*kind",
+    ):
+        load_datasets(cfg)
+
+
+def test_load_datasets_csv_rejects_missing_declared_categorical_column(tmp_path):
+    path = _write_csv(
+        tmp_path,
+        "categorical",
+        pd.DataFrame({"numeric": [1.0, 2.0], "Outcome": [0, 1]}),
+    )
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "categorical": {
+                "path": str(path),
+                "label_column": "Outcome",
+                "categorical_features": ["kind"],
+                "metadata": {},
+            }
+        },
+    )
+
+    with pytest.raises(ValueError, match=r"categorical.*not found.*kind"):
+        load_datasets(cfg)
 
 
 def test_load_datasets_csv_preserves_regression_task_and_continuous_target(tmp_path):
@@ -621,6 +725,34 @@ def test_load_datasets_csv_names_non_numeric_feature_columns(tmp_path):
     )
 
     with pytest.raises(ValueError, match=r"non-numeric.*text_feature"):
+        load_datasets(cfg)
+
+
+def test_load_datasets_categorical_csv_requires_other_predictors_numeric(tmp_path):
+    path = _write_csv(
+        tmp_path,
+        "sample_tabular",
+        pd.DataFrame(
+            {
+                "kind": ["a", "b"],
+                "undeclared_text": ["low", "high"],
+                "Outcome": [0, 1],
+            }
+        ),
+    )
+    cfg = _registry_config(
+        tmp_path,
+        {
+            "sample_tabular": {
+                "path": str(path),
+                "label_column": "Outcome",
+                "categorical_features": ["kind"],
+                "metadata": {},
+            }
+        },
+    )
+
+    with pytest.raises(ValueError, match=r"non-numeric.*undeclared_text"):
         load_datasets(cfg)
 
 

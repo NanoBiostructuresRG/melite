@@ -254,6 +254,7 @@ Repository: https://github.com/NanoBiostructuresRG/melite
             "reduction_type",
             "classifier_name",
             "parameters",
+            "catboost_config",
             "f1_macro",
             "f1_std",
             "accuracy",

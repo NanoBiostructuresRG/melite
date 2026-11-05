@@ -49,6 +49,12 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
+from melite.catboost_schema import (
+    CATBOOST_SCHEMA_METADATA_KEY,
+    build_catboost_feature_schema,
+    encode_catboost_feature_schema,
+)
+
 __all__ = ["Finalizer"]
 
 logger = logging.getLogger(__name__)
@@ -469,12 +475,33 @@ class Finalizer:
             )
             model_name = str(row.regressor_name)
         else:
+            persisted_catboost_config = None
+            if str(row.classifier_name) == "CatBoostClassifier":
+                persisted_catboost_config = self._validate_catboost_export_config(row)
             X, y = self._loader.load_row(row)
+            categorical_features = (
+                list(X.attrs.get("categorical_features", []))
+                if isinstance(X, pd.DataFrame)
+                else []
+            )
+            feature_schema = (
+                build_catboost_feature_schema(X, categorical_features)
+                if str(row.classifier_name) == "CatBoostClassifier"
+                and categorical_features
+                else None
+            )
             model = self._build_model(
                 row.classifier_name,
                 row.parameters,
                 cv_config=self._cfg.CV_CONFIG,
                 random_state=self._cfg.RANDOM_STATE,
+                categorical_features=categorical_features,
+                catboost_config=(
+                    {"boosting_type": persisted_catboost_config["boosting_type"]}
+                    if persisted_catboost_config is not None
+                    else getattr(self._cfg, "CATBOOST_CONFIG", {})
+                ),
+                feature_schema=feature_schema,
             )
             model_name = row.classifier_name
 
@@ -550,6 +577,65 @@ class Finalizer:
                 f"Dataset {dataset_id!r} is configured for task "
                 f"{configured_task!r}, not 'regression'."
             )
+
+    def _validate_catboost_export_config(self, row: pd.Series) -> dict[str, Any]:
+        configured_categorical_features = []
+        if "dataset" in row and _has_value(row.get("dataset")):
+            dataset_id = str(row.get("dataset"))
+            configured_categorical_features = list(
+                self._cfg.DATASETS.get(dataset_id, {}).get("categorical_features", [])
+            )
+        configured = {
+            "boosting_type": getattr(self._cfg, "CATBOOST_CONFIG", {}).get(
+                "boosting_type", "Plain"
+            ),
+            "categorical_features": configured_categorical_features,
+        }
+        if "catboost_config" not in row.index:
+            legacy_config = {
+                "boosting_type": "Plain",
+                "categorical_features": [],
+            }
+            if configured != legacy_config:
+                raise ValueError(
+                    "Legacy CatBoost results without catboost_config can be "
+                    "exported only with Plain boosting and numeric features."
+                )
+            return legacy_config
+
+        serialised = row.get("catboost_config")
+        if not isinstance(serialised, str) or not serialised.strip():
+            raise ValueError(
+                "CatBoost result row is missing its effective catboost_config. "
+                "Rerun evaluation before export."
+            )
+        try:
+            persisted = json.loads(serialised)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                "CatBoost result row contains invalid catboost_config JSON."
+            ) from exc
+        if not isinstance(persisted, dict) or set(persisted) != {
+            "boosting_type",
+            "categorical_features",
+        }:
+            raise ValueError(
+                "CatBoost result row catboost_config must contain exactly "
+                "boosting_type and categorical_features."
+            )
+        boosting_type = persisted["boosting_type"]
+        categorical_features = persisted["categorical_features"]
+        if boosting_type not in {"Plain", "Ordered"} or not isinstance(
+            categorical_features, list
+        ):
+            raise ValueError("CatBoost result row catboost_config is invalid.")
+        if persisted != configured:
+            raise ValueError(
+                "CatBoost export configuration mismatch: evaluation used "
+                f"{persisted}, but export configuration resolves to {configured}. "
+                "Use the original configuration or rerun evaluation."
+            )
+        return persisted
 
     @staticmethod
     def _parse_regression_parameters(serialised_params: str) -> dict[str, Any]:
@@ -634,6 +720,9 @@ class Finalizer:
         serialised_params: str,
         random_state: int,
         cv_config: dict | None = None,
+        categorical_features: list[str] | tuple[str, ...] = (),
+        catboost_config: dict | None = None,
+        feature_schema: dict[str, Any] | None = None,
     ) -> Any:
         params = ast.literal_eval(serialised_params)
         if name == "SVC":
@@ -691,12 +780,22 @@ class Finalizer:
             )
             return model.set_params(**params)
         if name == "CatBoostClassifier":
+            catboost_options = dict(catboost_config or {})
+            if categorical_features:
+                catboost_options["cat_features"] = tuple(categorical_features)
+            if feature_schema is not None:
+                catboost_options["metadata"] = {
+                    CATBOOST_SCHEMA_METADATA_KEY: encode_catboost_feature_schema(
+                        feature_schema
+                    )
+                }
             model = CatBoostClassifier(
                 random_seed=random_state,
                 thread_count=1,
                 verbose=False,
                 allow_writing_files=False,
                 task_type="CPU",
+                **catboost_options,
             )
             return model.set_params(**params)
         if name == "StackingClassifier":

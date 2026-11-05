@@ -13,6 +13,7 @@ from dataclasses import asdict
 from catboost import CatBoostClassifier
 from lightgbm import LGBMClassifier
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import (
     AdaBoostClassifier,
     RandomForestClassifier,
@@ -105,6 +106,23 @@ class MultiModelTrainer(ModelTrainer):
         super().__init__(config)
 
         rs = self.config.RANDOM_STATE
+        catboost_config = dict(getattr(self.config, "CATBOOST_CONFIG", {}))
+
+        def build_catboost(categorical_features=()):
+            categorical_config = (
+                {"cat_features": tuple(categorical_features)}
+                if categorical_features
+                else {}
+            )
+            return CatBoostClassifier(
+                random_seed=rs,
+                thread_count=1,
+                verbose=False,
+                allow_writing_files=False,
+                task_type="CPU",
+                **catboost_config,
+                **categorical_config,
+            )
 
         self.model_builders = {
             "svc": lambda: SklearnPipeline(
@@ -144,20 +162,30 @@ class MultiModelTrainer(ModelTrainer):
                 n_jobs=1,
                 verbosity=-1,
             ),
-            "catboost": lambda: CatBoostClassifier(
-                random_seed=rs,
-                thread_count=1,
-                verbose=False,
-                allow_writing_files=False,
-                task_type="CPU",
-            ),
+            "catboost": build_catboost,
             "stack": lambda: self._build_stacking_classifier(rs),
         }
         self.active_classifiers = self._validate_active_classifiers()
 
-    def _build_model_for_target(self, classifier_name, y):
+    @staticmethod
+    def _categorical_feature_names(X) -> list[str]:
+        if not isinstance(X, pd.DataFrame):
+            return []
+        return list(X.attrs.get("categorical_features", []))
+
+    @staticmethod
+    def _select_rows(X, indices):
+        if isinstance(X, pd.DataFrame):
+            return X.iloc[indices]
+        return np.asarray(X)[indices]
+
+    def _build_model_for_target(self, classifier_name, y, X=None):
         """Build one classifier with target-specific probability support."""
-        model = self.model_builders[classifier_name]()
+        if classifier_name == "catboost":
+            categorical_features = self._categorical_feature_names(X)
+            model = self.model_builders[classifier_name](categorical_features)
+        else:
+            model = self.model_builders[classifier_name]()
         target = analyze_classification_target(y)
         if classifier_name != "svc" or not target.is_multiclass:
             return model
@@ -367,7 +395,8 @@ class MultiModelTrainer(ModelTrainer):
             zip(outer_splits, fitted_estimators)
         ):
             y_test = y_array[test_indices]
-            y_pred = fitted_estimator.predict(np.asarray(X_train)[test_indices])
+            X_test = self._select_rows(X_train, test_indices)
+            y_pred = fitted_estimator.predict(X_test)
             precision, recall, per_class_f1, support = precision_recall_fscore_support(
                 y_test,
                 y_pred,
@@ -424,7 +453,7 @@ class MultiModelTrainer(ModelTrainer):
 
     def _evaluate_classifier(self, classifier_name, X_train, y_train):
         self._validate_class_distribution(y_train, classifier_name)
-        model = self._build_model_for_target(classifier_name, y_train)
+        model = self._build_model_for_target(classifier_name, y_train, X_train)
         search_space = get_search_space(classifier_name)
         evaluation_estimator = (
             model
@@ -482,7 +511,9 @@ class MultiModelTrainer(ModelTrainer):
                 best = evaluation
         best["selected"] = True
 
-        winning_model = self._build_model_for_target(best["classifier_key"], y_train)
+        winning_model = self._build_model_for_target(
+            best["classifier_key"], y_train, X_train
+        )
         winning_space = get_search_space(best["classifier_key"])
         if winning_space is None:
             winning_model.fit(X_train, y_train)

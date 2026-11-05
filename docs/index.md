@@ -2,7 +2,7 @@
 
 <section class="ms-hero">
   <div class="ms-hero__content">
-    <p class="ms-eyebrow">Supervised model evaluation</p>
+    <p class="ms-eyebrow">Supervised learning evaluation</p>
     <div class="ms-brand" aria-label="MELITE">
       <span class="ms-brand__logo" aria-hidden="true">
         <img src="assets/logo-azul.svg" alt="">
@@ -10,7 +10,7 @@
       <span class="ms-wordmark">MELITE</span>
     </div>
     <p class="ms-subtitle">
-      Reproducible evaluation and selection of supervised classification and regression models on numeric tabular data.
+      Multi-model supervised classification and regression evaluator on tabular data.
     </p>
     <div class="ms-actions">
       <a class="md-button md-button--primary" href="usage/">Usage</a>
@@ -72,12 +72,14 @@ establish external scientific validity or predictive generalizability.
 
 ## What You Provide and Receive
 
-MELITE sits between prepared numeric datasets and the fitted model you
-ultimately export. The following contract describes the classification path:
+MELITE sits between prepared tabular datasets and the fitted model you
+ultimately export. Numeric feature matrices remain the general contract;
+CatBoost-only CSV classification may use declared categorical or mixed input.
+The following contract describes the classification path:
 
 | Stage | You provide | MELITE does | You receive |
 |---|---|---|---|
-| **Input** | Numeric feature matrices (`X`) and target labels (`y`) for one or more datasets. | Validates each registered dataset and treats it as an independent evaluation unit. | Validated datasets, ready for evaluation. |
+| **Input** | Numeric feature matrices (`X`) and target labels (`y`), or a CSV classification dataset with explicit CatBoost categorical columns. | Validates each registered dataset and treats it as an independent evaluation unit. | Validated datasets, ready for evaluation. |
 | **Configuration** | Active classifiers, cross-validation settings, dataset metadata, and output paths. | Resolves the evaluation design before classifier fitting begins. | A validated evaluation setup. |
 | **Evaluation** | Nothing further — the evaluation design is already fixed. | Evaluates each active classifier under the same outer cross-validation design. Tunable classifiers perform hyperparameter search only within the training portion of each outer split. Per-class metrics use only held-out outer-fold predictions. | `evaluations.csv`, aggregate evidence; `evaluation_folds.csv`, outer-fold evidence; `evaluation_class_folds.csv` and `evaluation_class_summary.csv`, class-level evidence; `optimization_searches.csv`, completed-search evidence; and the optimization and classification metric provenance JSON files. |
 | **Selection** | The evaluation evidence produced by the run. | Selects the classifier with the highest mean outer-CV F1-macro for each dataset. | `results.csv`, the selected classifier result for each dataset, and `evaluation_f1_macro_<dataset>.png`, the visual evidence behind the selection. |
@@ -89,7 +91,7 @@ ultimately export. The following contract describes the classification path:
 
 
 ```text
-Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE — Multi-Model Classifier Evaluator. Zenodo. https://doi.org/10.5281/zenodo.20382752
+Contreras-Torres, F. F., & Murrieta, A. C. (2026). MELITE — Multi-Model Supervised Learning Evaluator. Zenodo. https://doi.org/10.5281/zenodo.20382752
 ```
 
 Use [CITATION.cff](https://github.com/NanoBiostructuresRG/melite/blob/main/CITATION.cff) as the authoritative machine-readable citation metadata for MELITE. Citation metadata is updated with each release.

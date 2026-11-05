@@ -30,8 +30,11 @@ continuous predictions with `probabilities` set to `None`.
 
 Binary and multiclass classifier artifacts preserve their original class
 identities. For multiclass inference, probability columns follow the loaded
-model's `classes_` order. Callers must still provide the same numeric feature
-representation, feature order, and feature count used for fitting.
+model's `classes_` order. Numeric artifacts require the same two-dimensional
+NumPy feature representation, order, and count used for fitting. Exported
+categorical and mixed CatBoost artifacts instead require a pandas DataFrame
+whose feature names, order, and compatible categorical/numeric types exactly
+match the schema stored in the artifact; the original TOML is not required.
 
 ::: melite.predict.predict
 
